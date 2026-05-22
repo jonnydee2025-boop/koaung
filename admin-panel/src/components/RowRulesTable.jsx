@@ -13,27 +13,23 @@ function emptyRule() {
   };
 }
 
-function SelectMedia({ id, label, value, options, disabled, onChange }) {
+function SelectMedia({ id, value, options, disabled, onChange }) {
   return (
-    <div className="form-group" style={{ marginBottom: 0 }}>
-      <label className="form-label" htmlFor={id}>
-        {label}
-      </label>
-      <select
-        id={id}
-        className="form-input"
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-      >
-        <option value="">— Default —</option>
-        {options.map((opt) => (
-          <option key={opt.id} value={opt.id}>
-            {opt.name}
-          </option>
-        ))}
-      </select>
-    </div>
+    <select
+      id={id}
+      className="form-input row-rules-select"
+      value={value}
+      disabled={disabled}
+      onChange={onChange}
+      title={options.find((o) => o.id === value)?.name ?? 'Default'}
+    >
+      <option value="">— Default —</option>
+      {options.map((opt) => (
+        <option key={opt.id} value={opt.id}>
+          {opt.name}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -130,7 +126,7 @@ export default function RowRulesTable() {
   };
 
   return (
-    <div className="card" style={{ marginTop: 20 }}>
+    <div className="card row-rules-card">
       <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div className="card-title">Row-Based Rules</div>
@@ -178,87 +174,71 @@ export default function RowRulesTable() {
           Loading rules and Drive files…
         </p>
       ) : (
-        <div className="row-rules-table-wrap">
-          <table className="row-rules-table">
-            <thead>
-              <tr>
-                <th>From Row</th>
-                <th>To Row</th>
-                <th>Background Video</th>
-                <th>Thumbnail Image</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {rules.map((rule, index) => (
-                <tr key={index}>
-                  <td>
-                    <input
-                      className="form-input"
-                      type="number"
-                      min={1}
-                      placeholder="e.g. 100"
-                      value={rule.from_row}
-                      onChange={(e) => updateRule(index, { from_row: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="form-input"
-                      type="number"
-                      min={1}
-                      placeholder="optional"
-                      value={rule.to_row}
-                      onChange={(e) => updateRule(index, { to_row: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <SelectMedia
-                      id={`bg-${index}`}
-                      label=""
-                      value={rule.background_video_id}
-                      options={backgrounds}
-                      disabled={refreshingDrive}
-                      onChange={(e) => {
-                        const opt = backgrounds.find((b) => b.id === e.target.value);
-                        updateRule(index, {
-                          background_video_id: e.target.value,
-                          background_video_name: opt?.name ?? '',
-                        });
-                      }}
-                    />
-                  </td>
-                  <td>
-                    <SelectMedia
-                      id={`thumb-${index}`}
-                      label=""
-                      value={rule.thumbnail_file_id}
-                      options={thumbnails}
-                      disabled={refreshingDrive}
-                      onChange={(e) => {
-                        const opt = thumbnails.find((t) => t.id === e.target.value);
-                        updateRule(index, {
-                          thumbnail_file_id: e.target.value,
-                          thumbnail_name: opt?.name ?? '',
-                        });
-                      }}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm job-action-btn"
-                      onClick={() => removeRule(index)}
-                      title="Remove rule"
-                      aria-label="Remove rule"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="row-rules-list">
+          <div className="row-rules-head" aria-hidden="true">
+            <span>From</span>
+            <span>To</span>
+            <span>Background</span>
+            <span>Thumbnail</span>
+            <span />
+          </div>
+          {rules.map((rule, index) => (
+            <div key={index} className="row-rules-row">
+              <input
+                className="form-input row-rules-num"
+                type="number"
+                min={1}
+                placeholder="100"
+                aria-label={`Rule ${index + 1} from row`}
+                value={rule.from_row}
+                onChange={(e) => updateRule(index, { from_row: e.target.value })}
+              />
+              <input
+                className="form-input row-rules-num"
+                type="number"
+                min={1}
+                placeholder="—"
+                aria-label={`Rule ${index + 1} to row`}
+                value={rule.to_row}
+                onChange={(e) => updateRule(index, { to_row: e.target.value })}
+              />
+              <SelectMedia
+                id={`bg-${index}`}
+                value={rule.background_video_id}
+                options={backgrounds}
+                disabled={refreshingDrive}
+                onChange={(e) => {
+                  const opt = backgrounds.find((b) => b.id === e.target.value);
+                  updateRule(index, {
+                    background_video_id: e.target.value,
+                    background_video_name: opt?.name ?? '',
+                  });
+                }}
+              />
+              <SelectMedia
+                id={`thumb-${index}`}
+                value={rule.thumbnail_file_id}
+                options={thumbnails}
+                disabled={refreshingDrive}
+                onChange={(e) => {
+                  const opt = thumbnails.find((t) => t.id === e.target.value);
+                  updateRule(index, {
+                    thumbnail_file_id: e.target.value,
+                    thumbnail_name: opt?.name ?? '',
+                  });
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm job-action-btn row-rules-delete"
+                onClick={() => removeRule(index)}
+                title="Remove rule"
+                aria-label="Remove rule"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

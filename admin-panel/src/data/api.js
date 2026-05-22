@@ -131,6 +131,16 @@ export async function triggerRenderNext() {
   return result;
 }
 
+export async function retryJobRender(rowNumber) {
+  const result = await requestJson(
+    `${BASE}/api/jobs/${rowNumber}/retry`,
+    { method: 'POST' },
+    'Retry failed',
+  );
+  invalidateSheetCaches();
+  return result;
+}
+
 export async function fetchSettings() {
   return requestJson(`${BASE}/api/settings`, undefined, 'Settings failed');
 }

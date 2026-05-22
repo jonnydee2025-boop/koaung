@@ -80,27 +80,99 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
 .modal-hint { font-size: 11px; color: var(--text-muted); margin: 8px 0 16px; line-height: 1.4; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
 
-/* Row rules table (Settings) */
-.row-rules-table-wrap { overflow-x: auto; margin-top: 8px; }
-.row-rules-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.row-rules-table th {
-  text-align: left;
-  padding: 10px 8px;
-  color: var(--text-muted);
-  font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
+/* Settings page */
+.settings-page { display: flex; flex-direction: column; gap: 20px; }
+.settings-info-banner {
+  display: flex; gap: 8px; align-items: flex-start;
+  background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.25);
+  border-radius: 8px; padding: 10px 16px; font-size: 12px; color: var(--blue);
 }
-.row-rules-table td {
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
+.settings-alert--error {
+  background: var(--red-dim); border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 8px; padding: 10px 16px; font-size: 13px; color: var(--red);
 }
-.row-rules-table .form-input { font-size: 12px; min-width: 0; }
-.row-rules-table td:nth-child(1) .form-input,
-.row-rules-table td:nth-child(2) .form-input { width: 88px; }
-.row-rules-table td:nth-child(3) .form-input,
-.row-rules-table td:nth-child(4) .form-input { min-width: 160px; }
+.settings-top-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(280px, 340px);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .settings-top-grid { grid-template-columns: 1fr; }
+}
+.settings-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+@media (max-width: 700px) {
+  .settings-config-grid { grid-template-columns: 1fr; }
+}
+.settings-config-col { display: flex; flex-direction: column; gap: 14px; }
+.settings-ack-btn { margin-top: 16px; }
+.settings-side-stack { display: flex; flex-direction: column; gap: 16px; }
+.settings-status-card .card-header { margin-bottom: 8px; }
+.settings-status-rows { display: flex; flex-direction: column; gap: 0; }
+.settings-status-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-size: 12px; padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.settings-status-row:last-child { border-bottom: none; }
+.settings-status-label { color: var(--text-muted); flex-shrink: 0; }
+.settings-status-value { font-weight: 600; text-align: right; word-break: break-all; }
+.settings-status-hint { font-size: 11px; color: var(--text-muted); margin: 10px 0 8px; }
+.settings-signout-btn { width: 100%; justify-content: center; }
+.settings-danger-card {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.06);
+  margin-top: 4px;
+}
+.settings-danger-title { color: var(--red); }
+.settings-danger-text { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; max-width: 640px; }
+.settings-kill-btn {
+  background: var(--red); color: #fff; border: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+.settings-kill-btn:hover { filter: brightness(1.08); }
+
+/* Row rules (Settings) */
+.row-rules-card { margin-top: 0; }
+.row-rules-list { margin-top: 8px; overflow-x: auto; }
+.row-rules-head,
+.row-rules-row {
+  display: grid;
+  grid-template-columns: 72px 72px minmax(120px, 1fr) minmax(120px, 1fr) 40px;
+  gap: 10px;
+  align-items: center;
+  min-width: min(100%, 520px);
+}
+.row-rules-head {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted);
+  padding: 0 0 8px; border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.row-rules-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.row-rules-row:last-child { border-bottom: none; }
+.row-rules-num {
+  width: 100%;
+  max-width: 72px;
+  font-size: 12px;
+  padding: 8px 10px;
+  text-align: center;
+}
+.row-rules-select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+}
+.row-rules-delete { flex-shrink: 0; }
 
 /* Layout */
 .app-layout { display: flex; height: 100vh; overflow: hidden; }

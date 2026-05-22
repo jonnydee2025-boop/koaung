@@ -164,6 +164,53 @@ def mark_row_failed(row_number: int, log_message: str) -> None:
     update_task_status(sheets, headers, row_number, "failed", log_message)
 
 
+def _get_sheet_row_or_raise(sheets, row_number: int):
+    headers, rows = get_sheet_rows(sheets)
+    if "status" not in headers:
+        raise RuntimeError("Missing required 'status' column.")
+
+    target = next((r for r in rows if r.row_number == row_number), None)
+    if target is None:
+        raise ValueError(f"Sheet row {row_number} not found.")
+    return headers, target
+
+
+def assert_row_retryable(row_number: int) -> None:
+    """Raise ValueError if the row cannot be retried from the admin panel."""
+    sheets, _ = build_google_services()
+    _, target = _get_sheet_row_or_raise(sheets, row_number)
+    status = target.values.get("status", "").strip().lower()
+    if status == "processing":
+        raise ValueError(f"Row {row_number} is currently processing.")
+    if status != "failed":
+        raise ValueError(
+            f"Row {row_number} is not failed (status: {status or 'empty'})."
+        )
+
+
+def prepare_failed_row_for_retry(sheets, row_number: int) -> tuple[list[str], "SheetRow"]:
+    """
+    Validate a failed row and mark it processing for an explicit admin-panel retry.
+    Returns (headers, row). Raises ValueError if the row is missing or not retryable.
+    """
+    headers, target = _get_sheet_row_or_raise(sheets, row_number)
+    status = target.values.get("status", "").strip().lower()
+    if status == "processing":
+        raise ValueError(f"Row {row_number} is currently processing.")
+    if status != "failed":
+        raise ValueError(
+            f"Row {row_number} is not failed (status: {status or 'empty'})."
+        )
+    update_task_status(
+        sheets,
+        headers,
+        row_number,
+        "processing",
+        "Retry from admin panel",
+    )
+    return headers, target
+
+
 def prioritize_sheet_row(row_number: int) -> str:
     """
     Set a row's status to ``do`` so ``reserve_next_pending_row`` picks it before ``pending``.

@@ -4,7 +4,7 @@ import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
 import { Search, RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
-import { fetchJobsPage, prioritizeJob, scheduleJob, triggerRenderNext } from '../data/api';
+import { fetchJobsPage, prioritizeJob, retryJobRender, scheduleJob } from '../data/api';
 
 const PAGE_SIZE = 100;
 
@@ -43,6 +43,7 @@ export default function Jobs() {
   const [updatedAt, setUpdatedAt] = useState(null);
   const [actionError, setActionError] = useState('');
   const [prioritizingRow, setPrioritizingRow] = useState(null);
+  const [retryingRow, setRetryingRow] = useState(null);
   const [schedulingRow, setSchedulingRow] = useState(null);
   const [scheduleTarget, setScheduleTarget] = useState(null);
   const [scheduleModalError, setScheduleModalError] = useState('');
@@ -117,13 +118,17 @@ export default function Jobs() {
     setPage(nextPage);
   };
 
-  const handleRenderNext = async () => {
+  const handleRetryJob = async (job) => {
+    if (!job?.row) return;
     setActionError('');
+    setRetryingRow(job.row);
     try {
-      await triggerRenderNext();
-      setTimeout(() => loadPage(1, { force: true }), 1500);
+      await retryJobRender(job.row);
+      setTimeout(() => loadPage(page, { force: true }), 1500);
     } catch (e) {
       setActionError(e.message);
+    } finally {
+      setRetryingRow(null);
     }
   };
 
@@ -289,10 +294,11 @@ export default function Jobs() {
               loading={loading}
               filtered={items}
               showActions
-              onRetry={handleRenderNext}
+              onRetry={handleRetryJob}
               onPrioritize={handlePrioritize}
               onSchedule={handleScheduleOpen}
               prioritizingRow={prioritizingRow}
+              retryingRow={retryingRow}
               schedulingRow={schedulingRow}
               disableLazyRows
             />

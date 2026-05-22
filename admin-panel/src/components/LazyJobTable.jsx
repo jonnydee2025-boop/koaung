@@ -26,6 +26,7 @@ export default function LazyJobTable({
   onPrioritize,
   onSchedule,
   prioritizingRow = null,
+  retryingRow = null,
   schedulingRow = null,
   showActions = false,
   columns = 'full',
@@ -192,8 +193,9 @@ export default function LazyJobTable({
                       <button
                         type="button"
                         className="btn btn-danger btn-sm job-action-btn"
-                        onClick={onRetry}
-                        title="Retry render"
+                        onClick={() => onRetry(job)}
+                        disabled={retryingRow === job.row}
+                        title="Retry render for this row"
                         aria-label="Retry"
                       >
                         <RotateCcw size={14} />

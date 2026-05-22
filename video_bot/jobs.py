@@ -10,7 +10,12 @@ from .drive import prepare_background_video
 from .google_services import build_google_services
 from .media import download_file, enhance_audio, render_video
 from .models import NoPendingRows, PendingThumbnailJob, RenderTaskFailed, RetryJob, SheetRow
-from .sheets import get_sheet_rows, reserve_next_pending_row, update_task_status
+from .sheets import (
+    get_sheet_rows,
+    prepare_failed_row_for_retry,
+    reserve_next_pending_row,
+    update_task_status,
+)
 from .state import (
     PROGRESS_HTML_PREFIX,
     ProgressCallback,
@@ -359,11 +364,18 @@ def process_reserved_row(
             logger.info("Temporary files kept for retry: %s", workdir)
 
 
-def run_render_job(progress_callback: ProgressCallback | None = None) -> dict[str, str]:
+def run_render_job(
+    progress_callback: ProgressCallback | None = None,
+    *,
+    row_number: int | None = None,
+) -> dict[str, str]:
     sheets, youtube = build_google_services()
-    headers, selected = reserve_next_pending_row(sheets)
-    if selected is None:
-        raise NoPendingRows()
+    if row_number is not None:
+        headers, selected = prepare_failed_row_for_retry(sheets, row_number)
+    else:
+        headers, selected = reserve_next_pending_row(sheets)
+        if selected is None:
+            raise NoPendingRows()
 
     logger.info("Selected row: %s", selected.row_number)
     current_render["row_number"] = selected.row_number

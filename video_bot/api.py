@@ -44,6 +44,7 @@ from .row_rules import (
 )
 from .schedule_time import read_row_schedule_time
 from .sheets import (
+    assert_row_retryable,
     get_sheet_rows,
     get_status_statistics,
     prioritize_sheet_row,
@@ -158,7 +159,7 @@ def _filter_jobs(jobs: list[dict], status: str, search: str) -> list[dict]:
     return filtered
 
 
-async def _run_admin_render() -> None:
+async def _run_admin_render(row_number: int | None = None) -> None:
     try:
         def progress_cb(status: str, pct: float | None = None) -> None:
             if _state.render_cancel_requested:
@@ -168,7 +169,8 @@ async def _run_admin_render() -> None:
         async with task_lock:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
-                None, lambda: run_render_job(progress_cb)
+                None,
+                lambda: run_render_job(progress_cb, row_number=row_number),
             )
 
         if _state.render_cancel_requested:
@@ -185,6 +187,9 @@ async def _run_admin_render() -> None:
         logger.info("Admin panel render complete: %s", result.get("title"))
     except NoPendingRows:
         reset_current_render_idle("No pending rows")
+    except ValueError as exc:
+        logger.error("Admin panel render rejected: %s", exc)
+        reset_current_render_idle(str(exc))
     except Exception as exc:
         if _state.render_cancel_requested:
             cleanup_active_render("Cancelled by user")
@@ -300,6 +305,42 @@ def schedule_job(row_number: int, body: ScheduleJobRequest):
         raise HTTPException(status_code=400, detail=msg) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@api_router.post("/jobs/{row_number}/retry")
+async def retry_job(row_number: int, background_tasks: BackgroundTasks):
+    """Re-render a specific failed sheet row (does not pick the next pending row)."""
+    try:
+        assert_row_retryable(row_number)
+    except ValueError as exc:
+        msg = str(exc)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg) from exc
+        raise HTTPException(status_code=409, detail=msg) from exc
+
+    async with render_start_lock:
+        if is_render_busy():
+            raise HTTPException(
+                status_code=409,
+                detail="A render job is already running.",
+            )
+        try:
+            validate_media_binaries()
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        current_render.update({
+            "running": True,
+            "pct": 0,
+            "status": "Queued",
+            "title": "",
+            "youtube_id": "",
+            "row_number": row_number,
+        })
+        background_tasks.add_task(_run_admin_render, row_number)
+
+    invalidate_sheet_cache()
+    return {"queued": True, "row": row_number}
 
 
 @api_router.post("/jobs/{row_number}/prioritize")
