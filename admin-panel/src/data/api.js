@@ -135,6 +135,26 @@ export async function fetchSettings() {
   return requestJson(`${BASE}/api/settings`, undefined, 'Settings failed');
 }
 
+export async function fetchRowRules() {
+  return requestJson(`${BASE}/api/settings/row-rules`, undefined, 'Row rules failed');
+}
+
+export async function saveRowRules(rules) {
+  return requestJson(
+    `${BASE}/api/settings/row-rules`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules }),
+    },
+    'Save row rules failed',
+  );
+}
+
+export async function fetchDriveMediaOptions() {
+  return requestJson(`${BASE}/api/drive/media-options`, undefined, 'Drive media failed');
+}
+
 export async function fetchBotStatus() {
   return requestJson(`${BASE}/api/bot/status`, undefined, 'Bot status failed');
 }

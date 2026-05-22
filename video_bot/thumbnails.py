@@ -3,6 +3,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from .config import FONT_PATH, THUMBNAIL_TEMPLATE
+from .drive import download_row_thumbnail_image
+from .row_rules import get_rule_for_row
 
 
 def wrap_text(
@@ -92,6 +94,22 @@ def generate_thumbnail(title: str, output_path: Path) -> None:
         y += line_height
 
     image.save(output_path, "JPEG", quality=92)
+
+
+def generate_thumbnail_for_row(row_number: int, title: str, output_path: Path) -> str:
+    """
+    Use mapped Drive thumbnail when configured; otherwise render from template + title.
+    Returns a short source label for logs.
+    """
+    rule = get_rule_for_row(row_number)
+    if rule and rule.thumbnail_file_id:
+        source_path = output_path.with_name(f"drive_thumb_src{output_path.suffix}")
+        label = download_row_thumbnail_image(source_path, row_number)
+        prepare_thumbnail_image(source_path, output_path)
+        source_path.unlink(missing_ok=True)
+        return label
+    generate_thumbnail(title, output_path)
+    return "Generated from template"
 
 
 def prepare_thumbnail_image(input_path: Path, output_path: Path) -> None:

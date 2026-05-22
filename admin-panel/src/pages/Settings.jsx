@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
+import RowRulesTable from '../components/RowRulesTable';
 import { fetchSettings, shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
 import { Save, Info, AlertTriangle, LogOut } from 'lucide-react';
@@ -53,7 +54,7 @@ export default function Settings() {
         {/* Read-only notice */}
         <div style={{ background:'var(--blue-dim)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:8, padding:'10px 16px', marginBottom:20, fontSize:12, color:'var(--blue)', display:'flex', gap:8 }}>
           <Info size={14} style={{ flexShrink:0, marginTop:1 }} />
-          Settings shown here are loaded live from your <code>.env</code> file and <code>config.py</code>. To change them, edit your <code>.env</code> file and restart the bot.
+          General options below are read from <code>.env</code> (restart bot after edits). Row-Based Rules are saved on the server and used immediately for renders.
         </div>
 
         <div className="grid-2" style={{ alignItems:'start' }}>
@@ -166,6 +167,8 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        <RowRulesTable />
       </div>
     </>
   );

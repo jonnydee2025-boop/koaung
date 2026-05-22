@@ -20,7 +20,7 @@ from .state import (
     register_retry_job,
     retry_jobs,
 )
-from .thumbnails import generate_thumbnail
+from .thumbnails import generate_thumbnail_for_row
 from .youtube import set_youtube_thumbnail, upload_video_to_youtube
 
 
@@ -250,7 +250,9 @@ def process_reserved_row(
         logger.info("Preparing background video...")
         if job_progress is not None:
             job_progress("Preparing background video", None)
-        background_source = prepare_background_video(background_path)
+        background_source = prepare_background_video(
+            background_path, row_number=row.row_number
+        )
         logger.info("Background video: %s", background_source)
         if job_progress is not None:
             job_progress("Finished background video", None)
@@ -259,7 +261,10 @@ def process_reserved_row(
         logger.info("Creating thumbnail...")
         if job_progress is not None:
             job_progress("Creating thumbnail", None)
-        generate_thumbnail(title, thumbnail_path)
+        thumbnail_source = generate_thumbnail_for_row(
+            row.row_number, title, thumbnail_path
+        )
+        logger.info("Thumbnail: %s", thumbnail_source)
         if job_progress is not None:
             job_progress("Finished thumbnail", None)
         logger.info("Uploading to YouTube as private...")

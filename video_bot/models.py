@@ -37,6 +37,12 @@ class DriveBackgroundVideo:
     name: str
 
 
+@dataclass(frozen=True)
+class DriveMediaFile:
+    file_id: str
+    name: str
+
+
 class RenderTaskFailed(Exception):
     def __init__(self, message: str, retry_id: str | None = None) -> None:
         super().__init__(message)

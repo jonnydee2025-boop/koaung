@@ -19,6 +19,7 @@ from .config import (
     ADMIN_API_CORS_ORIGINS,
     API_PORT,
     BACKGROUND_VIDEO_DRIVE_FOLDER,
+    ROW_RULES_PATH,
     ENABLE_AUDIO_ENHANCE,
     FFMPEG_BIN,
     FFPROBE_BIN,
@@ -34,6 +35,13 @@ from .sheet_cache import get_cached_sheet_rows, invalidate_sheet_cache
 from .progress_display import apply_progress_to_current_render
 from .models import NoPendingRows
 from .render_cleanup import cleanup_active_render
+from .drive import fetch_drive_media_catalog
+from .row_rules import (
+    RowRangeRule,
+    load_row_rules,
+    save_row_rules,
+    validate_row_rules,
+)
 from .schedule_time import read_row_schedule_time
 from .sheets import (
     get_sheet_rows,
@@ -388,6 +396,19 @@ def shutdown_server():
     return {"shutting_down": True}
 
 
+class RowRangeRulePayload(BaseModel):
+    from_row: int = Field(..., ge=1)
+    to_row: int | None = Field(default=None, ge=1)
+    background_video_id: str = ""
+    background_video_name: str = ""
+    thumbnail_file_id: str = ""
+    thumbnail_name: str = ""
+
+
+class RowRulesUpdateRequest(BaseModel):
+    rules: list[RowRangeRulePayload]
+
+
 @api_router.get("/settings")
 def get_settings():
     """Return non-secret config values."""
@@ -402,7 +423,58 @@ def get_settings():
         "background_video_folder": BACKGROUND_VIDEO_DRIVE_FOLDER,
         "enable_audio_enhance": ENABLE_AUDIO_ENHANCE,
         "api_port": API_PORT,
+        "row_rules_path": str(ROW_RULES_PATH),
     }
+
+
+@api_router.get("/settings/row-rules")
+def get_row_rules():
+    rules = load_row_rules()
+    return {
+        "rules": [
+            {
+                "from_row": rule.from_row,
+                "to_row": rule.to_row,
+                "background_video_id": rule.background_video_id,
+                "background_video_name": rule.background_video_name,
+                "thumbnail_file_id": rule.thumbnail_file_id,
+                "thumbnail_name": rule.thumbnail_name,
+            }
+            for rule in rules
+        ]
+    }
+
+
+@api_router.put("/settings/row-rules")
+def put_row_rules(body: RowRulesUpdateRequest):
+    try:
+        rules = [
+            RowRangeRule(
+                from_row=item.from_row,
+                to_row=item.to_row,
+                background_video_id=item.background_video_id.strip(),
+                background_video_name=item.background_video_name.strip(),
+                thumbnail_file_id=item.thumbnail_file_id.strip(),
+                thumbnail_name=item.thumbnail_name.strip(),
+            )
+            for item in body.rules
+        ]
+        validate_row_rules(rules)
+        save_row_rules(rules)
+        return {"saved": True, "count": len(rules)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@api_router.get("/drive/media-options")
+def get_drive_media_options():
+    """List .mp4 files in Drive root and images in Thumbnails/ subfolder."""
+    try:
+        return fetch_drive_media_catalog()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @api_router.get("/bot/status")

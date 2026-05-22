@@ -148,47 +148,55 @@ export default function LazyJobTable({
               </td>
               {showActions && (
                 <td>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div
+                    className="job-actions"
+                    style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}
+                  >
                     {job.youtube_id && (
                       <a
                         href={`https://studio.youtube.com/video/${job.youtube_id}/edit`}
                         target="_blank"
                         rel="noreferrer"
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-ghost btn-sm job-action-btn"
                         title="YouTube Studio"
+                        aria-label="Open in YouTube Studio"
                       >
-                        <ExternalLink size={12} />
+                        <ExternalLink size={14} />
                       </a>
                     )}
                     {job.status !== 'processing' && onSchedule && (
                       <button
                         type="button"
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-ghost btn-sm job-action-btn"
                         onClick={() => onSchedule(job)}
                         disabled={schedulingRow === job.row}
-                        title="Set status to Scheduled with a target date & time"
+                        title="Schedule — set status and date & time"
+                        aria-label="Schedule"
                       >
-                        <CalendarClock size={12} /> Schedule
+                        <CalendarClock size={14} />
                       </button>
                     )}
                     {job.status !== 'do' && job.status !== 'processing' && job.status !== 'scheduled' && onPrioritize && (
                       <button
                         type="button"
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-primary btn-sm job-action-btn"
                         onClick={() => onPrioritize(job)}
                         disabled={prioritizingRow === job.row}
-                        title="Set status to do — picked before other pending rows"
+                        title="Prioritize — pick before other pending rows"
+                        aria-label="Prioritize"
                       >
-                        <ArrowUp size={12} /> Prioritize
+                        <ArrowUp size={14} />
                       </button>
                     )}
                     {job.status === 'failed' && onRetry && (
                       <button
                         type="button"
-                        className="btn btn-danger btn-sm"
+                        className="btn btn-danger btn-sm job-action-btn"
                         onClick={onRetry}
+                        title="Retry render"
+                        aria-label="Retry"
                       >
-                        <RotateCcw size={12} /> Retry
+                        <RotateCcw size={14} />
                       </button>
                     )}
                   </div>

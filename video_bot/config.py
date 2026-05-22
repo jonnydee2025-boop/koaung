@@ -83,6 +83,7 @@ GOOGLE_CLIENT_SECRET_FILE = Path(
 ).resolve()
 GOOGLE_TOKEN_FILE = Path(os.getenv("GOOGLE_TOKEN_FILE", "token.json")).resolve()
 TMP_ROOT = Path(os.getenv("TMP_ROOT", "tmp_video_jobs")).resolve()
+ROW_RULES_PATH = Path(os.getenv("ROW_RULES_PATH", "row_range_rules.json")).resolve()
 FFMPEG_BIN = os.getenv("FFMPEG_BIN", "ffmpeg")
 FFPROBE_BIN = os.getenv("FFPROBE_BIN", "ffprobe")
 FONT_PATH = os.getenv("THUMBNAIL_FONT_PATH")
