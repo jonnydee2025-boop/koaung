@@ -74,6 +74,30 @@ export async function fetchJobs(limit = 6) {
 }
 
 /** Jobs tab — paginated slice of the full sheet. */
+export async function scheduleJob(rowNumber, scheduleTimeIso) {
+  const result = await requestJson(
+    `${BASE}/api/jobs/${rowNumber}/schedule`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule_time: scheduleTimeIso }),
+    },
+    'Schedule failed',
+  );
+  invalidateSheetCaches();
+  return result;
+}
+
+export async function prioritizeJob(rowNumber) {
+  const result = await requestJson(
+    `${BASE}/api/jobs/${rowNumber}/prioritize`,
+    { method: 'POST' },
+    'Prioritize failed',
+  );
+  invalidateSheetCaches();
+  return result;
+}
+
 export async function fetchJobsPage({
   page = 1,
   pageSize = 50,

@@ -3,7 +3,8 @@ import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
 import { Search, RefreshCw } from 'lucide-react';
-import { fetchJobsPage, triggerRenderNext } from '../data/api';
+import ScheduleJobModal from '../components/ScheduleJobModal';
+import { fetchJobsPage, prioritizeJob, scheduleJob, triggerRenderNext } from '../data/api';
 
 const PAGE_SIZE = 100;
 
@@ -28,6 +29,7 @@ export default function Jobs() {
     done: 0,
     processing: 0,
     pending: 0,
+    scheduled: 0,
     failed: 0,
   });
 
@@ -40,6 +42,10 @@ export default function Jobs() {
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [prioritizingRow, setPrioritizingRow] = useState(null);
+  const [schedulingRow, setSchedulingRow] = useState(null);
+  const [scheduleTarget, setScheduleTarget] = useState(null);
+  const [scheduleModalError, setScheduleModalError] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 350);
@@ -121,6 +127,47 @@ export default function Jobs() {
     }
   };
 
+  const handleScheduleOpen = (job) => {
+    setScheduleModalError('');
+    setScheduleTarget(job);
+  };
+
+  const handleScheduleClose = () => {
+    if (schedulingRow) return;
+    setScheduleTarget(null);
+    setScheduleModalError('');
+  };
+
+  const handleScheduleSave = async (scheduleTimeIso) => {
+    if (!scheduleTarget) return;
+    setScheduleModalError('');
+    setSchedulingRow(scheduleTarget.row);
+    setActionError('');
+    try {
+      await scheduleJob(scheduleTarget.row, scheduleTimeIso);
+      setScheduleTarget(null);
+      await loadPage(page, { force: true });
+    } catch (e) {
+      setScheduleModalError(e.message);
+      setActionError(e.message);
+    } finally {
+      setSchedulingRow(null);
+    }
+  };
+
+  const handlePrioritize = async (job) => {
+    setActionError('');
+    setPrioritizingRow(job.row);
+    try {
+      await prioritizeJob(job.row);
+      await loadPage(page, { force: true });
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setPrioritizingRow(null);
+    }
+  };
+
   const displayError = actionError || error;
 
   return (
@@ -169,6 +216,7 @@ export default function Jobs() {
               ['done', 'Done'],
               ['processing', 'Processing'],
               ['pending', 'Pending'],
+              ['scheduled', 'Scheduled'],
               ['failed', 'Failed'],
             ].map(([val, label]) => (
               <button
@@ -242,6 +290,10 @@ export default function Jobs() {
               filtered={items}
               showActions
               onRetry={handleRenderNext}
+              onPrioritize={handlePrioritize}
+              onSchedule={handleScheduleOpen}
+              prioritizingRow={prioritizingRow}
+              schedulingRow={schedulingRow}
               disableLazyRows
             />
           </div>
@@ -256,6 +308,15 @@ export default function Jobs() {
           />
         </div>
       </div>
+
+      <ScheduleJobModal
+        job={scheduleTarget}
+        open={Boolean(scheduleTarget)}
+        saving={schedulingRow != null}
+        error={scheduleModalError}
+        onClose={handleScheduleClose}
+        onSave={handleScheduleSave}
+      />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import StatusBadge from './StatusBadge';
-import { RotateCcw, ExternalLink } from 'lucide-react';
+import { RotateCcw, ExternalLink, ArrowUp, CalendarClock } from 'lucide-react';
 
 const PAGE_SIZE = 25;
 
@@ -23,6 +23,10 @@ export default function LazyJobTable({
   loading,
   filtered,
   onRetry,
+  onPrioritize,
+  onSchedule,
+  prioritizingRow = null,
+  schedulingRow = null,
   showActions = false,
   columns = 'full',
   disableLazyRows = false,
@@ -111,6 +115,11 @@ export default function LazyJobTable({
               <td className="text-mono">#{job.row}</td>
               <td>
                 <StatusBadge status={job.status} />
+                {job.schedule_time && (
+                  <div className="text-muted" style={{ fontSize: 10, marginTop: 4 }}>
+                    {new Date(job.schedule_time).toLocaleString()}
+                  </div>
+                )}
               </td>
               <td className="text-muted">{job.monk || '—'}</td>
               <td>
@@ -151,7 +160,29 @@ export default function LazyJobTable({
                         <ExternalLink size={12} />
                       </a>
                     )}
-                    {job.status === 'failed' && (
+                    {job.status !== 'processing' && onSchedule && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => onSchedule(job)}
+                        disabled={schedulingRow === job.row}
+                        title="Set status to Scheduled with a target date & time"
+                      >
+                        <CalendarClock size={12} /> Schedule
+                      </button>
+                    )}
+                    {job.status !== 'do' && job.status !== 'processing' && job.status !== 'scheduled' && onPrioritize && (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => onPrioritize(job)}
+                        disabled={prioritizingRow === job.row}
+                        title="Set status to do — picked before other pending rows"
+                      >
+                        <ArrowUp size={12} /> Prioritize
+                      </button>
+                    )}
+                    {job.status === 'failed' && onRetry && (
                       <button
                         type="button"
                         className="btn btn-danger btn-sm"

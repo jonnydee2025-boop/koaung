@@ -9,6 +9,8 @@ import threading
 import time
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -32,7 +34,13 @@ from .sheet_cache import get_cached_sheet_rows, invalidate_sheet_cache
 from .progress_display import apply_progress_to_current_render
 from .models import NoPendingRows
 from .render_cleanup import cleanup_active_render
-from .sheets import get_sheet_rows, get_status_statistics
+from .schedule_time import read_row_schedule_time
+from .sheets import (
+    get_sheet_rows,
+    get_status_statistics,
+    prioritize_sheet_row,
+    schedule_sheet_row,
+)
 from .state import (
     current_render,
     is_render_busy,
@@ -74,6 +82,9 @@ def _row_to_dict(row: Any, headers: list[str]) -> dict:
         if "video_id=" in line:
             youtube_id = line.split("video_id=")[-1].strip().split()[0]
             break
+    schedule_dt = read_row_schedule_time(row.values)
+    schedule_time = schedule_dt.isoformat() if schedule_dt else ""
+
     return {
         "row": row.row_number,
         "title": title,
@@ -81,6 +92,7 @@ def _row_to_dict(row: Any, headers: list[str]) -> dict:
         "monk": monk,
         "logs": logs_col[:300] if logs_col else "",
         "youtube_id": youtube_id,
+        "schedule_time": schedule_time,
     }
 
 
@@ -103,6 +115,7 @@ def _job_status_counts(jobs: list[dict]) -> dict[str, int]:
         "done": sum(1 for j in jobs if is_done(j["status"])),
         "processing": sum(1 for j in jobs if j["status"] == "processing"),
         "pending": sum(1 for j in jobs if is_pending(j["status"])),
+        "scheduled": sum(1 for j in jobs if j["status"] == "scheduled"),
         "failed": sum(1 for j in jobs if j["status"] == "failed"),
     }
 
@@ -121,7 +134,9 @@ def _filter_jobs(jobs: list[dict], status: str, search: str) -> list[dict]:
             continue
         if status == "failed" and job_status != "failed":
             continue
-        if status not in ("all", "done", "processing", "pending", "failed"):
+        if status == "scheduled" and job_status != "scheduled":
+            continue
+        if status not in ("all", "done", "processing", "pending", "scheduled", "failed"):
             pass
 
         if query:
@@ -193,6 +208,7 @@ def get_stats():
     total = counts.get("total_rows", 0)
     done = counts.get("uploaded_to_yt", 0) + counts.get("done", 0)
     pending = counts.get("pending", 0) + counts.get("do", 0)
+    scheduled = counts.get("scheduled", 0)
     processing = counts.get("processing", 0)
     failed = counts.get("failed", 0)
     success_rate = round(done / total * 100, 1) if total else 0.0
@@ -201,6 +217,7 @@ def get_stats():
         "total": total,
         "done": done,
         "pending": pending,
+        "scheduled": scheduled,
         "processing": processing,
         "failed": failed,
         "success_rate": success_rate,
@@ -248,6 +265,51 @@ def get_jobs(
             "counts": counts,
             "sheet_total": len(all_jobs),
         }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class ScheduleJobRequest(BaseModel):
+    schedule_time: str = Field(
+        ...,
+        description="ISO 8601 date/time (e.g. 2026-05-22T14:30:00+00:00)",
+    )
+
+
+@api_router.post("/jobs/{row_number}/schedule")
+def schedule_job(row_number: int, body: ScheduleJobRequest):
+    """Schedule a row; rejects duplicate Schedule_Time values across the sheet."""
+    try:
+        result = schedule_sheet_row(row_number, body.schedule_time)
+        invalidate_sheet_cache()
+        return result
+    except ValueError as exc:
+        msg = str(exc)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg) from exc
+        if "already used" in msg.lower():
+            raise HTTPException(status_code=409, detail=msg) from exc
+        raise HTTPException(status_code=400, detail=msg) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@api_router.post("/jobs/{row_number}/prioritize")
+def prioritize_job(row_number: int):
+    """Set a sheet row's status to ``do`` so the bot renders it before other pending rows."""
+    try:
+        previous = prioritize_sheet_row(row_number)
+        invalidate_sheet_cache()
+        return {
+            "row": row_number,
+            "status": "do",
+            "previous_status": previous,
+        }
+    except ValueError as exc:
+        msg = str(exc)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg) from exc
+        raise HTTPException(status_code=409, detail=msg) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

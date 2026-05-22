@@ -90,6 +90,10 @@ ENABLE_AUDIO_ENHANCE = env_bool("ENABLE_AUDIO_ENHANCE", True)
 BACKGROUND_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
 API_PORT = int(os.getenv("API_PORT", "8000"))
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
+SCHEDULE_CHECK_INTERVAL_SECONDS = max(
+    10,
+    int(os.getenv("SCHEDULE_CHECK_INTERVAL_SECONDS", "30")),
+)
 ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 ADMIN_API_CORS_ORIGINS = [
     origin.strip()
