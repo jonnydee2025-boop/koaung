@@ -1,0 +1,2 @@
+"""Video automation bot package."""
+

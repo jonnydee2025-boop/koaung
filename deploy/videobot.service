@@ -1,0 +1,26 @@
+[Unit]
+Description=VideoBot — Telegram automation + admin API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=videobot
+Group=videobot
+WorkingDirectory=/opt/videobot
+EnvironmentFile=/opt/videobot/.env
+ExecStart=/opt/videobot/.venv/bin/python /opt/videobot/video_automation_bot.py
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=120
+
+# FFmpeg renders can use significant memory
+MemoryMax=4G
+
+# Hardening (adjust if you add writable paths outside these)
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=/opt/videobot/tmp_video_jobs /opt/videobot/token.json
+
+[Install]
+WantedBy=multi-user.target

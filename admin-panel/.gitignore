@@ -1,0 +1,8 @@
+# Covered by root .gitignore; kept here for tools that only read this folder.
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+dist-ssr/
+*.local
