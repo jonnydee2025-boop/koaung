@@ -453,6 +453,7 @@ class RowRangeRulePayload(BaseModel):
     background_video_name: str = ""
     thumbnail_file_id: str = ""
     thumbnail_name: str = ""
+    background_loop_count: int | None = Field(default=None, ge=1, le=500)
 
 
 class RowRulesUpdateRequest(BaseModel):
@@ -489,6 +490,7 @@ def get_row_rules():
                 "background_video_name": rule.background_video_name,
                 "thumbnail_file_id": rule.thumbnail_file_id,
                 "thumbnail_name": rule.thumbnail_name,
+                "background_loop_count": rule.background_loop_count,
             }
             for rule in rules
         ]
@@ -506,6 +508,7 @@ def put_row_rules(body: RowRulesUpdateRequest):
                 background_video_name=item.background_video_name.strip(),
                 thumbnail_file_id=item.thumbnail_file_id.strip(),
                 thumbnail_name=item.thumbnail_name.strip(),
+                background_loop_count=item.background_loop_count,
             )
             for item in body.rules
         ]

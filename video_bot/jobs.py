@@ -25,6 +25,7 @@ from .state import (
     register_retry_job,
     retry_jobs,
 )
+from .row_rules import get_background_loop_count_for_row
 from .thumbnails import generate_thumbnail_for_row
 from .youtube import set_youtube_thumbnail, upload_video_to_youtube
 
@@ -262,7 +263,16 @@ def process_reserved_row(
         if job_progress is not None:
             job_progress("Finished background video", None)
         logger.info("Rendering video. This may take a while...")
-        render_video(render_audio_path, background_path, video_path, job_progress)
+        loop_count = get_background_loop_count_for_row(row.row_number)
+        if loop_count is not None:
+            logger.info("Background loop count for row %s: %s", row.row_number, loop_count)
+        render_video(
+            render_audio_path,
+            background_path,
+            video_path,
+            job_progress,
+            background_loop_count=loop_count,
+        )
         logger.info("Creating thumbnail...")
         if job_progress is not None:
             job_progress("Creating thumbnail", None)

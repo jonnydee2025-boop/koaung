@@ -18,6 +18,8 @@ class RowRangeRule:
     background_video_name: str = ""
     thumbnail_file_id: str = ""
     thumbnail_name: str = ""
+    """When set, background is looped this many times (else infinite until audio ends)."""
+    background_loop_count: int | None = None
 
     def matches(self, row_number: int) -> bool:
         end = self.to_row if self.to_row is not None else self.from_row
@@ -28,6 +30,11 @@ def _rule_from_dict(data: dict[str, Any]) -> RowRangeRule:
     from_row = int(data["from_row"])
     to_raw = data.get("to_row")
     to_row = int(to_raw) if to_raw not in (None, "", 0) else None
+    loop_raw = data.get("background_loop_count")
+    if loop_raw in (None, "", 0):
+        background_loop_count = None
+    else:
+        background_loop_count = int(loop_raw)
     return RowRangeRule(
         from_row=from_row,
         to_row=to_row,
@@ -35,6 +42,7 @@ def _rule_from_dict(data: dict[str, Any]) -> RowRangeRule:
         background_video_name=str(data.get("background_video_name") or "").strip(),
         thumbnail_file_id=str(data.get("thumbnail_file_id") or "").strip(),
         thumbnail_name=str(data.get("thumbnail_name") or "").strip(),
+        background_loop_count=background_loop_count,
     )
 
 
@@ -71,10 +79,18 @@ def validate_row_rules(rules: list[RowRangeRule]) -> None:
         end = rule.to_row if rule.to_row is not None else rule.from_row
         if rule.to_row is not None and rule.to_row < rule.from_row:
             raise ValueError(f"Rule {index + 1}: To Row cannot be less than From Row.")
-        if not rule.background_video_id and not rule.thumbnail_file_id:
+        if (
+            not rule.background_video_id
+            and not rule.thumbnail_file_id
+            and rule.background_loop_count is None
+        ):
             raise ValueError(
-                f"Rule {index + 1}: Select a background video and/or thumbnail."
+                f"Rule {index + 1}: Set a background, thumbnail, and/or loop count."
             )
+        if rule.background_loop_count is not None and rule.background_loop_count < 1:
+            raise ValueError(f"Rule {index + 1}: Loop count must be at least 1.")
+        if rule.background_loop_count is not None and rule.background_loop_count > 500:
+            raise ValueError(f"Rule {index + 1}: Loop count cannot exceed 500.")
         for start, stop, other in seen_ranges:
             if not (end < start or rule.from_row > stop):
                 raise ValueError(
@@ -89,3 +105,10 @@ def get_rule_for_row(row_number: int) -> RowRangeRule | None:
         if rule.matches(row_number):
             return rule
     return None
+
+
+def get_background_loop_count_for_row(row_number: int) -> int | None:
+    rule = get_rule_for_row(row_number)
+    if rule is None:
+        return None
+    return rule.background_loop_count

@@ -6,7 +6,8 @@
       "background_video_id": "DRIVE_FILE_ID_MP4",
       "background_video_name": "forest_loop.mp4",
       "thumbnail_file_id": "DRIVE_FILE_ID_JPG",
-      "thumbnail_name": "thumb_100.jpg"
+      "thumbnail_name": "thumb_100.jpg",
+      "background_loop_count": null
     },
     {
       "from_row": 200,
@@ -14,7 +15,8 @@
       "background_video_id": "",
       "background_video_name": "",
       "thumbnail_file_id": "DRIVE_FILE_ID_PNG",
-      "thumbnail_name": "single_row.png"
+      "thumbnail_name": "single_row.png",
+      "background_loop_count": 4
     }
   ]
 }

@@ -10,6 +10,7 @@ function emptyRule() {
     background_video_name: '',
     thumbnail_file_id: '',
     thumbnail_name: '',
+    background_loop_count: '',
   };
 }
 
@@ -63,6 +64,10 @@ export default function RowRulesTable() {
             background_video_name: r.background_video_name ?? '',
             thumbnail_file_id: r.thumbnail_file_id ?? '',
             thumbnail_name: r.thumbnail_name ?? '',
+            background_loop_count:
+              r.background_loop_count != null && r.background_loop_count !== ''
+                ? String(r.background_loop_count)
+                : '',
           }))
         : [emptyRule()];
       setRules(loaded);
@@ -113,6 +118,10 @@ export default function RowRulesTable() {
             r.thumbnail_name ||
             thumbnails.find((t) => t.id === r.thumbnail_file_id)?.name ||
             '',
+          background_loop_count:
+            r.background_loop_count === '' || r.background_loop_count == null
+              ? null
+              : Number(r.background_loop_count),
         }));
       await saveRowRules(payload);
       setSuccess('Row rules saved.');
@@ -131,9 +140,10 @@ export default function RowRulesTable() {
         <div>
           <div className="card-title">Row-Based Rules</div>
           <p className="modal-hint" style={{ marginTop: 6, marginBottom: 0 }}>
-            Map sheet row ranges to a specific background (.mp4 in Drive root) and/or
-            thumbnail (.jpg/.png in the <code>Thumbnails</code> subfolder). First matching
-            rule wins. Empty &quot;To Row&quot; = single row.
+            Map sheet row ranges to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
+            and/or background loop count for short tracks. First matching rule wins.
+            Empty &quot;To Row&quot; = single row. Empty &quot;Loops&quot; = auto (loop until
+            track ends).
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
@@ -180,6 +190,7 @@ export default function RowRulesTable() {
             <span>To</span>
             <span>Background</span>
             <span>Thumbnail</span>
+            <span>Loops</span>
             <span />
           </div>
           {rules.map((rule, index) => (
@@ -227,6 +238,19 @@ export default function RowRulesTable() {
                     thumbnail_name: opt?.name ?? '',
                   });
                 }}
+              />
+              <input
+                className="form-input row-rules-num"
+                type="number"
+                min={1}
+                max={500}
+                placeholder="Auto"
+                aria-label={`Rule ${index + 1} background loops`}
+                title="How many times to loop the background video (empty = until track ends)"
+                value={rule.background_loop_count}
+                onChange={(e) =>
+                  updateRule(index, { background_loop_count: e.target.value })
+                }
               />
               <button
                 type="button"

@@ -224,13 +224,19 @@ def render_video(
     background_path: Path,
     output_path: Path,
     progress_callback: ProgressCallback | None = None,
+    *,
+    background_loop_count: int | None = None,
 ) -> None:
     duration = get_media_duration_seconds(mp3_path)
+    if background_loop_count is None or background_loop_count < 1:
+        stream_loop = "-1"
+    else:
+        stream_loop = str(background_loop_count - 1)
     command = [
         FFMPEG_BIN,
         "-y",
         "-stream_loop",
-        "-1",
+        stream_loop,
         "-i",
         str(background_path),
         "-i",
