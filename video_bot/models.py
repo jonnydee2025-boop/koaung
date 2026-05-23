@@ -21,16 +21,6 @@ class RetryJob:
     thumbnail_path: Path | None = None
 
 
-@dataclass
-class PendingThumbnailJob:
-    video_id: str
-    title: str
-    row_number: int
-    auto_thumbnail_path: Path
-    workdir: Path
-    monk_name: str = ""
-
-
 @dataclass(frozen=True)
 class DriveBackgroundVideo:
     file_id: str

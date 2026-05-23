@@ -12,8 +12,6 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
-    MessageHandler,
-    filters,
 )
 
 from .api import app as fastapi_app
@@ -23,8 +21,6 @@ from .scheduler import scheduled_render_loop
 from .handlers import (
     handle_menu_button,
     handle_retry_button,
-    handle_thumbnail_button,
-    handle_thumbnail_upload,
     render_next,
     start,
 )
@@ -73,11 +69,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("render_next", render_next))
     application.add_handler(CallbackQueryHandler(handle_retry_button, pattern=r"^retry:"))
-    application.add_handler(CallbackQueryHandler(handle_thumbnail_button, pattern=r"^thumb:"))
     application.add_handler(CallbackQueryHandler(handle_menu_button, pattern=r"^menu:"))
-    application.add_handler(
-        MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_thumbnail_upload)
-    )
     application.add_error_handler(error_handler)
 
     # Run FastAPI and Telegram bot together in the same event loop.

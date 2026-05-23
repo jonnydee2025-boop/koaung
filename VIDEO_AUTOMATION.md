@@ -59,7 +59,7 @@ Each rule:
 
 - If a rule matches and a background is set → download that video (not random).
 - If a rule matches and a thumbnail is set → use that image (resized for YouTube).
-- Otherwise → random background from root + thumbnail from `THUMBNAIL_TEMPLATE` + title text.
+- Otherwise → random background from root; no custom YouTube thumbnail unless a row rule provides one.
 
 First matching rule wins. Overlapping ranges are rejected when saving rules.
 
@@ -122,7 +122,6 @@ See `deploy/README.md` for VPS/nginx/systemd.
 | `TELEGRAM_ADMIN_CHAT_ID` | Admin chat for menus and progress |
 | `GOOGLE_SHEET_ID` / `GOOGLE_SHEET_NAME` | Job sheet |
 | `BACKGROUND_VIDEO_DRIVE_FOLDER` | Drive folder for backgrounds + `Thumbnails/` |
-| `THUMBNAIL_TEMPLATE` | Local JPG/PNG template when no row thumbnail rule |
 | `ADMIN_API_KEY` | Protects `/api/*`; admin panel login |
 | `ADMIN_API_CORS_ORIGINS` | Allowed browser origins for the API |
 | `API_HOST` / `API_PORT` | API bind address (use `127.0.0.1` behind nginx on VPS) |

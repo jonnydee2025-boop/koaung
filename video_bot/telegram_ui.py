@@ -40,20 +40,6 @@ def retry_menu(retry_id: str) -> InlineKeyboardMarkup:
     )
 
 
-def thumbnail_menu(thumbnail_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "Use generated thumbnail",
-                    callback_data=f"thumb:auto:{thumbnail_id}",
-                )
-            ],
-            [InlineKeyboardButton("Skip thumbnail", callback_data=f"thumb:skip:{thumbnail_id}")],
-        ]
-    )
-
-
 def is_authorized_chat(chat_id: int | None) -> bool:
     return chat_id == ADMIN_CHAT_ID
 
@@ -95,11 +81,6 @@ def format_progress_message(stage: str, percent: float | None = None) -> str:
 def format_success_message(result: dict[str, str]) -> str:
     monk_name = result.get("monk_name") or "-"
     youtube_url = result.get("youtube_url") or result["url"]
-    thumbnail_note = (
-        "\n\nThumbnail: choose an action below, or send an image here to upload it."
-        if result.get("thumbnail_id")
-        else ""
-    )
     warning = result.get("thumbnail_warning")
     warning_note = f"\n\nThumbnail note: {html.escape(warning)}" if warning else ""
     return (
@@ -107,7 +88,6 @@ def format_success_message(result: dict[str, str]) -> str:
         f"Title: {html.escape(result['title'])}\n"
         f"Monk name: {html.escape(monk_name)}\n"
         f"YouTube: {html.escape(youtube_url)}"
-        f"{thumbnail_note}"
         f"{warning_note}"
     )
 
@@ -121,10 +101,6 @@ def success_reply_markup(result: dict[str, str]) -> InlineKeyboardMarkup:
                 InlineKeyboardButton("Edit in Studio", url=result["url"]),
             ]
         )
-
-    thumbnail_id = result.get("thumbnail_id")
-    if thumbnail_id:
-        buttons.extend(thumbnail_menu(thumbnail_id).inline_keyboard)
 
     buttons.extend(main_menu().inline_keyboard)
     return InlineKeyboardMarkup(buttons)

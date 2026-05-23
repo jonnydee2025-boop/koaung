@@ -9,7 +9,7 @@ from .config import ENABLE_AUDIO_ENHANCE, TMP_ROOT, logger
 from .drive import prepare_background_video
 from .google_services import build_google_services
 from .media import download_file, enhance_audio, render_video
-from .models import NoPendingRows, PendingThumbnailJob, RenderTaskFailed, RetryJob, SheetRow
+from .models import NoPendingRows, RenderTaskFailed, RetryJob, SheetRow
 from .sheets import (
     get_sheet_rows,
     prepare_failed_row_for_retry,
@@ -20,13 +20,11 @@ from .state import (
     PROGRESS_HTML_PREFIX,
     ProgressCallback,
     current_render,
-    pending_thumbnail_by_chat,
-    pending_thumbnail_jobs,
     register_retry_job,
     retry_jobs,
 )
 from .row_rules import get_background_loop_count_for_row
-from .thumbnails import generate_thumbnail_for_row
+from .thumbnails import prepare_row_thumbnail
 from .youtube import set_youtube_thumbnail, upload_video_to_youtube
 
 
@@ -98,114 +96,6 @@ def row_progress_callback(
     return callback
 
 
-def register_pending_thumbnail(chat_id: int, result: dict[str, str]) -> dict[str, str]:
-    auto_thumbnail_path = result.get("auto_thumbnail_path")
-    workdir = result.get("thumbnail_workdir")
-    if not auto_thumbnail_path or not workdir:
-        return result
-
-    old_thumbnail_id = pending_thumbnail_by_chat.get(chat_id)
-    if old_thumbnail_id:
-        old_job = remove_pending_thumbnail(old_thumbnail_id)
-        if old_job is not None:
-            shutil.rmtree(old_job.workdir, ignore_errors=True)
-
-    thumbnail_id = uuid.uuid4().hex[:16]
-    pending_thumbnail_jobs[thumbnail_id] = PendingThumbnailJob(
-        video_id=result["video_id"],
-        title=result["title"],
-        row_number=int(result.get("row_number") or 0),
-        auto_thumbnail_path=Path(auto_thumbnail_path),
-        workdir=Path(workdir),
-        monk_name=result.get("monk_name", ""),
-    )
-    pending_thumbnail_by_chat[chat_id] = thumbnail_id
-    result["thumbnail_id"] = thumbnail_id
-    return result
-
-
-def remove_pending_thumbnail(thumbnail_id: str) -> PendingThumbnailJob | None:
-    job = pending_thumbnail_jobs.pop(thumbnail_id, None)
-    for chat_id, stored_id in list(pending_thumbnail_by_chat.items()):
-        if stored_id == thumbnail_id:
-            pending_thumbnail_by_chat.pop(chat_id, None)
-    return job
-
-
-def apply_pending_thumbnail(
-    thumbnail_id: str,
-    thumbnail_path: Path,
-    source_label: str,
-) -> dict[str, str]:
-    job = pending_thumbnail_jobs.get(thumbnail_id)
-    if job is None:
-        raise RuntimeError("This thumbnail request is no longer available.")
-
-    sheets, youtube = build_google_services()
-    warning = set_youtube_thumbnail(youtube, job.video_id, thumbnail_path)
-
-    headers, _ = get_sheet_rows(sheets)
-    if warning:
-        log_message = (
-            f"Uploaded privately to YouTube. video_id={job.video_id}\n"
-            f"{source_label} thumbnail failed: {warning}"
-        )
-    else:
-        log_message = (
-            f"Uploaded privately to YouTube. video_id={job.video_id}\n"
-            f"Thumbnail updated from {source_label}."
-        )
-
-    if job.row_number:
-        update_task_status(
-            sheets,
-            headers,
-            job.row_number,
-            "uploaded_to_yt",
-            log_message,
-        )
-
-    remove_pending_thumbnail(thumbnail_id)
-    shutil.rmtree(job.workdir, ignore_errors=True)
-
-    return {
-        "title": job.title,
-        "monk_name": job.monk_name,
-        "video_id": job.video_id,
-        "url": f"https://studio.youtube.com/video/{job.video_id}/edit",
-        "youtube_url": f"https://youtu.be/{job.video_id}",
-        "thumbnail_warning": warning or "",
-    }
-
-
-def skip_pending_thumbnail(thumbnail_id: str) -> None:
-    job = pending_thumbnail_jobs.get(thumbnail_id)
-    if job is None:
-        return
-
-    try:
-        sheets, _ = build_google_services()
-        headers, _ = get_sheet_rows(sheets)
-        if job.row_number:
-            update_task_status(
-                sheets,
-                headers,
-                job.row_number,
-                "uploaded_to_yt",
-                f"Uploaded privately to YouTube. video_id={job.video_id}\n"
-                "Thumbnail skipped.",
-            )
-    finally:
-        remove_pending_thumbnail(thumbnail_id)
-        shutil.rmtree(job.workdir, ignore_errors=True)
-
-
-def cleanup_success_artifacts(result: dict[str, str]) -> None:
-    workdir = result.get("thumbnail_workdir")
-    if workdir:
-        shutil.rmtree(workdir, ignore_errors=True)
-
-
 def process_reserved_row(
     sheets: Any,
     youtube: Any,
@@ -229,7 +119,7 @@ def process_reserved_row(
     render_audio_path = mp3_path
     background_path = workdir / "background.mp4"
     video_path = workdir / f"{uuid.uuid4().hex}.mp4"
-    thumbnail_path = workdir / f"{uuid.uuid4().hex}.jpg"
+    thumbnail_path: Path | None = None
     cleanup_workdir = True
     uploaded_video_id = None
     thumbnail_warning = ""
@@ -277,15 +167,19 @@ def process_reserved_row(
             job_progress,
             background_loop_count=loop_count,
         )
-        logger.info("Creating thumbnail...")
+        thumb_file = workdir / "thumbnail.jpg"
         if job_progress is not None:
-            job_progress("Creating thumbnail", None)
-        thumbnail_source = generate_thumbnail_for_row(
-            row.row_number, title, thumbnail_path
-        )
-        logger.info("Thumbnail: %s", thumbnail_source)
-        if job_progress is not None:
-            job_progress("Finished thumbnail", None)
+            job_progress("Preparing thumbnail", None)
+        thumbnail_source = prepare_row_thumbnail(row.row_number, thumb_file)
+        if thumbnail_source:
+            thumbnail_path = thumb_file
+            logger.info("Thumbnail: %s", thumbnail_source)
+            if job_progress is not None:
+                job_progress("Finished thumbnail", None)
+        else:
+            logger.info("No row thumbnail configured; skipping.")
+            if job_progress is not None:
+                job_progress("Thumbnail skipped", None)
         logger.info("Uploading to YouTube as private...")
         if job_progress is not None:
             job_progress("Uploading to YouTube", None)
@@ -297,13 +191,23 @@ def process_reserved_row(
             job_progress,
         )
         uploaded_video_id = video_id
+        if thumbnail_path is not None:
+            thumbnail_warning = (
+                set_youtube_thumbnail(youtube, video_id, thumbnail_path, job_progress)
+                or ""
+            )
+        else:
+            thumbnail_warning = ""
 
         if job_progress is not None:
             job_progress("Updating Google Sheet", None)
-        log_message = (
-            f"Uploaded privately to YouTube. video_id={video_id}\n"
-            "Telegram chat cleaned after upload."
-        )
+        log_message = f"Uploaded privately to YouTube. video_id={video_id}"
+        if thumbnail_path is None:
+            log_message = f"{log_message}\nNo custom thumbnail (not in row rules)."
+        elif thumbnail_warning:
+            log_message = f"{log_message}\n{thumbnail_warning}"
+        else:
+            log_message = f"{log_message}\nThumbnail uploaded."
 
         update_task_status(
             sheets,
@@ -315,16 +219,13 @@ def process_reserved_row(
         logger.info("Upload complete: %s", video_id)
         if job_progress is not None:
             job_progress("Finished", None)
-        cleanup_workdir = False
         return {
             "title": title,
             "monk_name": monk_name,
             "video_id": video_id,
             "url": f"https://studio.youtube.com/video/{video_id}/edit",
             "youtube_url": f"https://youtu.be/{video_id}",
-            "thumbnail_warning": "",
-            "auto_thumbnail_path": str(thumbnail_path),
-            "thumbnail_workdir": str(workdir),
+            "thumbnail_warning": thumbnail_warning,
             "row_number": str(row.row_number),
         }
     except Exception as exc:
@@ -347,7 +248,7 @@ def process_reserved_row(
                     thumbnail_path=thumbnail_path,
                 )
             )
-        elif video_path.exists() and thumbnail_path.exists():
+        elif video_path.exists():
             cleanup_workdir = False
             retry_id = register_retry_job(
                 RetryJob(
@@ -450,8 +351,6 @@ def run_retry_job(
                 "url": f"https://studio.youtube.com/video/{job.video_id}/edit",
                 "youtube_url": f"https://youtu.be/{job.video_id}",
                 "thumbnail_warning": job.thumbnail_warning,
-                "auto_thumbnail_path": str(job.thumbnail_path) if job.thumbnail_path else "",
-                "thumbnail_workdir": str(job.workdir) if job.workdir else "",
                 "row_number": str(job.row.row_number),
             }
         except Exception as exc:
@@ -462,15 +361,15 @@ def run_retry_job(
         retry_jobs.pop(retry_id, None)
         raise RuntimeError(f"Unknown retry mode: {job.mode}")
 
-    if job.video_path is None or job.thumbnail_path is None:
+    if job.video_path is None:
         retry_jobs.pop(retry_id, None)
-        raise RuntimeError("Retry files are missing.")
+        raise RuntimeError("Retry video file is missing.")
 
     if not job.video_path.exists():
         retry_jobs.pop(retry_id, None)
         raise RuntimeError(f"Retry video file is missing: {job.video_path}")
 
-    if not job.thumbnail_path.exists():
+    if job.thumbnail_path is not None and not job.thumbnail_path.exists():
         retry_jobs.pop(retry_id, None)
         raise RuntimeError(f"Retry thumbnail file is missing: {job.thumbnail_path}")
 
@@ -484,11 +383,23 @@ def run_retry_job(
             job.description,
             job_progress,
         )
+        if job.thumbnail_path is not None:
+            thumbnail_warning = (
+                set_youtube_thumbnail(
+                    youtube, video_id, job.thumbnail_path, job_progress
+                )
+                or ""
+            )
+        else:
+            thumbnail_warning = ""
 
-        log_message = (
-            f"Uploaded privately to YouTube. video_id={video_id}\n"
-            "Telegram chat cleaned after upload."
-        )
+        log_message = f"Uploaded privately to YouTube. video_id={video_id}"
+        if job.thumbnail_path is None:
+            log_message = f"{log_message}\nNo custom thumbnail (not in row rules)."
+        elif thumbnail_warning:
+            log_message = f"{log_message}\n{thumbnail_warning}"
+        else:
+            log_message = f"{log_message}\nThumbnail uploaded."
         update_task_status(
             sheets,
             headers,
@@ -498,6 +409,8 @@ def run_retry_job(
         )
 
         retry_jobs.pop(retry_id, None)
+        if job.workdir is not None:
+            shutil.rmtree(job.workdir, ignore_errors=True)
 
         if job_progress is not None:
             job_progress("Finished", None)
@@ -507,9 +420,7 @@ def run_retry_job(
             "video_id": video_id,
             "url": f"https://studio.youtube.com/video/{video_id}/edit",
             "youtube_url": f"https://youtu.be/{video_id}",
-            "thumbnail_warning": "",
-            "auto_thumbnail_path": str(job.thumbnail_path),
-            "thumbnail_workdir": str(job.workdir) if job.workdir is not None else "",
+            "thumbnail_warning": thumbnail_warning,
             "row_number": str(job.row.row_number),
         }
     except Exception as exc:

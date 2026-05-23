@@ -77,7 +77,6 @@ ADMIN_CHAT_ID = int(os.environ["TELEGRAM_ADMIN_CHAT_ID"])
 SPREADSHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Sheet1")
 BACKGROUND_VIDEO_DRIVE_FOLDER = os.getenv("BACKGROUND_VIDEO_DRIVE_FOLDER", "")
-THUMBNAIL_TEMPLATE = Path(os.environ["THUMBNAIL_TEMPLATE"]).resolve()
 GOOGLE_CLIENT_SECRET_FILE = Path(
     os.getenv("GOOGLE_CLIENT_SECRET_FILE", "client_secret.json")
 ).resolve()
@@ -86,7 +85,6 @@ TMP_ROOT = Path(os.getenv("TMP_ROOT", "tmp_video_jobs")).resolve()
 ROW_RULES_PATH = Path(os.getenv("ROW_RULES_PATH", "row_range_rules.json")).resolve()
 FFMPEG_BIN = os.getenv("FFMPEG_BIN", "ffmpeg")
 FFPROBE_BIN = os.getenv("FFPROBE_BIN", "ffprobe")
-FONT_PATH = os.getenv("THUMBNAIL_FONT_PATH")
 ENABLE_AUDIO_ENHANCE = env_bool("ENABLE_AUDIO_ENHANCE", True)
 BACKGROUND_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
 API_PORT = int(os.getenv("API_PORT", "8000"))
@@ -114,8 +112,6 @@ MENU_STOP = "menu:stop"
 def validate_startup() -> None:
     if not ADMIN_API_KEY.strip():
         raise ValueError("ADMIN_API_KEY must be set to a non-empty secret.")
-    if not THUMBNAIL_TEMPLATE.exists():
-        raise FileNotFoundError(f"Thumbnail template not found: {THUMBNAIL_TEMPLATE}")
     if not GOOGLE_CLIENT_SECRET_FILE.exists() and not GOOGLE_TOKEN_FILE.exists():
         raise FileNotFoundError(
             "Google OAuth file missing. Add client_secret.json or an existing token.json."

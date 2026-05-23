@@ -70,7 +70,6 @@ Health check (no auth): `GET /api/health`
 | `TELEGRAM_ADMIN_CHAT_ID` | Only this chat may use the bot |
 | `GOOGLE_SHEET_ID` | Spreadsheet ID |
 | `GOOGLE_SHEET_NAME` | Worksheet tab name |
-| `THUMBNAIL_TEMPLATE` | Path to thumbnail background image |
 | `BACKGROUND_VIDEO_DRIVE_FOLDER` | Google Drive folder URL or ID for backgrounds |
 | `ADMIN_API_KEY` | Secret for admin panel / API (`X-Admin-Key` header) |
 | `ADMIN_API_CORS_ORIGINS` | Comma-separated browser origins (default: Vite dev URLs) |

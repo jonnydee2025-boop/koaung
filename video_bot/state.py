@@ -3,7 +3,7 @@ from collections.abc import Callable
 import uuid
 from typing import Any
 
-from .models import PendingThumbnailJob, RetryJob
+from .models import RetryJob
 
 
 task_lock = asyncio.Lock()
@@ -12,8 +12,6 @@ ProgressCallback = Callable[[str, float | None], None]
 PROGRESS_HTML_PREFIX = "__telegram_html_progress__:"
 
 retry_jobs: dict[str, RetryJob] = {}
-pending_thumbnail_jobs: dict[str, PendingThumbnailJob] = {}
-pending_thumbnail_by_chat: dict[int, str] = {}
 
 # Reference to the Telegram Application — set by app.py so the API can control polling
 telegram_app: Any = None
