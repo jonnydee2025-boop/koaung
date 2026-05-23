@@ -280,16 +280,20 @@ def prepare_background_video(destination: Path, row_number: int | None = None) -
 def download_row_thumbnail_image(
     destination: Path,
     row_number: int,
+    *,
+    file_id: str | None = None,
+    file_name: str = "",
 ) -> str:
     rule = get_rule_for_row(row_number)
-    if not rule or not rule.thumbnail_file_id:
+    thumb_id = (file_id or (rule.thumbnail_file_id if rule else "")).strip()
+    if not thumb_id:
         raise RuntimeError(f"No thumbnail mapping for row {row_number}.")
 
     def run(drive: Any) -> str:
-        name = rule.thumbnail_name or rule.thumbnail_file_id
+        name = file_name or (rule.thumbnail_name if rule else "") or thumb_id
         return download_drive_file_by_id(
             drive,
-            rule.thumbnail_file_id,
+            thumb_id,
             destination,
             label=f"Google Drive thumbnail (row {row_number}): {name}",
         )

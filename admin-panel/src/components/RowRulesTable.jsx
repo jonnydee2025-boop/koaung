@@ -141,9 +141,9 @@ export default function RowRulesTable() {
           <div className="card-title">Row-Based Rules</div>
           <p className="modal-hint" style={{ marginTop: 6, marginBottom: 0 }}>
             Map sheet row ranges to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
-            and/or loop count for short tracks (repeats audio + background N times).
-            First matching rule wins. Empty &quot;To Row&quot; = single row. Empty
-            &quot;Loops&quot; = auto (background loops until track ends, audio once).
+            and/or loop count. Use the <strong>sheet row number</strong> from the Jobs tab
+            (starts at 2 for the first data row). Overlapping rules may split background vs
+            thumbnail; later rules override earlier ones for the same field.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>

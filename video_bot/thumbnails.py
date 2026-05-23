@@ -2,8 +2,9 @@ from pathlib import Path
 
 from PIL import Image
 
+from .config import logger
 from .drive import download_row_thumbnail_image
-from .row_rules import get_rule_for_row
+from .row_rules import get_rule_for_row, load_row_rules
 
 
 def prepare_row_thumbnail(row_number: int, output_path: Path) -> str | None:
@@ -13,12 +14,24 @@ def prepare_row_thumbnail(row_number: int, output_path: Path) -> str | None:
     """
     rule = get_rule_for_row(row_number)
     if not rule or not rule.thumbnail_file_id:
+        matched = sum(1 for item in load_row_rules() if item.matches(row_number))
+        logger.info(
+            "Row %s: skipping thumbnail (%s matching rule(s), thumbnail_file_id empty)",
+            row_number,
+            matched,
+        )
         return None
 
     source_path = output_path.with_name(f"drive_thumb_src{output_path.suffix}")
-    label = download_row_thumbnail_image(source_path, row_number)
+    label = download_row_thumbnail_image(
+        source_path,
+        row_number,
+        file_id=rule.thumbnail_file_id,
+        file_name=rule.thumbnail_name,
+    )
     prepare_thumbnail_image(source_path, output_path)
     source_path.unlink(missing_ok=True)
+    logger.info("Row %s: prepared thumbnail (%s)", row_number, label)
     return label
 
 

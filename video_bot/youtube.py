@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from typing import Any
 
@@ -62,23 +63,52 @@ def set_youtube_thumbnail(
     if progress_callback is not None:
         progress_callback("Uploading thumbnail", None)
 
-    thumbnail_warning = None
-    try:
-        youtube.thumbnails().set(
-            videoId=video_id,
-            media_body=MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg"),
-        ).execute()
-        if progress_callback is not None:
-            progress_callback("Finished thumbnail upload", None)
-    except HttpError as exc:
-        thumbnail_warning = (
-            "Custom thumbnail skipped. YouTube says this account does not have "
-            "permission to set custom video thumbnails."
-            if getattr(exc.resp, "status", None) == 403
-            else f"Custom thumbnail skipped: {exc}"
-        )
-        logger.warning("Thumbnail upload skipped for video %s: %s", video_id, exc)
-        if progress_callback is not None:
-            progress_callback("Skipped thumbnail upload", None)
+    retry_delays_seconds = (0, 5, 15, 30, 60)
+    last_error: HttpError | None = None
+
+    for attempt, delay in enumerate(retry_delays_seconds):
+        if delay:
+            if progress_callback is not None:
+                progress_callback(
+                    f"Waiting for YouTube ({delay}s) before thumbnail retry",
+                    None,
+                )
+            time.sleep(delay)
+
+        try:
+            youtube.thumbnails().set(
+                videoId=video_id,
+                media_body=MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg"),
+            ).execute()
+            if progress_callback is not None:
+                progress_callback("Finished thumbnail upload", None)
+            return None
+        except HttpError as exc:
+            last_error = exc
+            status = getattr(exc.resp, "status", None)
+            if status == 403:
+                break
+            if attempt == len(retry_delays_seconds) - 1:
+                break
+            logger.warning(
+                "Thumbnail upload attempt %s failed for video %s: %s",
+                attempt + 1,
+                video_id,
+                exc,
+            )
+
+    exc = last_error
+    if exc is None:
+        return "Custom thumbnail skipped: unknown error."
+
+    thumbnail_warning = (
+        "Custom thumbnail skipped. YouTube says this account does not have "
+        "permission to set custom video thumbnails."
+        if getattr(exc.resp, "status", None) == 403
+        else f"Custom thumbnail skipped: {exc}"
+    )
+    logger.warning("Thumbnail upload skipped for video %s: %s", video_id, exc)
+    if progress_callback is not None:
+        progress_callback("Skipped thumbnail upload", None)
 
     return thumbnail_warning

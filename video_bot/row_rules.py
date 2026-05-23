@@ -72,7 +72,6 @@ def save_row_rules(rules: list[RowRangeRule]) -> None:
 def validate_row_rules(rules: list[RowRangeRule]) -> None:
     if not rules:
         return
-    seen_ranges: list[tuple[int, int, int]] = []
     for index, rule in enumerate(rules):
         if rule.from_row < 1:
             raise ValueError(f"Rule {index + 1}: From Row must be at least 1.")
@@ -91,20 +90,61 @@ def validate_row_rules(rules: list[RowRangeRule]) -> None:
             raise ValueError(f"Rule {index + 1}: Loop count must be at least 1.")
         if rule.background_loop_count is not None and rule.background_loop_count > 500:
             raise ValueError(f"Rule {index + 1}: Loop count cannot exceed 500.")
-        for start, stop, other in seen_ranges:
-            if not (end < start or rule.from_row > stop):
+
+    for i, rule in enumerate(rules):
+        end_i = rule.to_row if rule.to_row is not None else rule.from_row
+        for j in range(i + 1, len(rules)):
+            other = rules[j]
+            end_j = other.to_row if other.to_row is not None else other.from_row
+            if end_i < other.from_row or rule.from_row > end_j:
+                continue
+            if rule.background_video_id and other.background_video_id:
                 raise ValueError(
-                    f"Rule {index + 1}: Row range {rule.from_row}-{end} "
-                    f"overlaps rule for rows {start}-{stop}."
+                    f"Rules {i + 1} and {j + 1}: overlapping rows cannot both "
+                    "set a background video."
                 )
-        seen_ranges.append((rule.from_row, end, index))
+            if rule.thumbnail_file_id and other.thumbnail_file_id:
+                raise ValueError(
+                    f"Rules {i + 1} and {j + 1}: overlapping rows cannot both "
+                    "set a thumbnail."
+                )
+            if (
+                rule.background_loop_count is not None
+                and other.background_loop_count is not None
+            ):
+                raise ValueError(
+                    f"Rules {i + 1} and {j + 1}: overlapping rows cannot both "
+                    "set a loop count."
+                )
 
 
 def get_rule_for_row(row_number: int) -> RowRangeRule | None:
-    for rule in load_row_rules():
-        if rule.matches(row_number):
-            return rule
-    return None
+    """
+    Merge all rules that match this sheet row (use sheet row numbers from the Jobs tab).
+    Later rules override earlier ones for the same field (background / thumbnail / loops).
+    """
+    matching = [rule for rule in load_row_rules() if rule.matches(row_number)]
+    if not matching:
+        return None
+
+    effective = RowRangeRule(from_row=row_number, to_row=row_number)
+    for rule in matching:
+        if rule.background_video_id:
+            effective.background_video_id = rule.background_video_id
+            effective.background_video_name = rule.background_video_name
+        if rule.thumbnail_file_id:
+            effective.thumbnail_file_id = rule.thumbnail_file_id
+            effective.thumbnail_name = rule.thumbnail_name
+        if rule.background_loop_count is not None:
+            effective.background_loop_count = rule.background_loop_count
+
+    if (
+        not effective.background_video_id
+        and not effective.thumbnail_file_id
+        and effective.background_loop_count is None
+    ):
+        return None
+    return effective
 
 
 def get_background_loop_count_for_row(row_number: int) -> int | None:
