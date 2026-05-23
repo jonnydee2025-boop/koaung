@@ -98,6 +98,15 @@ export async function prioritizeJob(rowNumber) {
   return result;
 }
 
+/** Full sheet for Jobs tab — cached client-side; filter/paginate in jobsSheet.js. */
+export async function fetchAllJobs({ refresh = false } = {}) {
+  const params = new URLSearchParams({ full: 'true' });
+  if (refresh) {
+    params.set('refresh', 'true');
+  }
+  return requestJson(`${BASE}/api/jobs?${params}`, undefined, 'Jobs failed');
+}
+
 export async function fetchJobsPage({
   page = 1,
   pageSize = 50,

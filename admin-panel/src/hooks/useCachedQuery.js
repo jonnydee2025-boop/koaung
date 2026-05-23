@@ -45,7 +45,7 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
       }
 
       try {
-        const result = await fetcherRef.current();
+        const result = await fetcherRef.current(force);
         if (!mounted.current) return;
         writeCache(cacheKey, result, ttlMs);
         setData(result);

@@ -1,46 +1,40 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
 import { Search, RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
-import { fetchJobsPage, prioritizeJob, retryJobRender, scheduleJob } from '../data/api';
+import { prioritizeJob, retryJobRender, scheduleJob } from '../data/api';
+import { invalidateSheetCaches } from '../data/queryCache';
+import { buildJobsPageView, EMPTY_COUNTS } from '../data/jobsSheet';
+import { useJobsSheet } from '../hooks/useSheetData';
 
 const PAGE_SIZE = 100;
 
-function CacheHint({ refreshing, updatedAt, sheetTotal }) {
+function CacheHint({ refreshing, updatedAt, sheetTotal, isStale }) {
   if (!updatedAt && sheetTotal == null) return null;
   return (
     <span className="cache-hint">
-      {refreshing ? 'Updating…' : `Cached · ${updatedAt?.toLocaleTimeString() ?? '—'}`}
+      {refreshing
+        ? 'Updating…'
+        : isStale
+          ? 'Stale · refreshing…'
+          : 'Cached · in memory'}
+      {' · '}
+      {updatedAt?.toLocaleTimeString() ?? '—'}
       {sheetTotal != null ? ` · ${sheetTotal.toLocaleString()} rows in sheet` : ''}
     </span>
   );
 }
 
 export default function Jobs() {
-  const [items, setItems] = useState([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [sheetTotal, setSheetTotal] = useState(null);
-  const [counts, setCounts] = useState({
-    all: 0,
-    done: 0,
-    processing: 0,
-    pending: 0,
-    scheduled: 0,
-    failed: 0,
-  });
+  const sheetQuery = useJobsSheet({ pollMs: 15000 });
 
+  const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [updatedAt, setUpdatedAt] = useState(null);
   const [actionError, setActionError] = useState('');
   const [prioritizingRow, setPrioritizingRow] = useState(null);
   const [retryingRow, setRetryingRow] = useState(null);
@@ -53,60 +47,44 @@ export default function Jobs() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const loadPage = useCallback(
-    async (targetPage, { force = false, showFullLoader = false } = {}) => {
-      if (showFullLoader) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
-      setError('');
-
-      try {
-        const data = await fetchJobsPage({
-          page: targetPage,
-          pageSize: PAGE_SIZE,
-          status: filter,
-          search: debouncedSearch,
-          refresh: force,
-        });
-
-        setItems(data.items);
-        setPage(data.page);
-        setTotalPages(data.total_pages);
-        setTotal(data.total);
-        setSheetTotal(data.sheet_total);
-        setCounts(data.counts);
-        setUpdatedAt(new Date());
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [filter, debouncedSearch],
-  );
-
   useEffect(() => {
     setPage(1);
-    loadPage(1, { showFullLoader: items.length === 0 });
-  }, [filter, debouncedSearch, loadPage]);
+  }, [filter, debouncedSearch]);
 
-  useEffect(() => {
-    if (page === 1) {
-      return;
+  const allJobs = sheetQuery.data?.jobs;
+  const counts = sheetQuery.data?.counts ?? EMPTY_COUNTS;
+  const sheetTotal = sheetQuery.data?.sheet_total ?? null;
+
+  const pageView = useMemo(() => {
+    if (!allJobs) {
+      return null;
     }
-    loadPage(page, { showFullLoader: false });
-  }, [page, loadPage]);
+    return buildJobsPageView(allJobs, counts, {
+      page,
+      pageSize: PAGE_SIZE,
+      status: filter,
+      search: debouncedSearch,
+    });
+  }, [allJobs, counts, page, filter, debouncedSearch]);
 
   useEffect(() => {
-    const interval = setInterval(() => loadPage(page), 15000);
-    return () => clearInterval(interval);
-  }, [page, loadPage]);
+    if (!pageView) return;
+    if (pageView.page !== page) {
+      setPage(pageView.page);
+    }
+  }, [pageView?.page, page, pageView]);
 
-  const refreshAll = () => {
-    loadPage(page, { force: true });
+  const items = pageView?.items ?? [];
+  const totalPages = pageView?.total_pages ?? 1;
+  const total = pageView?.total ?? 0;
+  const loading = sheetQuery.loading;
+  const refreshing = sheetQuery.refreshing;
+  const error = sheetQuery.error;
+  const updatedAt = sheetQuery.updatedAt;
+
+  const refreshSheet = () => {
+    invalidateSheetCaches();
+    sheetQuery.refresh();
   };
 
   const handleFilterChange = (value) => {
@@ -124,7 +102,7 @@ export default function Jobs() {
     setRetryingRow(job.row);
     try {
       await retryJobRender(job.row);
-      setTimeout(() => loadPage(page, { force: true }), 1500);
+      setTimeout(refreshSheet, 1500);
     } catch (e) {
       setActionError(e.message);
     } finally {
@@ -151,7 +129,7 @@ export default function Jobs() {
     try {
       await scheduleJob(scheduleTarget.row, scheduleTimeIso);
       setScheduleTarget(null);
-      await loadPage(page, { force: true });
+      refreshSheet();
     } catch (e) {
       setScheduleModalError(e.message);
       setActionError(e.message);
@@ -165,7 +143,7 @@ export default function Jobs() {
     setPrioritizingRow(job.row);
     try {
       await prioritizeJob(job.row);
-      await loadPage(page, { force: true });
+      refreshSheet();
     } catch (e) {
       setActionError(e.message);
     } finally {
@@ -187,7 +165,12 @@ export default function Jobs() {
       />
       <div className="page-content">
         <div className="cache-bar">
-          <CacheHint refreshing={refreshing} updatedAt={updatedAt} sheetTotal={sheetTotal} />
+          <CacheHint
+            refreshing={refreshing}
+            updatedAt={updatedAt}
+            sheetTotal={sheetTotal}
+            isStale={sheetQuery.isStale}
+          />
         </div>
 
         {displayError && (
@@ -279,7 +262,7 @@ export default function Jobs() {
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
-                onClick={refreshAll}
+                onClick={refreshSheet}
                 disabled={loading || refreshing}
               >
                 <RefreshCw size={13} />
@@ -305,7 +288,7 @@ export default function Jobs() {
           </div>
 
           <Pagination
-            page={page}
+            page={pageView?.page ?? page}
             totalPages={totalPages}
             total={total}
             pageSize={PAGE_SIZE}

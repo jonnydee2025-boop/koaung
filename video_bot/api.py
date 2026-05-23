@@ -245,14 +245,23 @@ def get_jobs(
     search: str = Query(default=""),
     limit: int | None = Query(default=None, ge=1, le=500),
     refresh: bool = Query(default=False),
+    full: bool = Query(default=False),
 ):
     """
     Return sheet jobs. With `limit` only (no `page`), returns a plain array for Dashboard.
     With `page`, returns a paginated payload so the Jobs tab can browse the full sheet.
+    With `full=true`, returns every row once for client-side filter/pagination (Jobs tab cache).
     """
     try:
         all_jobs = _all_jobs_sorted(force_refresh=refresh)
         counts = _job_status_counts(all_jobs)
+
+        if full:
+            return {
+                "jobs": all_jobs,
+                "counts": counts,
+                "sheet_total": len(all_jobs),
+            }
 
         if page is None and limit is not None:
             return _filter_jobs(all_jobs, status, search)[:limit]

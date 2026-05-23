@@ -32,8 +32,8 @@ export function invalidateCache(keyOrPattern) {
   store.delete(keyOrPattern);
 }
 
-/** Clear sheet-derived data after renders or manual refresh. */
+/** Clear sheet-derived data after renders, job actions, or manual refresh. */
 export function invalidateSheetCaches() {
   invalidateCache('stats');
-  invalidateCache('jobs:*');
+  invalidateCache('jobs:*'); /* jobs:all, jobs:6, … */
 }
