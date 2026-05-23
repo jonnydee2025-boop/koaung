@@ -141,9 +141,9 @@ export default function RowRulesTable() {
           <div className="card-title">Row-Based Rules</div>
           <p className="modal-hint" style={{ marginTop: 6, marginBottom: 0 }}>
             Map sheet row ranges to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
-            and/or background loop count for short tracks. First matching rule wins.
-            Empty &quot;To Row&quot; = single row. Empty &quot;Loops&quot; = auto (loop until
-            track ends).
+            and/or loop count for short tracks (repeats audio + background N times).
+            First matching rule wins. Empty &quot;To Row&quot; = single row. Empty
+            &quot;Loops&quot; = auto (background loops until track ends, audio once).
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
@@ -246,7 +246,7 @@ export default function RowRulesTable() {
                 max={500}
                 placeholder="Auto"
                 aria-label={`Rule ${index + 1} background loops`}
-                title="How many times to loop the background video (empty = until track ends)"
+                title="Repeat audio and background N times (empty = auto)"
                 value={rule.background_loop_count}
                 onChange={(e) =>
                   updateRule(index, { background_loop_count: e.target.value })

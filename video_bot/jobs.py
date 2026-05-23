@@ -265,7 +265,11 @@ def process_reserved_row(
         logger.info("Rendering video. This may take a while...")
         loop_count = get_background_loop_count_for_row(row.row_number)
         if loop_count is not None:
-            logger.info("Background loop count for row %s: %s", row.row_number, loop_count)
+            logger.info(
+                "Track + background loop count for row %s: %sx",
+                row.row_number,
+                loop_count,
+            )
         render_video(
             render_audio_path,
             background_path,

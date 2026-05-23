@@ -18,7 +18,7 @@ class RowRangeRule:
     background_video_name: str = ""
     thumbnail_file_id: str = ""
     thumbnail_name: str = ""
-    """When set, background is looped this many times (else infinite until audio ends)."""
+    """When set, repeat audio + background this many times (else auto loop bg only)."""
     background_loop_count: int | None = None
 
     def matches(self, row_number: int) -> bool:
