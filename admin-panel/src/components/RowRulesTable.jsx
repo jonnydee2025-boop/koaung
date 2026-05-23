@@ -197,21 +197,31 @@ export default function RowRulesTable() {
             <div key={index} className="row-rules-row">
               <input
                 className="form-input row-rules-num"
-                type="number"
-                min={1}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="100"
                 aria-label={`Rule ${index + 1} from row`}
                 value={rule.from_row}
-                onChange={(e) => updateRule(index, { from_row: e.target.value })}
+                onChange={(e) =>
+                  updateRule(index, {
+                    from_row: e.target.value.replace(/\D/g, ''),
+                  })
+                }
               />
               <input
                 className="form-input row-rules-num"
-                type="number"
-                min={1}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="—"
                 aria-label={`Rule ${index + 1} to row`}
                 value={rule.to_row}
-                onChange={(e) => updateRule(index, { to_row: e.target.value })}
+                onChange={(e) =>
+                  updateRule(index, {
+                    to_row: e.target.value.replace(/\D/g, ''),
+                  })
+                }
               />
               <SelectMedia
                 id={`bg-${index}`}
@@ -241,15 +251,17 @@ export default function RowRulesTable() {
               />
               <input
                 className="form-input row-rules-num"
-                type="number"
-                min={1}
-                max={500}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="Auto"
                 aria-label={`Rule ${index + 1} background loops`}
                 title="Repeat audio and background N times (empty = auto)"
                 value={rule.background_loop_count}
                 onChange={(e) =>
-                  updateRule(index, { background_loop_count: e.target.value })
+                  updateRule(index, {
+                    background_loop_count: e.target.value.replace(/\D/g, ''),
+                  })
                 }
               />
               <button

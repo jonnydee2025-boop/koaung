@@ -128,12 +128,18 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
   margin-top: 4px;
 }
 .settings-danger-title { color: var(--red); }
-.settings-danger-text { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; max-width: 640px; }
+.settings-danger-text { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; max-width: 640px; }
 .settings-kill-btn {
   background: var(--red); color: #fff; border: none;
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
-  cursor: pointer; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 5px;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  font-family: inherit;
 }
 .settings-kill-btn:hover { filter: brightness(1.08); }
 
@@ -143,10 +149,10 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
 .row-rules-head,
 .row-rules-row {
   display: grid;
-  grid-template-columns: 72px 72px minmax(120px, 1fr) minmax(120px, 1fr) 72px 40px;
+  grid-template-columns: 72px 72px 140px 140px 72px 40px;
   gap: 10px;
   align-items: center;
-  min-width: min(100%, 600px);
+  min-width: min(100%, 520px);
 }
 .row-rules-head {
   font-size: 10px; font-weight: 600; text-transform: uppercase;
@@ -165,11 +171,18 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
   font-size: 12px;
   padding: 8px 10px;
   text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.row-rules-num::-webkit-outer-spin-button,
+.row-rules-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .row-rules-select {
   width: 100%;
   min-width: 0;
-  max-width: 100%;
+  max-width: 140px;
   font-size: 12px;
 }
 .row-rules-delete { flex-shrink: 0; }

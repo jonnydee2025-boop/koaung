@@ -209,10 +209,10 @@ export default function Settings() {
           </p>
           <button
             type="button"
-            className="btn settings-kill-btn"
+            className="settings-kill-btn"
             onClick={handleKillServer}
           >
-            <AlertTriangle size={15} />
+            <AlertTriangle size={12} />
             Kill Server
           </button>
         </div>
