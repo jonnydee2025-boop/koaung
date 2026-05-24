@@ -8,7 +8,7 @@ export {
   fetchAllJobs,
   fetchJobsPage,
   scheduleJob,
-  prioritizeJob,
+  updateJobStatus,
   retryJobRender,
 } from './jobsApi';
 export {

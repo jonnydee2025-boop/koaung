@@ -3,13 +3,13 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from ..http_errors import http_error_from_value
 from ..job_listing import all_jobs_sorted, filter_jobs, job_status_counts
 from ..render_runner import queue_admin_render
-from ..schemas import ScheduleJobRequest
+from ..schemas import ScheduleJobRequest, UpdateJobStatusRequest
 from ...sheet_cache import invalidate_sheet_cache
 from ...row_rules import resolve_batch_anchor_row
 from ...sheets import (
     assert_row_retryable,
-    prioritize_sheet_row,
     schedule_sheet_row,
+    update_sheet_row_status,
 )
 
 router = APIRouter(tags=["jobs"])
@@ -89,16 +89,12 @@ async def retry_job(row_number: int, background_tasks: BackgroundTasks):
     return {**result, "row": anchor_row, "requested_row": row_number}
 
 
-@router.post("/jobs/{row_number}/prioritize")
-def prioritize_job(row_number: int):
+@router.post("/jobs/{row_number}/status")
+def update_job_status(row_number: int, body: UpdateJobStatusRequest):
     try:
-        previous = prioritize_sheet_row(row_number)
+        result = update_sheet_row_status(row_number, body.status)
         invalidate_sheet_cache()
-        return {
-            "row": row_number,
-            "status": "do",
-            "previous_status": previous,
-        }
+        return result
     except ValueError as exc:
         raise http_error_from_value(exc) from exc
     except Exception as exc:

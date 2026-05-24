@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import StatusBadge from './StatusBadge';
-import { RotateCcw, ExternalLink, ArrowUp, CalendarClock } from 'lucide-react';
+import JobLogModal from './JobLogModal';
+import JobStatusSelect from './JobStatusSelect';
+import { RotateCcw, ExternalLink, CalendarClock, NotebookText } from 'lucide-react';
+
+function isDoneStatus(status) {
+  return status === 'done' || status === 'uploaded_to_yt';
+}
 
 const PAGE_SIZE = 25;
 
@@ -23,9 +29,9 @@ export default function LazyJobTable({
   loading,
   filtered,
   onRetry,
-  onPrioritize,
+  onStatusChange,
   onSchedule,
-  prioritizingRow = null,
+  updatingStatusRow = null,
   retryingRow = null,
   schedulingRow = null,
   showActions = false,
@@ -33,6 +39,7 @@ export default function LazyJobTable({
   disableLazyRows = false,
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [logJob, setLogJob] = useState(null);
   const sentinelRef = useRef(null);
 
   useEffect(() => {
@@ -75,7 +82,7 @@ export default function LazyJobTable({
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (
             <tr key={i}>
-              <td colSpan={columns === 'full' ? 7 : 6}>
+              <td colSpan={columns === 'full' ? 6 : 5}>
                 <Skeleton />
               </td>
             </tr>
@@ -101,7 +108,6 @@ export default function LazyJobTable({
             <th>Title</th>
             <th>Row</th>
             <th>Status</th>
-            <th>Monk / Teacher</th>
             <th>YouTube</th>
             <th>Log</th>
             {showActions && <th>Actions</th>}
@@ -115,14 +121,21 @@ export default function LazyJobTable({
               </td>
               <td className="text-mono">#{job.row}</td>
               <td>
-                <StatusBadge status={job.status} />
+                {showActions && onStatusChange ? (
+                  <JobStatusSelect
+                    status={job.status}
+                    saving={updatingStatusRow === job.row}
+                    onChange={(newStatus) => onStatusChange(job, newStatus)}
+                  />
+                ) : (
+                  <StatusBadge status={job.status} />
+                )}
                 {job.schedule_time && (
                   <div className="text-muted" style={{ fontSize: 10, marginTop: 4 }}>
                     {new Date(job.schedule_time).toLocaleString()}
                   </div>
                 )}
               </td>
-              <td className="text-muted">{job.monk || '—'}</td>
               <td>
                 {job.youtube_id ? (
                   <a
@@ -138,14 +151,20 @@ export default function LazyJobTable({
                 )}
               </td>
               <td>
-                <div
-                  className="truncate text-muted"
-                  style={{ maxWidth: 200, fontSize: 11 }}
-                >
-                  {showActions
-                    ? job.logs?.split('\n')[0] || '—'
-                    : job.logs || '—'}
-                </div>
+                {(job.logs || '').trim() ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm job-action-btn"
+                    onClick={() => setLogJob(job)}
+                    title="View log"
+                    aria-label="View log"
+                  >
+                    <NotebookText size={14} />
+                    <span style={{ fontSize: 11, marginLeft: 4 }}>View Log</span>
+                  </button>
+                ) : (
+                  '—'
+                )}
               </td>
               {showActions && (
                 <td>
@@ -165,7 +184,7 @@ export default function LazyJobTable({
                         <ExternalLink size={14} />
                       </a>
                     )}
-                    {job.status !== 'processing' && onSchedule && (
+                    {!isDoneStatus(job.status) && job.status !== 'processing' && onSchedule && (
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm job-action-btn"
@@ -175,18 +194,6 @@ export default function LazyJobTable({
                         aria-label="Schedule"
                       >
                         <CalendarClock size={14} />
-                      </button>
-                    )}
-                    {job.status !== 'do' && job.status !== 'processing' && job.status !== 'scheduled' && onPrioritize && (
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm job-action-btn"
-                        onClick={() => onPrioritize(job)}
-                        disabled={prioritizingRow === job.row}
-                        title="Prioritize — pick before other pending rows"
-                        aria-label="Prioritize"
-                      >
-                        <ArrowUp size={14} />
                       </button>
                     )}
                     {job.status === 'failed' && onRetry && (
@@ -229,6 +236,7 @@ export default function LazyJobTable({
           )}
         </div>
       )}
+      <JobLogModal job={logJob} open={Boolean(logJob)} onClose={() => setLogJob(null)} />
     </>
   );
 }

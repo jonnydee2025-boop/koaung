@@ -15,7 +15,7 @@ Batch member rows (non-anchor rows in a multi-row **Select Rows** rule) are neve
 picked directly — only the anchor row starts a batch job:
 
 1. **Scheduled** rows whose `Schedule_Time` is due (earliest first)
-2. **`do`** rows (manual priority from admin **Prioritize**)
+2. **`do`** rows (manual priority from admin status dropdown)
 3. **`pending`** rows
 
 Only one bot instance should run per sheet.
@@ -112,8 +112,8 @@ Videos are **uploaded as private** first. After the full pipeline succeeds, visi
 |---------|-------------|
 | **Login** | `ADMIN_API_KEY` entered once per browser session (not baked into production builds) |
 | **Dashboard / Jobs** | Live sheet data with pagination and filters |
-| **Prioritize** | Sets row `status=do` (picked before `pending`) |
-| **Schedule** | Sets `status=Scheduled` + `Schedule_Time`; duplicate times are rejected |
+| **Status dropdown** | Sets row `status` to `pending`, `do`, `failed`, or `done` from the Jobs table |
+| **Schedule** | Sets `status=Scheduled` + `Schedule_Time`; duplicate times are rejected; hidden for done rows |
 | **Row rules** | Settings table above |
 | **Render Next / Stop** | Queue or cancel renders from the Logs header |
 
@@ -182,7 +182,7 @@ Example row-rules file: `row_range_rules.example.json`.
 | `video_bot/app.py` | Telegram + FastAPI + scheduled-render loop |
 | `video_bot/config.py` | Environment and startup validation |
 | `video_bot/api.py` | Admin REST API |
-| `video_bot/sheets.py` | Sheet read/write, reserve next row, schedule, prioritize |
+| `video_bot/sheets.py` | Sheet read/write, reserve next row, schedule, admin status updates |
 | `video_bot/drive.py` | Drive listing, downloads, row-rule media |
 | `video_bot/row_rules.py` | Load/save/validate row-range rules |
 | `video_bot/schedule_time.py` | Parse/compare `Schedule_Time` |

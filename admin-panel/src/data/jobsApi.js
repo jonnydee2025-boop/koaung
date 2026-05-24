@@ -46,11 +46,15 @@ export async function scheduleJob(rowNumber, scheduleTimeIso) {
   return result;
 }
 
-export async function prioritizeJob(rowNumber) {
+export async function updateJobStatus(rowNumber, status) {
   const result = await requestJson(
-    `${API_BASE}/api/jobs/${rowNumber}/prioritize`,
-    { method: 'POST' },
-    'Prioritize failed',
+    `${API_BASE}/api/jobs/${rowNumber}/status`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    },
+    'Status update failed',
   );
   invalidateSheetCaches();
   return result;

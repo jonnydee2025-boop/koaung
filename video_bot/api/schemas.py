@@ -1,5 +1,7 @@
 """Pydantic request/response models for the admin API."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from ..row_rules import RowRangeRule, parse_batch_rows_string
@@ -10,6 +12,10 @@ class ScheduleJobRequest(BaseModel):
         ...,
         description="ISO 8601 date/time (e.g. 2026-05-22T14:30:00+00:00)",
     )
+
+
+class UpdateJobStatusRequest(BaseModel):
+    status: Literal["pending", "do", "failed", "done"]
 
 
 class RowRangeRulePayload(BaseModel):

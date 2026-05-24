@@ -4,7 +4,7 @@ import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
 import { Search, RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
-import { prioritizeJob, retryJobRender, scheduleJob } from '../data/api';
+import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
 import { buildJobsPageView, EMPTY_COUNTS } from '../data/jobsSheet';
 import { useJobsSheet } from '../hooks/useSheetData';
@@ -36,7 +36,7 @@ export default function Jobs() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [actionError, setActionError] = useState('');
-  const [prioritizingRow, setPrioritizingRow] = useState(null);
+  const [updatingStatusRow, setUpdatingStatusRow] = useState(null);
   const [retryingRow, setRetryingRow] = useState(null);
   const [schedulingRow, setSchedulingRow] = useState(null);
   const [scheduleTarget, setScheduleTarget] = useState(null);
@@ -138,16 +138,17 @@ export default function Jobs() {
     }
   };
 
-  const handlePrioritize = async (job) => {
+  const handleStatusChange = async (job, newStatus) => {
+    if (!job?.row || !newStatus) return;
     setActionError('');
-    setPrioritizingRow(job.row);
+    setUpdatingStatusRow(job.row);
     try {
-      await prioritizeJob(job.row);
+      await updateJobStatus(job.row, newStatus);
       refreshSheet();
     } catch (e) {
       setActionError(e.message);
     } finally {
-      setPrioritizingRow(null);
+      setUpdatingStatusRow(null);
     }
   };
 
@@ -278,9 +279,9 @@ export default function Jobs() {
               filtered={items}
               showActions
               onRetry={handleRetryJob}
-              onPrioritize={handlePrioritize}
+              onStatusChange={handleStatusChange}
               onSchedule={handleScheduleOpen}
-              prioritizingRow={prioritizingRow}
+              updatingStatusRow={updatingStatusRow}
               retryingRow={retryingRow}
               schedulingRow={schedulingRow}
               disableLazyRows

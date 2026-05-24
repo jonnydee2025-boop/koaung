@@ -239,32 +239,46 @@ def prepare_failed_row_for_retry(sheets, row_number: int) -> tuple[list[str], "S
     return headers, target
 
 
-def prioritize_sheet_row(row_number: int) -> str:
+ADMIN_SETTABLE_STATUSES = frozenset({"pending", "do", "failed", "done"})
+
+
+def clear_schedule_time(sheets: Any, headers: list[str], row_number: int) -> None:
+    schedule_col = ensure_column(sheets, headers, "Schedule_Time")
+    update_sheet_cell(sheets, row_number, schedule_col, "")
+
+
+def update_sheet_row_status(row_number: int, status: str) -> dict[str, str | int]:
     """
-    Set a row's status to ``do`` so ``reserve_next_pending_row`` picks it before ``pending``.
-    Returns the previous status (lowercase).
+    Set a row's status from the admin panel.
+    Allowed values: pending, do, failed, done.
     """
+    normalized = (status or "").strip().lower()
+    if normalized not in ADMIN_SETTABLE_STATUSES:
+        raise ValueError(
+            f"Invalid status: {status}. Allowed: {', '.join(sorted(ADMIN_SETTABLE_STATUSES))}."
+        )
+
     sheets, _ = build_google_services()
-    headers, rows = get_sheet_rows(sheets)
-    if "status" not in headers:
-        raise RuntimeError("Missing required 'status' column.")
-
-    target = next((r for r in rows if r.row_number == row_number), None)
-    if target is None:
-        raise ValueError(f"Sheet row {row_number} not found.")
-
+    headers, target = _get_sheet_row_or_raise(sheets, row_number)
     previous = target.values.get("status", "").strip().lower()
     if previous == "processing":
         raise ValueError(f"Row {row_number} is currently processing.")
+
+    if previous == "scheduled":
+        clear_schedule_time(sheets, headers, row_number)
 
     update_task_status(
         sheets,
         headers,
         row_number,
-        "do",
-        "Prioritized from admin panel",
+        normalized,
+        f"Status set to {normalized} from admin panel",
     )
-    return previous
+    return {
+        "row": row_number,
+        "status": normalized,
+        "previous_status": previous,
+    }
 
 
 def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str]:
