@@ -219,6 +219,55 @@ def enhance_audio(
     )
 
 
+def concat_audio_tracks(
+    track_paths: list[Path],
+    output_path: Path,
+    progress_callback: ProgressCallback | None = None,
+) -> float:
+    if len(track_paths) < 2:
+        raise ValueError("concat_audio_tracks requires at least two tracks.")
+
+    total_duration = sum(
+        get_media_duration_seconds(path) for path in track_paths
+    )
+    filter_parts: list[str] = []
+    concat_inputs: list[str] = []
+    for index in range(len(track_paths)):
+        label = f"a{index}"
+        filter_parts.append(
+            f"[{index}:a]aresample=48000,"
+            f"aformat=sample_fmts=s16:channel_layouts=stereo[{label}]"
+        )
+        concat_inputs.append(f"[{label}]")
+    n = len(track_paths)
+    filter_parts.append(f"{''.join(concat_inputs)}concat=n={n}:v=0:a=1[outa]")
+    filter_complex = ";".join(filter_parts)
+
+    command = [FFMPEG_BIN, "-y"]
+    for path in track_paths:
+        command.extend(["-i", str(path)])
+    command.extend(
+        [
+            "-filter_complex",
+            filter_complex,
+            "-map",
+            "[outa]",
+            "-c:a",
+            "pcm_s16le",
+            "-ar",
+            "48000",
+            str(output_path),
+        ]
+    )
+    run_ffmpeg_with_progress(
+        command,
+        total_duration,
+        progress_callback,
+        status_label="Concatenating audio",
+    )
+    return get_media_duration_seconds(output_path)
+
+
 def render_video(
     mp3_path: Path,
     background_path: Path,

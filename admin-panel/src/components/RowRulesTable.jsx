@@ -4,6 +4,7 @@ import { fetchDriveMediaOptions, fetchRowRules, saveRowRules } from '../data/api
 
 function emptyRule() {
   return {
+    batch_rows: '',
     from_row: '',
     to_row: '',
     background_video_id: '',
@@ -12,6 +13,31 @@ function emptyRule() {
     thumbnail_name: '',
     background_loop_count: '',
   };
+}
+
+function parseBatchRowCount(raw) {
+  if (!raw || !String(raw).trim()) return 0;
+  return String(raw)
+    .split(/[\s,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean).length;
+}
+
+function batchRowsFromLegacyRule(r) {
+  if (r.batch_rows && String(r.batch_rows).trim()) {
+    return String(r.batch_rows);
+  }
+  const from = r.from_row != null && r.from_row !== '' ? String(r.from_row) : '';
+  const to = r.to_row != null && r.to_row !== '' ? String(r.to_row) : '';
+  if (!from) return '';
+  if (to && to !== from) {
+    const start = Number(from);
+    const end = Number(to);
+    if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+      return Array.from({ length: end - start + 1 }, (_, i) => start + i).join(', ');
+    }
+  }
+  return from;
 }
 
 function SelectMedia({ id, value, options, disabled, onChange }) {
@@ -58,6 +84,7 @@ export default function RowRulesTable() {
       ]);
       const loaded = rulesData.rules?.length
         ? rulesData.rules.map((r) => ({
+            batch_rows: batchRowsFromLegacyRule(r),
             from_row: r.from_row ?? '',
             to_row: r.to_row ?? '',
             background_video_id: r.background_video_id ?? '',
@@ -103,26 +130,32 @@ export default function RowRulesTable() {
     setSaving(true);
     try {
       const payload = rules
-        .filter((r) => r.from_row !== '' && r.from_row != null)
-        .map((r) => ({
-          from_row: Number(r.from_row),
-          to_row:
-            r.to_row === '' || r.to_row == null ? null : Number(r.to_row),
-          background_video_id: r.background_video_id || '',
-          background_video_name:
-            r.background_video_name ||
-            backgrounds.find((b) => b.id === r.background_video_id)?.name ||
-            '',
-          thumbnail_file_id: r.thumbnail_file_id || '',
-          thumbnail_name:
-            r.thumbnail_name ||
-            thumbnails.find((t) => t.id === r.thumbnail_file_id)?.name ||
-            '',
-          background_loop_count:
-            r.background_loop_count === '' || r.background_loop_count == null
-              ? null
-              : Number(r.background_loop_count),
-        }));
+        .filter((r) => r.batch_rows !== '' && r.batch_rows != null)
+        .map((r) => {
+          const batchRows = String(r.batch_rows).trim();
+          const firstRow = batchRows.split(/[\s,]+/).filter(Boolean)[0];
+          return {
+            from_row: Number(firstRow),
+            to_row: null,
+            batch_rows: batchRows,
+            background_video_id: r.background_video_id || '',
+            background_video_name:
+              r.background_video_name ||
+              backgrounds.find((b) => b.id === r.background_video_id)?.name ||
+              '',
+            thumbnail_file_id: r.thumbnail_file_id || '',
+            thumbnail_name:
+              r.thumbnail_name ||
+              thumbnails.find((t) => t.id === r.thumbnail_file_id)?.name ||
+              '',
+            background_loop_count:
+              parseBatchRowCount(batchRows) > 1 ||
+              r.background_loop_count === '' ||
+              r.background_loop_count == null
+                ? null
+                : Number(r.background_loop_count),
+          };
+        });
       await saveRowRules(payload);
       setSuccess('Row rules saved.');
       setTimeout(() => setSuccess(''), 3000);
@@ -140,10 +173,11 @@ export default function RowRulesTable() {
         <div>
           <div className="card-title">Row-Based Rules</div>
           <p className="modal-hint" style={{ marginTop: 6, marginBottom: 0 }}>
-            Map sheet row ranges to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
-            and/or loop count. Use the <strong>sheet row number</strong> from the Jobs tab
-            (starts at 2 for the first data row). Overlapping rules may split background vs
-            thumbnail; later rules override earlier ones for the same field.
+            Map sheet rows to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
+            and/or loop count. Use <strong>Select Rows</strong> with comma-separated sheet row
+            numbers from the Jobs tab (first row is the anchor/trigger). Multiple rows concatenate
+            audio into one render; member rows are marked complete automatically. Loops apply only
+            to single-row rules.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
@@ -186,95 +220,88 @@ export default function RowRulesTable() {
       ) : (
         <div className="row-rules-list">
           <div className="row-rules-head" aria-hidden="true">
-            <span>From</span>
-            <span>To</span>
+            <span>Select Rows</span>
             <span>Background</span>
             <span>Thumbnail</span>
             <span>Loops</span>
             <span />
           </div>
-          {rules.map((rule, index) => (
-            <div key={index} className="row-rules-row">
-              <input
-                className="form-input row-rules-num"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="100"
-                aria-label={`Rule ${index + 1} from row`}
-                value={rule.from_row}
-                onChange={(e) =>
-                  updateRule(index, {
-                    from_row: e.target.value.replace(/\D/g, ''),
-                  })
-                }
-              />
-              <input
-                className="form-input row-rules-num"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="—"
-                aria-label={`Rule ${index + 1} to row`}
-                value={rule.to_row}
-                onChange={(e) =>
-                  updateRule(index, {
-                    to_row: e.target.value.replace(/\D/g, ''),
-                  })
-                }
-              />
-              <SelectMedia
-                id={`bg-${index}`}
-                value={rule.background_video_id}
-                options={backgrounds}
-                disabled={refreshingDrive}
-                onChange={(e) => {
-                  const opt = backgrounds.find((b) => b.id === e.target.value);
-                  updateRule(index, {
-                    background_video_id: e.target.value,
-                    background_video_name: opt?.name ?? '',
-                  });
-                }}
-              />
-              <SelectMedia
-                id={`thumb-${index}`}
-                value={rule.thumbnail_file_id}
-                options={thumbnails}
-                disabled={refreshingDrive}
-                onChange={(e) => {
-                  const opt = thumbnails.find((t) => t.id === e.target.value);
-                  updateRule(index, {
-                    thumbnail_file_id: e.target.value,
-                    thumbnail_name: opt?.name ?? '',
-                  });
-                }}
-              />
-              <input
-                className="form-input row-rules-num"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="Auto"
-                aria-label={`Rule ${index + 1} background loops`}
-                title="Repeat audio and background N times (empty = auto)"
-                value={rule.background_loop_count}
-                onChange={(e) =>
-                  updateRule(index, {
-                    background_loop_count: e.target.value.replace(/\D/g, ''),
-                  })
-                }
-              />
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm job-action-btn row-rules-delete"
-                onClick={() => removeRule(index)}
-                title="Remove rule"
-                aria-label="Remove rule"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
+          {rules.map((rule, index) => {
+            const batchCount = parseBatchRowCount(rule.batch_rows);
+            const isMultiBatch = batchCount > 1;
+            return (
+              <div key={index} className="row-rules-row">
+                <input
+                  className="form-input row-rules-rows"
+                  type="text"
+                  placeholder="70, 601, 805"
+                  aria-label={`Rule ${index + 1} select rows`}
+                  title="Comma-separated sheet row numbers; first row is the anchor"
+                  value={rule.batch_rows}
+                  onChange={(e) =>
+                    updateRule(index, {
+                      batch_rows: e.target.value.replace(/[^\d,\s]/g, ''),
+                    })
+                  }
+                />
+                <SelectMedia
+                  id={`bg-${index}`}
+                  value={rule.background_video_id}
+                  options={backgrounds}
+                  disabled={refreshingDrive}
+                  onChange={(e) => {
+                    const opt = backgrounds.find((b) => b.id === e.target.value);
+                    updateRule(index, {
+                      background_video_id: e.target.value,
+                      background_video_name: opt?.name ?? '',
+                    });
+                  }}
+                />
+                <SelectMedia
+                  id={`thumb-${index}`}
+                  value={rule.thumbnail_file_id}
+                  options={thumbnails}
+                  disabled={refreshingDrive}
+                  onChange={(e) => {
+                    const opt = thumbnails.find((t) => t.id === e.target.value);
+                    updateRule(index, {
+                      thumbnail_file_id: e.target.value,
+                      thumbnail_name: opt?.name ?? '',
+                    });
+                  }}
+                />
+                <input
+                  className="form-input row-rules-num"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder={isMultiBatch ? 'Auto' : 'Auto'}
+                  aria-label={`Rule ${index + 1} background loops`}
+                  title={
+                    isMultiBatch
+                      ? 'Batch mode uses auto background loop over combined audio'
+                      : 'Repeat audio and background N times (empty = auto)'
+                  }
+                  value={isMultiBatch ? '' : rule.background_loop_count}
+                  disabled={isMultiBatch}
+                  onChange={(e) =>
+                    updateRule(index, {
+                      background_loop_count: e.target.value.replace(/\D/g, ''),
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm job-action-btn row-rules-delete"
+                  onClick={() => removeRule(index)}
+                  title="Remove rule"
+                  aria-label="Remove rule"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 

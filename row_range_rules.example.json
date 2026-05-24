@@ -1,17 +1,19 @@
 {
   "rules": [
     {
-      "from_row": 100,
-      "to_row": 150,
+      "from_row": 70,
+      "to_row": null,
+      "batch_rows": "70,601,805",
       "background_video_id": "DRIVE_FILE_ID_MP4",
       "background_video_name": "forest_loop.mp4",
       "thumbnail_file_id": "DRIVE_FILE_ID_JPG",
-      "thumbnail_name": "thumb_100.jpg",
+      "thumbnail_name": "thumb_batch.jpg",
       "background_loop_count": null
     },
     {
       "from_row": 200,
       "to_row": null,
+      "batch_rows": "",
       "background_video_id": "",
       "background_video_name": "",
       "thumbnail_file_id": "DRIVE_FILE_ID_PNG",

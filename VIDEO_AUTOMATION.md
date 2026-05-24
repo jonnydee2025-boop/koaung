@@ -1,14 +1,16 @@
 # Telegram Video Automation
 
 This bot reads jobs from a Google Sheet, renders MP4s (MP3 + background video),
-builds thumbnails, uploads to YouTube as private, and notifies you via Telegram.
+builds thumbnails, uploads to YouTube (public or private per rules below), and notifies you via Telegram.
 A React **admin panel** and **FastAPI** API run in the same process for monitoring
 and control.
 
 ## How jobs are picked
 
 When a render starts (`/render_next`, admin **Render Next**, or a due
-**Scheduled** row), the bot reserves **one** row and sets `status=processing`:
+**Scheduled** row), the bot reserves **one** row and sets `status=processing`.
+Batch member rows (non-anchor rows in a multi-row **Select Rows** rule) are never
+picked directly — only the anchor row starts a batch job:
 
 1. **Scheduled** rows whose `Schedule_Time` is due (earliest first)
 2. **`do`** rows (manual priority from admin **Prioritize**)
@@ -41,7 +43,7 @@ Set `BACKGROUND_VIDEO_DRIVE_FOLDER` in `.env` to your shared folder URL or ID.
 OAuth needs `drive.readonly`. If an old `token.json` lacks Drive scope, delete it
 and sign in again when prompted.
 
-## Row-based rules (background + thumbnail)
+## Row-based rules (background + thumbnail + batch audio)
 
 Configure in the admin panel **Settings → Row-Based Rules** (saved to
 `row_range_rules.json` on the server, path via `ROW_RULES_PATH` in `.env`).
@@ -50,10 +52,29 @@ Each rule:
 
 | Field | Description |
 |-------|-------------|
-| **From Row** | First sheet row number (1-based data rows) |
-| **To Row** | Last row (optional; empty = single row) |
+| **Select Rows** | Comma-separated sheet row numbers (e.g. `70, 601, 805`). The **first** row is the anchor: only that row can start the job. Non-sequential rows are allowed. |
 | **Background Video** | One `.mp4` from the Drive root |
 | **Thumbnail Image** | One image from `Thumbnails/` |
+| **Loops** | Repeat the same row's audio + background N times (single-row rules only; empty = auto background loop) |
+
+### Single-row render (default)
+
+When **Select Rows** contains one row (e.g. `100`), behavior is unchanged: download that row's `mp3_url`, optional audio enhance, render with the rule's background/thumbnail. **Loops** repeats that track N times when set.
+
+### Batch multi-track render
+
+When **Select Rows** lists **two or more** rows (e.g. `70, 601, 805`):
+
+1. Only row **70** (the anchor) is picked from the queue; rows `601` and `805` are skipped automatically.
+2. The bot downloads each row's `mp3_url` **in list order**.
+3. FFmpeg resamples every track to 48 kHz stereo PCM, then **concatenates** them into one timeline (track 1 plays to the end, then track 2, and so on).
+4. Background video uses **auto loop** over the **combined** audio duration (`Loops` is ignored for batch rules).
+5. YouTube **title** and **description** are built by joining each row's values with ` | ` (empty parts skipped).
+6. After a successful upload, **all** listed rows are marked `uploaded_to_yt` with the same log entry.
+
+Retry from the admin panel on any batch row resolves to the anchor row and re-runs the full batch.
+
+Legacy rules using **From Row / To Row** (sequential range) still work when loaded; saving from the admin panel converts them to **Select Rows**.
 
 **On render**, for the current row number:
 
@@ -61,7 +82,18 @@ Each rule:
 - If a rule matches and a thumbnail is set → use that image (resized for YouTube).
 - Otherwise → random background from root; no custom YouTube thumbnail unless a row rule provides one.
 
-First matching rule wins. Overlapping ranges are rejected when saving rules.
+Later rules override earlier ones for the same field when rows overlap. Overlapping ranges cannot both set the same field type when saving rules.
+
+## YouTube visibility (public / private)
+
+Videos are **uploaded as private** first. After the full pipeline succeeds, visibility is updated:
+
+| Situation | Final visibility | Sheet log |
+|-----------|------------------|-----------|
+| Row rule has a thumbnail **and** thumbnail upload succeeds | **Public** | `Uploaded publicly to YouTube. video_id=...` |
+| No thumbnail in row rules | **Private** | `Uploaded privately (no thumbnail in row rules). video_id=...` |
+| Thumbnail configured but YouTube rejects/fails | **Private** | `Uploaded privately (thumbnail failed: ...). video_id=...` |
+| Any error after the video is on YouTube | **Private** (unchanged) | Row `failed` — safe to retry |
 
 ## Admin panel features
 

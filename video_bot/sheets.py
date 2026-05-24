@@ -4,6 +4,7 @@ from typing import Any
 from .config import SHEET_NAME, SPREADSHEET_ID
 from .google_services import build_google_services
 from .models import SheetRow
+from .row_rules import is_batch_member_row
 from .schedule_time import (
     normalize_schedule_time,
     read_row_schedule_time,
@@ -129,6 +130,27 @@ def has_due_scheduled_row(rows: list[SheetRow], *, now: datetime | None = None) 
     return False
 
 
+def get_sheet_rows_by_numbers(
+    rows: list[SheetRow],
+    row_numbers: list[int],
+) -> list[SheetRow]:
+    """Return SheetRow objects in the order of row_numbers; raise if any row is missing."""
+    by_number = {row.row_number: row for row in rows}
+    result: list[SheetRow] = []
+    for number in row_numbers:
+        target = by_number.get(number)
+        if target is None:
+            raise RuntimeError(f"Sheet row {number} not found.")
+        result.append(target)
+    return result
+
+
+def _row_eligible_for_queue(row: SheetRow) -> bool:
+    if is_batch_member_row(row.row_number):
+        return False
+    return True
+
+
 def reserve_next_pending_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
     headers, rows = get_sheet_rows(sheets)
     if "status" not in headers:
@@ -145,15 +167,21 @@ def reserve_next_pending_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
 
     if due_scheduled:
         due_scheduled.sort(key=lambda item: item[0])
-        selected = due_scheduled[0][1]
-        update_task_status(sheets, headers, selected.row_number, "processing", "")
-        return headers, selected
+        for _, candidate in due_scheduled:
+            if _row_eligible_for_queue(candidate):
+                update_task_status(
+                    sheets, headers, candidate.row_number, "processing", ""
+                )
+                return headers, candidate
 
     for desired_status in ("do", "pending"):
         for row in rows:
-            if row.values.get("status", "").strip().lower() == desired_status:
-                update_task_status(sheets, headers, row.row_number, "processing", "")
-                return headers, row
+            if row.values.get("status", "").strip().lower() != desired_status:
+                continue
+            if not _row_eligible_for_queue(row):
+                continue
+            update_task_status(sheets, headers, row.row_number, "processing", "")
+            return headers, row
 
     return headers, None
 

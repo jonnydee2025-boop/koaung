@@ -149,7 +149,7 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
 .row-rules-head,
 .row-rules-row {
   display: grid;
-  grid-template-columns: 72px 72px 140px 140px 72px 40px;
+  grid-template-columns: minmax(140px, 1.4fr) 140px 140px 72px 40px;
   gap: 10px;
   align-items: center;
   min-width: min(100%, 520px);
@@ -173,6 +173,12 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
   text-align: center;
   -moz-appearance: textfield;
   appearance: textfield;
+}
+.row-rules-rows {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  padding: 8px 10px;
 }
 .row-rules-num::-webkit-outer-spin-button,
 .row-rules-num::-webkit-inner-spin-button {

@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
@@ -8,9 +8,43 @@ from googleapiclient.http import MediaFileUpload
 from .config import logger
 from .state import ProgressCallback
 
+PrivacyStatus = Literal["public", "private", "unlisted"]
 
 YOUTUBE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024
 
+
+def resolve_final_privacy(
+    *,
+    has_row_thumbnail: bool,
+    thumbnail_warning: str | None,
+) -> tuple[PrivacyStatus, str | None]:
+    if not has_row_thumbnail:
+        return "private", "no thumbnail in row rules"
+    if thumbnail_warning:
+        return "private", f"thumbnail failed: {thumbnail_warning}"
+    return "public", None
+
+
+def set_video_privacy(
+    youtube: Any,
+    video_id: str,
+    privacy_status: PrivacyStatus,
+    progress_callback: ProgressCallback | None = None,
+) -> None:
+    if progress_callback is not None:
+        progress_callback(f"Setting YouTube visibility to {privacy_status}", None)
+    youtube.videos().update(
+        part="status",
+        body={
+            "id": video_id,
+            "status": {
+                "privacyStatus": privacy_status,
+                "selfDeclaredMadeForKids": False,
+            },
+        },
+    ).execute()
+    if progress_callback is not None:
+        progress_callback(f"YouTube visibility set to {privacy_status}", None)
 
 def upload_video_to_youtube(
     youtube: Any,
@@ -18,6 +52,8 @@ def upload_video_to_youtube(
     title: str,
     description: str,
     progress_callback: ProgressCallback | None = None,
+    *,
+    privacy_status: PrivacyStatus = "private",
 ) -> str:
     request_body = {
         "snippet": {
@@ -26,7 +62,7 @@ def upload_video_to_youtube(
             "categoryId": "27",
         },
         "status": {
-            "privacyStatus": "private",
+            "privacyStatus": privacy_status,
             "selfDeclaredMadeForKids": False,
         },
     }
