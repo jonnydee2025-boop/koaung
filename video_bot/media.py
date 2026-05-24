@@ -268,6 +268,33 @@ def concat_audio_tracks(
     return get_media_duration_seconds(output_path)
 
 
+RENDER_VIDEO_FILTER = (
+    "scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,"
+    "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
+)
+
+
+def _render_video_output_args() -> list[str]:
+    return [
+        "-vf",
+        RENDER_VIDEO_FILTER,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "slow",
+        "-crf",
+        "18",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+    ]
+
+
 def render_video(
     mp3_path: Path,
     background_path: Path,
@@ -294,21 +321,8 @@ def render_video(
             "0:v:0",
             "-map",
             "1:a:0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "slow",
-            "-crf",
-            "18",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
+            *_render_video_output_args(),
             "-shortest",
-            "-movflags",
-            "+faststart",
             str(output_path),
         ]
     else:
@@ -332,20 +346,7 @@ def render_video(
             "0:v:0",
             "-map",
             "1:a:0",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "slow",
-            "-crf",
-            "18",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-movflags",
-            "+faststart",
+            *_render_video_output_args(),
             str(output_path),
         ]
     run_ffmpeg_with_progress(

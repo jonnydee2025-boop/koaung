@@ -9,7 +9,6 @@ from .models import RetryJob
 task_lock = asyncio.Lock()
 render_start_lock = asyncio.Lock()
 ProgressCallback = Callable[[str, float | None], None]
-PROGRESS_HTML_PREFIX = "__telegram_html_progress__:"
 
 retry_jobs: dict[str, RetryJob] = {}
 

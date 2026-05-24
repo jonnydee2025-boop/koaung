@@ -1,4 +1,3 @@
-import asyncio
 import html
 from typing import Any
 
@@ -15,7 +14,6 @@ from .config import (
     logger,
 )
 from .models import RenderTaskFailed
-from .state import PROGRESS_HTML_PREFIX, ProgressCallback
 
 
 def main_menu() -> InlineKeyboardMarkup:
@@ -54,28 +52,6 @@ async def send_unauthorized(update: Update) -> None:
             await update.callback_query.message.reply_text(message)
     elif update.effective_message:
         await update.effective_message.reply_text(message)
-
-
-def format_progress_message(stage: str, percent: float | None = None) -> str:
-    if stage.startswith(PROGRESS_HTML_PREFIX):
-        return stage.removeprefix(PROGRESS_HTML_PREFIX)
-
-    clean_stage = html.escape(stage)
-    if percent is None:
-        return (
-            "<b>WORKING</b>\n"
-            f"Status : <code>{clean_stage}</code>\n"
-            "Progress : <code>loading...</code>"
-        )
-
-    bounded = max(0.0, min(100.0, percent))
-    filled = int(round(bounded / 10))
-    bar = "#" * filled + "." * (10 - filled)
-    return (
-        "<b>WORKING</b>\n"
-        f"Status : <code>{clean_stage}</code>\n"
-        f"Progress : <code>[{bar}] {bounded:5.1f}%</code>"
-    )
 
 
 def format_success_message(result: dict[str, str]) -> str:
@@ -140,54 +116,6 @@ async def edit_progress_message(
         )
     except BadRequest as exc:
         if "message is not modified" not in str(exc).lower():
-            logger.warning("Could not edit Telegram progress message: %s", exc)
+            logger.warning("Could not edit Telegram message: %s", exc)
     except TelegramError as exc:
-        logger.warning("Could not edit Telegram progress message: %s", exc)
-
-
-async def delete_chat_message(bot: Any, chat_id: int, message_id: int) -> None:
-    try:
-        await bot.delete_message(chat_id=chat_id, message_id=message_id)
-    except TelegramError as exc:
-        logger.warning("Could not delete Telegram message %s: %s", message_id, exc)
-
-
-async def replace_with_success_message(
-    bot: Any,
-    chat_id: int,
-    message_id: int,
-    result: dict[str, str],
-) -> None:
-    await delete_chat_message(bot, chat_id, message_id)
-    await bot.send_message(
-        chat_id=chat_id,
-        text=format_success_message(result),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True,
-        reply_markup=success_reply_markup(result),
-    )
-
-
-def make_telegram_progress_callback(
-    bot: Any,
-    chat_id: int,
-    message_id: int,
-    loop: asyncio.AbstractEventLoop,
-) -> ProgressCallback:
-    last_text = ""
-
-    def progress_callback(stage: str, percent: float | None = None) -> None:
-        nonlocal last_text
-
-        text = format_progress_message(stage, percent)
-        if text == last_text:
-            return
-
-        last_text = text
-
-        asyncio.run_coroutine_threadsafe(
-            edit_progress_message(bot, chat_id, message_id, text),
-            loop,
-        )
-
-    return progress_callback
+        logger.warning("Could not edit Telegram message: %s", exc)

@@ -7,7 +7,7 @@ from fastapi import BackgroundTasks, HTTPException
 from ..config import logger, validate_media_binaries
 from ..jobs import run_render_job
 from ..models import NoPendingRows
-from ..progress_display import apply_progress_to_current_render
+from ..progress_display import admin_progress_callback
 from ..render_cleanup import cleanup_active_render
 from ..sheet_cache import invalidate_sheet_cache
 from ..state import (
@@ -16,6 +16,11 @@ from ..state import (
     render_start_lock,
     reset_current_render_idle,
     task_lock,
+)
+from ..telegram_notify import (
+    notify_no_pending_rows,
+    notify_render_failure,
+    notify_render_success,
 )
 import video_bot.state as state
 
@@ -26,7 +31,7 @@ async def run_admin_render(row_number: int | None = None) -> None:
         def progress_cb(status: str, pct: float | None = None) -> None:
             if state.render_cancel_requested:
                 return
-            apply_progress_to_current_render(status, pct)
+            admin_progress_callback(status, pct)
 
         async with task_lock:
             loop = asyncio.get_event_loop()
@@ -47,11 +52,14 @@ async def run_admin_render(row_number: int | None = None) -> None:
             "youtube_id": result.get("video_id", ""),
         })
         logger.info("Admin panel render complete: %s", result.get("title"))
+        await notify_render_success(result)
     except NoPendingRows:
         reset_current_render_idle("No pending rows")
+        await notify_no_pending_rows()
     except ValueError as exc:
         logger.error("Admin panel render rejected: %s", exc)
         reset_current_render_idle(str(exc))
+        await notify_render_failure(exc)
     except Exception as exc:
         if state.render_cancel_requested:
             cleanup_active_render("Cancelled by user")
@@ -59,6 +67,7 @@ async def run_admin_render(row_number: int | None = None) -> None:
         else:
             logger.error("Admin panel render failed: %s", exc)
             reset_current_render_idle(f"Failed: {exc}")
+            await notify_render_failure(exc)
     finally:
         state.render_cancel_requested = False
         invalidate_sheet_cache()

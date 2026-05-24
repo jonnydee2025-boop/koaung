@@ -7,7 +7,6 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from .config import (
-    ADMIN_CHAT_ID,
     BACKGROUND_VIDEO_DRIVE_FOLDER,
     FFMPEG_BIN,
     MENU_RENDER_NEXT,
@@ -21,6 +20,8 @@ from .config import (
 from .drive import google_drive_folder_id
 from .jobs import run_render_job, run_retry_job
 from .models import NoPendingRows
+from .progress_display import admin_progress_callback
+from .render_cleanup import cleanup_active_render
 from .sheets import get_status_statistics
 from .state import (
     current_render,
@@ -29,39 +30,16 @@ from .state import (
     retry_jobs,
     task_lock,
 )
+from .telegram_notify import (
+    notify_no_pending_rows,
+    notify_render_failure,
+    notify_render_success,
+)
 from .telegram_ui import (
-    delete_chat_message,
-    edit_progress_message,
-    failure_reply_markup,
-    format_failure_message,
-    format_progress_message,
     main_menu,
-    make_telegram_progress_callback,
-    replace_with_success_message,
     send_unauthorized,
     is_authorized_chat,
 )
-from .progress_display import apply_progress_to_current_render
-from .render_cleanup import cleanup_active_render
-
-
-def make_shared_progress_callback(bot, chat_id, message_id, loop, title: str = ""):
-    """Wraps make_telegram_progress_callback so progress also updates current_render."""
-    telegram_cb = make_telegram_progress_callback(bot, chat_id, message_id, loop)
-    current_render.update({
-        "running": True,
-        "pct": 0,
-        "status": "Starting",
-        "title": title,
-        "youtube_id": "",
-        "row_number": 0,
-    })
-
-    def combined(status: str, pct: float | None = None) -> None:
-        apply_progress_to_current_render(status, pct)
-        telegram_cb(status, pct)
-
-    return combined
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -77,60 +55,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def send_render_success(
-    bot,
-    chat_id: int,
-    message_id: int,
-    result: dict[str, str],
-) -> None:
-    await replace_with_success_message(bot, chat_id, message_id, result)
-
-
 async def run_telegram_render(
-    bot,
-    chat_id: int,
-    message_id: int,
     *,
-    delete_trigger_message_id: int | None = None,
     on_busy: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
-    """Run the next sheet render with Telegram progress UI."""
+    """Run the next sheet render; notify admin chat on success or failure."""
     if is_render_busy():
         if on_busy is not None:
             await on_busy()
         return
 
-    progress_callback = make_shared_progress_callback(
-        bot,
-        chat_id,
-        message_id,
-        asyncio.get_running_loop(),
-    )
-
     async with task_lock:
         try:
-            result = await asyncio.to_thread(run_render_job, progress_callback)
+            result = await asyncio.to_thread(
+                run_render_job,
+                admin_progress_callback,
+            )
         except NoPendingRows:
             reset_current_render_idle("No pending rows")
-            await edit_progress_message(
-                bot,
-                chat_id,
-                message_id,
-                "No do or pending rows found.",
-                reply_markup=main_menu(),
-            )
+            await notify_no_pending_rows()
             return
         except Exception as exc:
             logger.exception("Render task failed")
             reset_current_render_idle(f"Failed: {exc}")
-            await edit_progress_message(
-                bot,
-                chat_id,
-                message_id,
-                text=format_failure_message(exc),
-                parse_mode=ParseMode.HTML,
-                reply_markup=failure_reply_markup(exc),
-            )
+            await notify_render_failure(exc)
             return
 
     current_render.update({
@@ -140,9 +88,7 @@ async def run_telegram_render(
         "title": result.get("title", ""),
         "youtube_id": result.get("video_id", ""),
     })
-    if delete_trigger_message_id is not None:
-        await delete_chat_message(bot, chat_id, delete_trigger_message_id)
-    await send_render_success(bot, chat_id, message_id, result)
+    await notify_render_success(result)
 
 
 async def render_next(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -155,25 +101,13 @@ async def render_next(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def run_render_from_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.effective_chat.id if update.effective_chat else ADMIN_CHAT_ID
-
     async def on_busy() -> None:
         await update.effective_message.reply_text(
             "A render task is already running.",
             reply_markup=main_menu(),
         )
 
-    progress_message = await update.effective_message.reply_text(
-        format_progress_message("Starting"),
-        parse_mode=ParseMode.HTML,
-    )
-    await run_telegram_render(
-        context.bot,
-        chat_id,
-        progress_message.message_id,
-        delete_trigger_message_id=update.effective_message.message_id,
-        on_busy=on_busy,
-    )
+    await run_telegram_render(on_busy=on_busy)
 
 
 async def handle_retry_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -203,28 +137,17 @@ async def handle_retry_button(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    await query.edit_message_text(
-        format_progress_message("Retrying"),
-        parse_mode=ParseMode.HTML,
-    )
-    progress_callback = make_shared_progress_callback(
-        context.bot,
-        chat_id or ADMIN_CHAT_ID,
-        query.message.message_id,
-        asyncio.get_running_loop(),
-    )
-
     async with task_lock:
         try:
-            result = await asyncio.to_thread(run_retry_job, retry_id, progress_callback)
+            result = await asyncio.to_thread(
+                run_retry_job,
+                retry_id,
+                admin_progress_callback,
+            )
         except Exception as exc:
             logger.exception("Retry task failed")
             reset_current_render_idle(f"Failed: {exc}")
-            await query.edit_message_text(
-                format_failure_message(exc),
-                parse_mode=ParseMode.HTML,
-                reply_markup=failure_reply_markup(exc),
-            )
+            await notify_render_failure(exc)
             return
 
     current_render.update({
@@ -234,12 +157,7 @@ async def handle_retry_button(update: Update, context: ContextTypes.DEFAULT_TYPE
         "title": result.get("title", ""),
         "youtube_id": result.get("video_id", ""),
     })
-    await send_render_success(
-        context.bot,
-        chat_id or ADMIN_CHAT_ID,
-        query.message.message_id,
-        result,
-    )
+    await notify_render_success(result)
 
 
 async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -272,16 +190,7 @@ async def handle_menu_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 reply_markup=main_menu(),
             )
 
-        await query.edit_message_text(
-            format_progress_message("Starting"),
-            parse_mode=ParseMode.HTML,
-        )
-        await run_telegram_render(
-            context.bot,
-            chat_id or ADMIN_CHAT_ID,
-            query.message.message_id,
-            on_busy=on_busy,
-        )
+        await run_telegram_render(on_busy=on_busy)
         return
 
     if query.data == MENU_VIEW_STATS:

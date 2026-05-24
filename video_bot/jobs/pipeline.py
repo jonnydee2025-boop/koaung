@@ -11,7 +11,7 @@ from ..media import download_file, enhance_audio, render_video
 from ..models import RenderTaskFailed, RetryJob, SheetRow
 from ..row_rules import get_background_loop_count_for_row, get_batch_rule_for_anchor, row_has_thumbnail
 from ..sheets import get_sheet_rows, get_sheet_rows_by_numbers, update_task_status
-from ..state import register_retry_job
+from ..state import current_render, register_retry_job
 from ..thumbnails import prepare_row_thumbnail
 from ..youtube import (
     finalize_video_privacy,
@@ -57,6 +57,8 @@ def process_reserved_row(
         description = row.values.get("description", "")
 
     monk_name = get_monk_name(row)
+    current_render["title"] = title
+    current_render["monk"] = monk_name
     job_progress = row_progress_callback(row, title, monk_name, progress_callback)
     logger.info("Task started: row %s%s", row.row_number, " (batch)" if is_batch else "")
     logger.info("Title: %s", title)

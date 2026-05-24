@@ -1,7 +1,9 @@
 # Telegram Video Automation
 
 This bot reads jobs from a Google Sheet, renders MP4s (MP3 + background video),
-builds thumbnails, uploads to YouTube (public or private per rules below), and notifies you via Telegram.
+builds thumbnails, uploads to YouTube (public or private per rules below), and sends
+a **single Telegram message** when each render succeeds or fails (from Telegram,
+admin panel, or scheduled jobs). Live step progress is shown in the admin panel only.
 A React **admin panel** and **FastAPI** API run in the same process for monitoring
 and control.
 
