@@ -14,8 +14,8 @@ from ..sheets import get_sheet_rows, get_sheet_rows_by_numbers, update_task_stat
 from ..state import register_retry_job
 from ..thumbnails import prepare_row_thumbnail
 from ..youtube import (
+    finalize_video_privacy,
     resolve_final_privacy,
-    set_video_privacy,
     set_youtube_thumbnail,
     upload_video_to_youtube,
 )
@@ -173,9 +173,16 @@ def process_reserved_row(
         if job_progress is not None:
             job_progress("Updating Google Sheet", None)
         has_row_thumb = row_has_thumbnail(row.row_number)
-        privacy, private_reason = resolve_final_privacy(
+        intended_privacy, private_reason = resolve_final_privacy(
             has_row_thumbnail=has_row_thumb,
             thumbnail_warning=thumbnail_warning or None,
+        )
+        privacy, private_reason = finalize_video_privacy(
+            youtube,
+            video_id,
+            intended_privacy,
+            private_reason,
+            job_progress,
         )
         log_message = build_upload_log_message(
             video_id,
@@ -192,8 +199,6 @@ def process_reserved_row(
                 "uploaded_to_yt",
                 log_message,
             )
-        if privacy == "public":
-            set_video_privacy(youtube, video_id, "public", job_progress)
         logger.info("Upload complete: %s (%s)", video_id, privacy)
         if job_progress is not None:
             job_progress("Finished", None)

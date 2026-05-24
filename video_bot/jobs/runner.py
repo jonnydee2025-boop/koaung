@@ -11,8 +11,8 @@ from ..sheets import (
 from ..row_rules import resolve_batch_anchor_row, row_has_thumbnail
 from ..state import current_render, retry_jobs
 from ..youtube import (
+    finalize_video_privacy,
     resolve_final_privacy,
-    set_video_privacy,
     set_youtube_thumbnail,
     upload_video_to_youtube,
 )
@@ -99,9 +99,16 @@ def _retry_sheet_update(
         if job_progress is not None:
             job_progress("Retrying Google Sheet update", None)
         has_row_thumb = row_has_thumbnail(job.row.row_number)
-        privacy, private_reason = resolve_final_privacy(
+        intended_privacy, private_reason = resolve_final_privacy(
             has_row_thumbnail=has_row_thumb,
             thumbnail_warning=job.thumbnail_warning or None,
+        )
+        privacy, private_reason = finalize_video_privacy(
+            youtube,
+            job.video_id,
+            intended_privacy,
+            private_reason,
+            job_progress,
         )
         log_message = build_upload_log_message(
             job.video_id,
@@ -116,8 +123,6 @@ def _retry_sheet_update(
             "uploaded_to_yt",
             log_message,
         )
-        if privacy == "public":
-            set_video_privacy(youtube, job.video_id, "public", job_progress)
         retry_jobs.pop(retry_id, None)
         if job.workdir is not None:
             purge_workdir(job.workdir)
@@ -182,9 +187,16 @@ def _retry_youtube_upload(
             )
 
         has_row_thumb = row_has_thumbnail(job.row.row_number)
-        privacy, private_reason = resolve_final_privacy(
+        intended_privacy, private_reason = resolve_final_privacy(
             has_row_thumbnail=has_row_thumb,
             thumbnail_warning=thumbnail_warning or None,
+        )
+        privacy, private_reason = finalize_video_privacy(
+            youtube,
+            video_id,
+            intended_privacy,
+            private_reason,
+            job_progress,
         )
         log_message = build_upload_log_message(
             video_id,
@@ -199,8 +211,6 @@ def _retry_youtube_upload(
             "uploaded_to_yt",
             log_message,
         )
-        if privacy == "public":
-            set_video_privacy(youtube, video_id, "public", job_progress)
 
         retry_jobs.pop(retry_id, None)
         unlink_if_exists(job.thumbnail_path)

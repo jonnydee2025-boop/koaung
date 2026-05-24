@@ -54,6 +54,7 @@ logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.ERROR)
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 

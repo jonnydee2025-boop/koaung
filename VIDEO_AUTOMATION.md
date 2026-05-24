@@ -40,8 +40,16 @@ Set `BACKGROUND_VIDEO_DRIVE_FOLDER` in `.env` to your shared folder URL or ID.
 | **Drive folder root** | Background videos (`.mp4` for row rules; random pick also allows `.mov`, `.mkv`, `.webm`) |
 | **`Thumbnails/` subfolder** | Thumbnail images (`.jpg`, `.png`) for row-based rules |
 
-OAuth needs `drive.readonly`. If an old `token.json` lacks Drive scope, delete it
-and sign in again when prompted.
+OAuth scopes required:
+
+| Scope | Purpose |
+|-------|---------|
+| `spreadsheets` | Read/write job sheet |
+| `drive.readonly` | Background videos and thumbnails |
+| `youtube.upload` | Upload videos and custom thumbnails |
+| `youtube.force-ssl` | **Set video public/private** after upload (`videos.update`) |
+
+If an old `token.json` lacks a required scope (e.g. after adding `youtube.force-ssl` for public publish), delete it and sign in again when prompted. Refreshing an existing token **cannot** grant new scopes.
 
 ## Row-based rules (background + thumbnail + batch audio)
 
@@ -93,6 +101,7 @@ Videos are **uploaded as private** first. After the full pipeline succeeds, visi
 | Row rule has a thumbnail **and** thumbnail upload succeeds | **Public** | `Uploaded publicly to YouTube. video_id=...` |
 | No thumbnail in row rules | **Private** | `Uploaded privately (no thumbnail in row rules). video_id=...` |
 | Thumbnail configured but YouTube rejects/fails | **Private** | `Uploaded privately (thumbnail failed: ...). video_id=...` |
+| Thumbnail OK but OAuth lacks `youtube.force-ssl` | **Private** | `Uploaded privately (could not set public: OAuth scope — re-auth and retry). video_id=...` |
 | Any error after the video is on YouTube | **Private** (unchanged) | Row `failed` — safe to retry |
 
 ## Admin panel features
@@ -189,3 +198,21 @@ Example row-rules file: `row_range_rules.example.json`.
 - Do not commit `.env`, `token.json`, `client_secret.json`, or `row_range_rules.json`.
 - Do not set `VITE_ADMIN_API_KEY` in production builds (users sign in with the API key).
 - Run a single bot instance per sheet to avoid Telegram `getUpdates` conflicts.
+
+## Troubleshooting
+
+### Videos stay Private / `403 insufficient authentication scopes`
+
+The bot uploads as **private**, then calls `videos.update` to set **public** when a row-rule thumbnail succeeds. That update requires the `youtube.force-ssl` OAuth scope.
+
+1. Pull the latest code (includes `youtube.force-ssl` in `SCOPES`).
+2. On your **local machine**: delete `token.json`, run the bot, complete Google OAuth (consent screen shows the new YouTube scope).
+3. Copy the new token to the VPS and restart:
+   ```bash
+   scp token.json user@your-vps:/opt/videobot/
+   sudo chown videobot:videobot /opt/videobot/token.json
+   sudo systemctl restart videobot
+   ```
+4. **Already-uploaded private videos** are not auto-flipped. Set them to Public in YouTube Studio, or use admin **Retry** on the sheet row after re-auth (sheet-update retry will attempt public again).
+
+If scope is still missing, the row is marked `uploaded_to_yt` (not `failed`) with a log explaining re-auth is needed.

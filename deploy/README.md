@@ -82,12 +82,14 @@ sudo -u videobot .venv/bin/pip install -r requirements-video-automation.txt
 The VPS cannot open a browser for first-time Google login.
 
 1. On your **local machine**, run the bot once and complete OAuth.
-2. Copy these files to the VPS:
+2. Required scopes include `youtube.force-ssl` (needed to set videos **public** after upload). If you upgraded from an older version, **delete** the old `token.json` locally and re-authenticate before copying to the VPS.
+3. Copy these files to the VPS:
 
 ```bash
 scp token.json client_secret.json user@your-vps:/opt/videobot/
 sudo chown videobot:videobot /opt/videobot/token.json /opt/videobot/client_secret.json
 sudo chmod 600 /opt/videobot/token.json /opt/videobot/client_secret.json
+sudo systemctl restart videobot
 ```
 
 ## 5. Environment file
@@ -197,6 +199,7 @@ sudo systemctl restart videobot
 
 - **401 on admin panel** — `VITE_ADMIN_API_KEY` (build time) must match `ADMIN_API_KEY` (runtime). Rebuild after changing.
 - **Google auth fails** — Ensure `token.json` exists and is readable by `videobot` user.
+- **Videos stay Private / 403 insufficient authentication scopes** — Delete local `token.json`, re-run OAuth on your PC (must include `youtube.force-ssl`), copy new `token.json` to VPS, restart `videobot`. See `VIDEO_AUTOMATION.md` troubleshooting.
 - **FFmpeg not found** — `which ffmpeg` and set `FFMPEG_BIN` / `FFPROBE_BIN` in `.env`.
 - **Telegram conflict** — Only one `videobot` service; stop duplicate processes.
 - **Sheet row stuck on processing** — Use Logs tab → Stop Rendering, or `systemctl restart videobot` (cleanup runs on exit).

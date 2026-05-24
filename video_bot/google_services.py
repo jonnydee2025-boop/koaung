@@ -5,7 +5,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from .config import GOOGLE_CLIENT_SECRET_FILE, GOOGLE_TOKEN_FILE, SCOPES
+from .config import GOOGLE_CLIENT_SECRET_FILE, GOOGLE_TOKEN_FILE, SCOPES, logger
 
 
 def get_google_credentials(force_reauth: bool = False) -> Credentials:
@@ -17,6 +17,10 @@ def get_google_credentials(force_reauth: bool = False) -> Credentials:
         )
 
     if credentials and not credentials.has_scopes(SCOPES):
+        logger.warning(
+            "token.json is missing required OAuth scopes (needs youtube.force-ssl "
+            "for public publish). Delete token.json and re-authenticate."
+        )
         credentials = None
 
     if not credentials or not credentials.valid:

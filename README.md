@@ -7,7 +7,7 @@ Automates dhamma video production: reads jobs from a Google Sheet, renders video
 - Python 3.11+
 - Node.js 18+ (admin panel)
 - FFmpeg / FFprobe on `PATH` or configured in `.env`
-- Google Cloud OAuth client (`client_secret.json`) with Sheets, YouTube, and Drive scopes
+- Google Cloud OAuth client (`client_secret.json`) with scopes: **Sheets**, **Drive (readonly)**, **YouTube upload**, and **YouTube force-ssl** (required to publish videos as public after upload)
 - Telegram bot token
 
 ## Setup
@@ -27,13 +27,13 @@ Automates dhamma video production: reads jobs from a Google Sheet, renders video
    pip install -r requirements-video-automation.txt
    ```
 
-3. First Google OAuth (if `token.json` does not exist yet):
+3. First Google OAuth (if `token.json` does not exist yet, or after scope changes):
 
    ```bash
    python -m video_bot.app
    ```
 
-   Complete the browser OAuth flow when prompted.
+   Complete the browser OAuth flow when prompted. If videos stay **Private** despite thumbnails, delete `token.json` and re-authenticate so the token includes `youtube.force-ssl`.
 
 4. Install and run the admin panel (separate terminal):
 

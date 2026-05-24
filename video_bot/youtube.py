@@ -13,6 +13,22 @@ PrivacyStatus = Literal["public", "private", "unlisted"]
 YOUTUBE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024
 
 
+class YouTubeScopeError(Exception):
+    """Raised when YouTube API rejects a call due to insufficient OAuth scopes."""
+
+
+def is_insufficient_scope_error(exc: HttpError) -> bool:
+    status = getattr(exc.resp, "status", None)
+    if status != 403:
+        return False
+    message = str(exc).lower()
+    return (
+        "insufficient authentication scopes" in message
+        or "insufficientpermissions" in message
+        or "insufficient permission" in message
+    )
+
+
 def resolve_final_privacy(
     *,
     has_row_thumbnail: bool,
@@ -33,18 +49,55 @@ def set_video_privacy(
 ) -> None:
     if progress_callback is not None:
         progress_callback(f"Setting YouTube visibility to {privacy_status}", None)
-    youtube.videos().update(
-        part="status",
-        body={
-            "id": video_id,
-            "status": {
-                "privacyStatus": privacy_status,
-                "selfDeclaredMadeForKids": False,
+    try:
+        youtube.videos().update(
+            part="status",
+            body={
+                "id": video_id,
+                "status": {
+                    "privacyStatus": privacy_status,
+                    "selfDeclaredMadeForKids": False,
+                },
             },
-        },
-    ).execute()
+        ).execute()
+    except HttpError as exc:
+        if is_insufficient_scope_error(exc):
+            raise YouTubeScopeError(
+                "Could not update YouTube visibility: token.json is missing "
+                "youtube.force-ssl scope. Delete token.json and re-authenticate."
+            ) from exc
+        raise
     if progress_callback is not None:
         progress_callback(f"YouTube visibility set to {privacy_status}", None)
+
+
+def finalize_video_privacy(
+    youtube: Any,
+    video_id: str,
+    intended_privacy: PrivacyStatus,
+    private_reason: str | None,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[PrivacyStatus, str | None]:
+    """
+    Apply public visibility when intended. Returns actual privacy and reason.
+    Never raises: scope or other privacy-update failures keep the video private.
+    """
+    if intended_privacy != "public":
+        return intended_privacy, private_reason
+
+    try:
+        set_video_privacy(youtube, video_id, "public", progress_callback)
+        return "public", None
+    except YouTubeScopeError as exc:
+        logger.error("%s", exc)
+        return "private", "could not set public: OAuth scope — re-auth and retry"
+    except HttpError as exc:
+        logger.error("Could not set YouTube video %s to public: %s", video_id, exc)
+        return "private", f"could not set public: {exc}"
+    except Exception as exc:
+        logger.error("Could not set YouTube video %s to public: %s", video_id, exc)
+        return "private", f"could not set public: {exc}"
+
 
 def upload_video_to_youtube(
     youtube: Any,
