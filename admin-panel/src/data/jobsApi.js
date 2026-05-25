@@ -1,5 +1,6 @@
 import { invalidateSheetCaches } from './queryCache';
-import { API_BASE, requestJson } from './httpClient';
+import { clearAdminApiKey } from './adminAuth';
+import { API_BASE, apiHeaders, requestJson } from './httpClient';
 
 export async function fetchJobs(limit = 6) {
   return requestJson(`${API_BASE}/api/jobs?limit=${limit}`, undefined, 'Jobs failed');
@@ -82,4 +83,29 @@ export async function retryJobRender(rowNumber) {
   );
   invalidateSheetCaches();
   return result;
+}
+
+export async function fetchJobAudioBlob(rowNumber) {
+  const res = await fetch(`${API_BASE}/api/jobs/${rowNumber}/audio`, {
+    headers: apiHeaders(),
+  });
+
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`.trim();
+    try {
+      const body = await res.json();
+      if (body?.detail) {
+        detail = body.detail;
+      }
+    } catch {
+      // Some failures have no JSON response body.
+    }
+    if (res.status === 401) {
+      clearAdminApiKey();
+      window.dispatchEvent(new Event('admin-auth-expired'));
+    }
+    throw new Error(`Audio failed: ${detail}`);
+  }
+
+  return res.blob();
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
@@ -8,8 +8,9 @@ import ErrorBanner from '../components/ErrorBanner';
 import { RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
 import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
-import { invalidateSheetCaches } from '../data/queryCache';
-import { EMPTY_COUNTS, STATUS_FILTERS } from '../data/jobsSheet';
+import { readCache, invalidateSheetCaches } from '../data/queryCache';
+import { jobsPageCacheKey } from '../data/jobsCacheKeys';
+import { EMPTY_COUNTS, JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
 import {
   prefetchAdjacentJobsPages,
   useJobMonks,
@@ -41,6 +42,27 @@ export default function Jobs() {
   });
   const monksQuery = useJobMonks();
 
+  const queryKey = jobsPageCacheKey({
+    page,
+    pageSize: PAGE_SIZE,
+    status: filter,
+    search: debouncedSearch,
+    monk: monkFilter,
+  });
+
+  const countsRef = useRef(EMPTY_COUNTS);
+  const sheetTotalRef = useRef(null);
+
+  const pageData = readCache(queryKey)?.data ?? null;
+  if (pageData?.counts) {
+    countsRef.current = pageData.counts;
+  }
+  if (pageData?.sheet_total != null) {
+    sheetTotalRef.current = pageData.sheet_total;
+  }
+
+  const counts = pageData?.counts ?? countsRef.current;
+  const sheetTotal = pageData?.sheet_total ?? sheetTotalRef.current;
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 350);
     return () => clearTimeout(timer);
@@ -50,9 +72,6 @@ export default function Jobs() {
     setPage(1);
   }, [filter, monkFilter, debouncedSearch]);
 
-  const pageData = jobsQuery.data;
-  const counts = pageData?.counts ?? EMPTY_COUNTS;
-  const sheetTotal = pageData?.sheet_total ?? null;
   const monkOptions = monksQuery.data?.monks ?? [];
 
   useEffect(() => {
@@ -62,11 +81,11 @@ export default function Jobs() {
   }, [monkFilter, monkOptions]);
 
   useEffect(() => {
-    if (!pageData?.page) return;
-    if (pageData.page !== page) {
-      setPage(pageData.page);
+    if (!pageData?.total_pages) return;
+    if (page > pageData.total_pages) {
+      setPage(pageData.page ?? pageData.total_pages);
     }
-  }, [pageData?.page, page]);
+  }, [pageData?.page, pageData?.total_pages, page]);
 
   useEffect(() => {
     if (!pageData) return;
@@ -80,11 +99,12 @@ export default function Jobs() {
     });
   }, [pageData, page, filter, debouncedSearch, monkFilter]);
 
+  const filterCount = counts[filter] ?? 0;
   const items = pageData?.items ?? [];
-  const totalPages = pageData?.total_pages ?? 1;
-  const total = pageData?.total ?? 0;
-  const currentPage = pageData?.page ?? page;
-  const loading = jobsQuery.loading && pageData == null;
+  const total = pageData?.total ?? filterCount;
+  const totalPages = pageData?.total_pages
+    ?? Math.max(1, Math.ceil(filterCount / PAGE_SIZE) || 1);
+  const loading = jobsQuery.loading || pageData == null;
   const error = jobsQuery.error;
 
   const refreshSheet = () => {
@@ -105,7 +125,7 @@ export default function Jobs() {
   };
 
   const handlePageChange = (nextPage) => {
-    if (nextPage < 1 || nextPage > totalPages || nextPage === currentPage) return;
+    if (nextPage < 1 || nextPage > totalPages || nextPage === page) return;
     setPage(nextPage);
   };
 
@@ -183,7 +203,7 @@ export default function Jobs() {
         <div className="card">
           <div className="jobs-toolbar">
             <div className="jobs-toolbar-filters">
-              {STATUS_FILTERS.map(([val, label]) => (
+              {JOBS_TOOLBAR_FILTERS.map(([val, label]) => (
                 <button
                   key={val}
                   type="button"
@@ -224,6 +244,7 @@ export default function Jobs() {
               loading={loading}
               filtered={items}
               showActions
+              enableTitlePlayer
               onRetry={handleRetryJob}
               onStatusChange={handleStatusChange}
               onSchedule={handleScheduleOpen}
@@ -235,7 +256,7 @@ export default function Jobs() {
           </div>
 
           <Pagination
-            page={currentPage}
+            page={page}
             totalPages={totalPages}
             total={total}
             pageSize={PAGE_SIZE}

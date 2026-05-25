@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import StatusBadge from './StatusBadge';
 import JobLogModal from './JobLogModal';
+import Mp3PlayerModal from './Mp3PlayerModal';
 import JobStatusSelect from './JobStatusSelect';
 import Skeleton from './Skeleton';
 import { RotateCcw, ExternalLink, CalendarClock, NotebookText } from 'lucide-react';
@@ -21,9 +22,11 @@ export default function LazyJobTable({
   showActions = false,
   columns = 'full',
   disableLazyRows = false,
+  enableTitlePlayer = false,
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [logJob, setLogJob] = useState(null);
+  const [playerJob, setPlayerJob] = useState(null);
   const sentinelRef = useRef(null);
 
   useEffect(() => {
@@ -101,7 +104,18 @@ export default function LazyJobTable({
           {visible.map((job) => (
             <tr key={job.row}>
               <td>
-                <div className="truncate">{job.title || '(no title)'}</div>
+                {enableTitlePlayer && job.mp3_url ? (
+                  <button
+                    type="button"
+                    className="job-title-btn truncate"
+                    onClick={() => setPlayerJob(job)}
+                    title="Play audio"
+                  >
+                    {job.title || '(no title)'}
+                  </button>
+                ) : (
+                  <div className="truncate">{job.title || '(no title)'}</div>
+                )}
               </td>
               <td className="text-mono">#{job.row}</td>
               <td>
@@ -218,6 +232,11 @@ export default function LazyJobTable({
         </div>
       )}
       <JobLogModal job={logJob} open={Boolean(logJob)} onClose={() => setLogJob(null)} />
+      <Mp3PlayerModal
+        job={playerJob}
+        open={Boolean(playerJob)}
+        onClose={() => setPlayerJob(null)}
+      />
     </>
   );
 }

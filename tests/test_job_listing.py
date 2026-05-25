@@ -7,8 +7,11 @@ from video_bot.api.job_listing import (
     JOB_STATUS_FILTER_KEYS,
     filter_jobs,
     job_status_counts,
+    row_to_job_dict,
     unique_monk_names,
 )
+from video_bot.media import google_drive_direct_url
+from video_bot.models import SheetRow
 
 
 class JobListingTests(unittest.TestCase):
@@ -66,6 +69,31 @@ class JobListingTests(unittest.TestCase):
             sample_job(4, "pending", monk=""),
         ]
         self.assertEqual(unique_monk_names(jobs), ["U Pandita", "U Vimala"])
+
+    def test_row_to_job_dict_includes_mp3_url_and_duration(self) -> None:
+        row = SheetRow(
+            row_number=42,
+            values={
+                "status": "pending",
+                "dhamma_title": "Metta talk",
+                "monk_name": "U Vimala",
+                "mp3_url": "https://drive.google.com/file/d/abc123/view",
+                "duration_min": "45",
+                "logs": "",
+            },
+        )
+        job = row_to_job_dict(row, [])
+        self.assertEqual(job["mp3_url"], "https://drive.google.com/file/d/abc123/view")
+        self.assertEqual(job["duration"], "45")
+        self.assertEqual(job["title"], "Metta talk")
+        self.assertEqual(job["monk"], "U Vimala")
+
+    def test_google_drive_direct_url_extracts_file_id(self) -> None:
+        url = "https://drive.google.com/file/d/abc123/view?usp=sharing"
+        self.assertEqual(
+            google_drive_direct_url(url),
+            "https://drive.google.com/uc?export=download&id=abc123",
+        )
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ export {
   scheduleJob,
   updateJobStatus,
   retryJobRender,
+  fetchJobAudioBlob,
 } from './jobsApi';
 export {
   fetchLogs,
@@ -24,5 +25,7 @@ export {
   fetchRowRules,
   saveRowRules,
   fetchDriveMediaOptions,
+  fetchGeminiModels,
+  saveGeminiModels,
 } from './settingsApi';
 export { fetchBotStatus, startBot, stopBot } from './botApi';

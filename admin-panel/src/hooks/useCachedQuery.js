@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { readCache, writeCache } from '../data/queryCache';
 
 /**
@@ -67,12 +67,16 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
   const loadRef = useRef(load);
   loadRef.current = load;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mounted.current = true;
     const cached = readCache(cacheKey);
     if (cached?.data != null) {
       setData(cached.data);
       setUpdatedAt(new Date(cached.at));
+      setLoading(false);
+    } else {
+      setData(null);
+      setLoading(true);
     }
     loadRef.current(!cached?.isFresh);
 

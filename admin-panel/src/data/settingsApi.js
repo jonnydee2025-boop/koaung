@@ -23,3 +23,19 @@ export async function saveRowRules(rules) {
 export async function fetchDriveMediaOptions() {
   return requestJson(`${API_BASE}/api/drive/media-options`, undefined, 'Drive media failed');
 }
+
+export async function fetchGeminiModels() {
+  return requestJson(`${API_BASE}/api/settings/gemini-models`, undefined, 'Gemini models failed');
+}
+
+export async function saveGeminiModels(payload) {
+  return requestJson(
+    `${API_BASE}/api/settings/gemini-models`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    'Save Gemini models failed',
+  );
+}

@@ -25,32 +25,42 @@ def google_drive_direct_url(url: str) -> str:
     return f"https://drive.google.com/uc?export=download&id={file_id}"
 
 
-def download_file(url: str, destination: Path) -> None:
+def _remote_get_response(session: requests.Session, resolved_url: str) -> requests.Response:
+    response = session.get(resolved_url, stream=True, timeout=60)
+
+    token = next(
+        (
+            value
+            for key, value in response.cookies.items()
+            if key.startswith("download_warning")
+        ),
+        None,
+    )
+    if token:
+        response = session.get(
+            resolved_url,
+            params={"confirm": token},
+            stream=True,
+            timeout=60,
+        )
+
+    response.raise_for_status()
+    return response
+
+
+def iter_remote_file(url: str, chunk_size: int = 1024 * 1024):
     resolved_url = google_drive_direct_url(url)
     with requests.Session() as session:
-        response = session.get(resolved_url, stream=True, timeout=60)
+        response = _remote_get_response(session, resolved_url)
+        for chunk in response.iter_content(chunk_size=chunk_size):
+            if chunk:
+                yield chunk
 
-        token = next(
-            (
-                value
-                for key, value in response.cookies.items()
-                if key.startswith("download_warning")
-            ),
-            None,
-        )
-        if token:
-            response = session.get(
-                resolved_url,
-                params={"confirm": token},
-                stream=True,
-                timeout=60,
-            )
 
-        response.raise_for_status()
-        with destination.open("wb") as output:
-            for chunk in response.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    output.write(chunk)
+def download_file(url: str, destination: Path) -> None:
+    with destination.open("wb") as output:
+        for chunk in iter_remote_file(url):
+            output.write(chunk)
 
 
 def run_subprocess(command: list[str]) -> None:

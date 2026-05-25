@@ -33,6 +33,11 @@ class RowRulesUpdateRequest(BaseModel):
     rules: list[RowRangeRulePayload]
 
 
+class GeminiModelSettingsPayload(BaseModel):
+    primary_model: str = Field(..., min_length=1, max_length=64)
+    fallback_models: list[str] = Field(default_factory=list)
+
+
 def payload_to_row_rule(item: RowRangeRulePayload) -> RowRangeRule:
     batch_rows = item.batch_rows.strip()
     if batch_rows:

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import RowRulesTable from '../components/RowRulesTable';
+import GeminiModelSettings from '../components/GeminiModelSettings';
 import { fetchSettings, shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
 import { Save, Info, AlertTriangle, LogOut } from 'lucide-react';
@@ -92,7 +93,8 @@ export default function Settings() {
           <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>
             General options are read from <code>.env</code> (restart the bot after
-            edits). Row-Based Rules are saved on the server and apply immediately.
+            edits). Row-Based Rules and Gemini model fallback are saved on the server
+            and apply immediately.
           </span>
         </div>
 
@@ -196,6 +198,8 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        <GeminiModelSettings />
 
         <RowRulesTable />
 

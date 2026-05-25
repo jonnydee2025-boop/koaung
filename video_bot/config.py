@@ -105,6 +105,10 @@ ADMIN_API_CORS_ORIGINS = [
 ]
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+GEMINI_MODEL_FALLBACKS = os.getenv("GEMINI_MODEL_FALLBACKS", "gemini-2.0-flash").strip()
+GEMINI_SETTINGS_PATH = Path(
+    os.getenv("GEMINI_SETTINGS_PATH", "gemini_models.json"),
+).resolve()
 
 MENU_RENDER_NEXT = "menu:render_next"
 MENU_VIEW_STATS = "menu:view_stats"

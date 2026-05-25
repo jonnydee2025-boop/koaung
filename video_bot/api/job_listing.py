@@ -7,7 +7,7 @@ from ..job_status import (
     is_done_status,
     is_pending_status,
 )
-from ..jobs.row_helpers import get_monk_name
+from ..jobs.row_helpers import get_duration_min, get_monk_name
 from ..schedule_time import read_row_schedule_time
 from ..sheet_cache import get_cached_sheet_rows
 
@@ -35,7 +35,17 @@ def row_to_job_dict(row: Any, headers: list[str]) -> dict:
         "logs": logs_col[:300] if logs_col else "",
         "youtube_id": youtube_id,
         "schedule_time": schedule_time,
+        "mp3_url": row.values.get("mp3_url", "").strip(),
+        "duration": get_duration_min(row),
     }
+
+
+def find_sheet_row(row_number: int) -> Any | None:
+    _, rows = get_cached_sheet_rows()
+    for row in rows:
+        if row.row_number == row_number:
+            return row
+    return None
 
 
 def all_jobs_sorted(*, force_refresh: bool = False) -> list[dict]:

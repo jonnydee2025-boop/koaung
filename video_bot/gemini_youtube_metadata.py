@@ -7,7 +7,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .config import GEMINI_API_KEY, GEMINI_MODEL, logger
+from .config import GEMINI_API_KEY, logger
+from .gemini_settings import get_gemini_model_chain
 
 CHANNEL_BRAND = "မုဒြာ Dhamma Channel"
 MAX_YOUTUBE_TAGS = 30
@@ -139,29 +140,42 @@ def generate_youtube_metadata(
         from google.genai import types
 
         client = genai.Client(api_key=GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                response_mime_type="application/json",
-                response_schema=RESPONSE_SCHEMA,
-                temperature=0.7,
-            ),
-        )
-        text = (response.text or "").strip()
-        if not text:
-            raise ValueError("Empty Gemini response.")
-        payload = json.loads(text)
-        if not isinstance(payload, dict):
-            raise ValueError("Gemini response was not a JSON object.")
-        metadata = _parse_gemini_payload(payload)
-        logger.info(
-            "Gemini YouTube metadata ready (%s tags, %s chars description).",
-            len(metadata.tags),
-            len(metadata.description),
-        )
-        return metadata
+        models = get_gemini_model_chain()
+        last_error: Exception | None = None
+
+        for model in models:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        response_mime_type="application/json",
+                        response_schema=RESPONSE_SCHEMA,
+                        temperature=0.7,
+                    ),
+                )
+                text = (response.text or "").strip()
+                if not text:
+                    raise ValueError("Empty Gemini response.")
+                payload = json.loads(text)
+                if not isinstance(payload, dict):
+                    raise ValueError("Gemini response was not a JSON object.")
+                metadata = _parse_gemini_payload(payload)
+                logger.info(
+                    "Gemini YouTube metadata ready with %s (%s tags, %s chars description).",
+                    model,
+                    len(metadata.tags),
+                    len(metadata.description),
+                )
+                return metadata
+            except Exception as exc:
+                last_error = exc
+                logger.warning("Gemini model %s failed: %s", model, exc)
+
+        if last_error is not None:
+            raise last_error
+        raise ValueError("No Gemini models configured.")
     except Exception as exc:
         logger.warning("Gemini YouTube metadata generation failed: %s", exc)
         return None

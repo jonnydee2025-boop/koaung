@@ -1,9 +1,11 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from ..http_errors import http_error_from_value
 from ..job_listing import (
     all_jobs_sorted,
     filter_jobs,
+    find_sheet_row,
     job_status_counts,
     unique_monk_names,
 )
@@ -16,6 +18,7 @@ from ...sheets import (
     schedule_sheet_row,
     update_sheet_row_status,
 )
+from ...media import iter_remote_file
 
 router = APIRouter(tags=["jobs"])
 
@@ -75,6 +78,26 @@ def list_jobs(
             "counts": counts,
             "sheet_total": len(jobs),
         }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/jobs/{row_number}/audio")
+def stream_job_audio(row_number: int):
+    try:
+        row = find_sheet_row(row_number)
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"Row {row_number} not found.")
+        mp3_url = row.values.get("mp3_url", "").strip()
+        if not mp3_url:
+            raise HTTPException(status_code=404, detail=f"Row {row_number} has no mp3_url.")
+
+        return StreamingResponse(
+            iter_remote_file(mp3_url),
+            media_type="audio/mpeg",
+        )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
