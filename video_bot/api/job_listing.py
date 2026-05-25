@@ -51,13 +51,14 @@ def job_status_counts(jobs: list[dict]) -> dict[str, int]:
         return status in ("uploaded_to_yt", "done")
 
     def is_pending(status: str) -> bool:
-        return status in ("pending", "do")
+        return status == "pending"
 
     return {
         "all": len(jobs),
         "done": sum(1 for job in jobs if is_done(job["status"])),
         "processing": sum(1 for job in jobs if job["status"] == "processing"),
         "pending": sum(1 for job in jobs if is_pending(job["status"])),
+        "do": sum(1 for job in jobs if job["status"] == "do"),
         "scheduled": sum(1 for job in jobs if job["status"] == "scheduled"),
         "failed": sum(1 for job in jobs if job["status"] == "failed"),
     }
@@ -73,7 +74,9 @@ def filter_jobs(jobs: list[dict], status: str, search: str) -> list[dict]:
             continue
         if status == "processing" and job_status != "processing":
             continue
-        if status == "pending" and job_status not in ("pending", "do"):
+        if status == "pending" and job_status != "pending":
+            continue
+        if status == "do" and job_status != "do":
             continue
         if status == "failed" and job_status != "failed":
             continue

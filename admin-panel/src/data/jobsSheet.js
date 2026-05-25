@@ -7,6 +7,7 @@ const EMPTY_COUNTS = {
   done: 0,
   processing: 0,
   pending: 0,
+  do: 0,
   scheduled: 0,
   failed: 0,
 };
@@ -16,7 +17,7 @@ function isDoneStatus(status) {
 }
 
 function isPendingStatus(status) {
-  return status === 'pending' || status === 'do';
+  return status === 'pending';
 }
 
 export function jobMonkName(job) {
@@ -45,6 +46,7 @@ export function filterJobs(jobs, status, search, monkFilter = '') {
     if (status === 'done' && !isDoneStatus(jobStatus)) continue;
     if (status === 'processing' && jobStatus !== 'processing') continue;
     if (status === 'pending' && !isPendingStatus(jobStatus)) continue;
+    if (status === 'do' && jobStatus !== 'do') continue;
     if (status === 'failed' && jobStatus !== 'failed') continue;
     if (status === 'scheduled' && jobStatus !== 'scheduled') continue;
 

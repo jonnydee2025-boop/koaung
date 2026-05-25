@@ -334,9 +334,6 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
 }
 .toolbar-dropdown-menu,
 .status-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
   z-index: 30;
   min-width: 168px;
   max-width: min(280px, 80vw);
@@ -350,6 +347,12 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.toolbar-dropdown-menu.is-floating,
+.status-dropdown-menu.is-floating {
+  position: fixed;
+  top: auto;
+  left: auto;
 }
 .monk-filter-menu {
   min-width: 200px;

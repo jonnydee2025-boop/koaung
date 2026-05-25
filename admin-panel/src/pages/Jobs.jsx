@@ -18,6 +18,7 @@ const STATUS_FILTERS = [
   ['done', 'Done'],
   ['processing', 'Processing'],
   ['pending', 'Pending'],
+  ['do', 'Priority'],
   ['scheduled', 'Scheduled'],
   ['failed', 'Failed'],
 ];

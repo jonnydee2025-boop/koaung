@@ -5,6 +5,11 @@ import {
   selectStatusValue,
   statusThemeFor,
 } from '../data/statusTheme';
+import {
+  FloatingDropdownMenu,
+  isOutsideFloatingDropdown,
+  useFloatingDropdown,
+} from './FloatingDropdownMenu';
 
 export default function JobStatusSelect({
   status,
@@ -13,11 +18,12 @@ export default function JobStatusSelect({
   onChange,
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
+  const anchorRef = useRef(null);
   const isProcessing = status === 'processing';
   const value = selectStatusValue(status);
   const triggerTheme = statusThemeFor(status);
   const isLocked = isProcessing || disabled || saving;
+  const { menuRef, coords } = useFloatingDropdown(open, anchorRef);
 
   useEffect(() => {
     if (!open) {
@@ -25,7 +31,7 @@ export default function JobStatusSelect({
     }
 
     const handlePointerDown = (event) => {
-      if (!rootRef.current?.contains(event.target)) {
+      if (isOutsideFloatingDropdown(event, anchorRef, menuRef)) {
         setOpen(false);
       }
     };
@@ -42,7 +48,7 @@ export default function JobStatusSelect({
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open]);
+  }, [open, menuRef]);
 
   const handleSelect = (next) => {
     if (next && next !== value) {
@@ -53,10 +59,10 @@ export default function JobStatusSelect({
 
   return (
     <div
-      ref={rootRef}
       className={`status-dropdown${open ? ' is-open' : ''}${isLocked ? ' is-locked' : ''}`}
     >
       <button
+        ref={anchorRef}
         type="button"
         className={`status-dropdown-trigger badge ${triggerTheme.badgeClass}`}
         disabled={isLocked}
@@ -74,27 +80,32 @@ export default function JobStatusSelect({
         {!isLocked && <ChevronDown size={12} className="status-dropdown-chevron" />}
       </button>
 
-      {open && !isLocked && (
-        <div className="toolbar-dropdown-menu" role="listbox" aria-label="Status options">
-          {EDITABLE_STATUS_OPTIONS.map((option) => {
-            const isActive = option.value === value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={isActive}
-                className={`toolbar-dropdown-item badge ${option.badgeClass}${isActive ? ' is-active' : ''}`}
-                onClick={() => handleSelect(option.value)}
-              >
-                <span className="badge-dot" />
-                <span>{option.label}</span>
-                {isActive && <Check size={12} className="toolbar-dropdown-check" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <FloatingDropdownMenu
+        open={open && !isLocked}
+        anchorRef={anchorRef}
+        menuRef={menuRef}
+        coords={coords}
+        className="status-dropdown-menu"
+        ariaLabel="Status options"
+      >
+        {EDITABLE_STATUS_OPTIONS.map((option) => {
+          const isActive = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={isActive}
+              className={`toolbar-dropdown-item badge ${option.badgeClass}${isActive ? ' is-active' : ''}`}
+              onClick={() => handleSelect(option.value)}
+            >
+              <span className="badge-dot" />
+              <span>{option.label}</span>
+              {isActive && <Check size={12} className="toolbar-dropdown-check" />}
+            </button>
+          );
+        })}
+      </FloatingDropdownMenu>
     </div>
   );
 }
