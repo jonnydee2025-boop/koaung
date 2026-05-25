@@ -43,6 +43,8 @@ htmlcov/
 # ── Bot runtime temp files ─────────────────────────────────────────────────────
 tmp_video_jobs/
 row_range_rules.json
+interval_triggers.json
+gemini_models.json
 
 # ── OS & editors ─────────────────────────────────────────────────────────────
 .DS_Store

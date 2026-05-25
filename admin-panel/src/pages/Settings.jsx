@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import RowRulesTable from '../components/RowRulesTable';
 import GeminiModelSettings from '../components/GeminiModelSettings';
+import IntervalTriggerSettings from '../components/IntervalTriggerSettings';
 import { fetchSettings, shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
 import { Save, Info, AlertTriangle, LogOut } from 'lucide-react';
@@ -26,10 +27,9 @@ function ConfigField({ id, label, fieldKey, cfg }) {
       </label>
       <input
         id={id}
-        className="form-input"
+        className={`form-input form-input--readonly${cfg ? '' : ' form-input--loading'}`}
         value={cfg ? (cfg[fieldKey] ?? '') : 'Loading…'}
         readOnly
-        style={{ opacity: cfg ? 1 : 0.5 }}
       />
     </div>
   );
@@ -90,18 +90,20 @@ export default function Settings() {
         )}
 
         <div className="settings-info-banner">
-          <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <Info size={14} />
           <span>
             General options are read from <code>.env</code> (restart the bot after
-            edits). Row-Based Rules and Gemini model fallback are saved on the server
-            and apply immediately.
+            edits). Row-Based Rules, interval triggers, and Gemini model fallback are saved
+            on the server and apply immediately.
           </span>
         </div>
 
         <div className="settings-top-grid">
-          <div className="card">
-            <div className="card-header">
-              <div className="card-title">General Configuration</div>
+          <div className="card settings-card">
+            <div className="settings-section-header">
+              <div className="settings-section-header-main">
+                <div className="settings-section-title">General Configuration</div>
+              </div>
             </div>
             <div className="settings-config-grid">
               <div className="settings-config-col">
@@ -139,9 +141,11 @@ export default function Settings() {
           </div>
 
           <div className="settings-side-stack">
-            <div className="card">
-              <div className="card-header">
-                <div className="card-title">Feature Flags</div>
+            <div className="card settings-card">
+              <div className="settings-section-header">
+                <div className="settings-section-header-main">
+                  <div className="settings-section-title">Feature Flags</div>
+                </div>
               </div>
               <div className="toggle-row">
                 <div className="toggle-info">
@@ -163,19 +167,21 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="card settings-status-card">
-              <div className="card-header">
-                <div className="card-title">System Status</div>
+            <div className="card settings-card settings-status-card">
+              <div className="settings-section-header">
+                <div className="settings-section-header-main">
+                  <div className="settings-section-title">System Status</div>
+                </div>
               </div>
               <div className="settings-status-rows">
                 {[
-                  ['API Server', cfg ? `http://localhost:${cfg.apiPort}` : '…', '#22c55e'],
-                  ['Swagger', cfg ? `/docs on :${cfg.apiPort}` : '…', 'var(--accent)'],
-                  ['Health', cfg ? 'Connected' : 'Connecting…', '#22c55e'],
-                ].map(([label, val, color]) => (
+                  ['API Server', cfg ? `http://localhost:${cfg.apiPort}` : '…', 'settings-status-value--green'],
+                  ['Swagger', cfg ? `/docs on :${cfg.apiPort}` : '…', 'settings-status-value--accent'],
+                  ['Health', cfg ? 'Connected' : 'Connecting…', 'settings-status-value--green'],
+                ].map(([label, val, colorClass]) => (
                   <div key={label} className="settings-status-row">
                     <span className="settings-status-label">{label}</span>
-                    <span className="settings-status-value" style={{ color }}>
+                    <span className={`settings-status-value ${colorClass}`}>
                       {val}
                     </span>
                   </div>
@@ -201,11 +207,15 @@ export default function Settings() {
 
         <GeminiModelSettings />
 
+        <IntervalTriggerSettings />
+
         <RowRulesTable />
 
-        <div className="card settings-danger-card">
-          <div className="card-header">
-            <div className="card-title settings-danger-title">Danger Zone</div>
+        <div className="card settings-card settings-danger-card">
+          <div className="settings-section-header">
+            <div className="settings-section-header-main">
+              <div className="settings-section-title settings-danger-title">Danger Zone</div>
+            </div>
           </div>
           <p className="settings-danger-text">
             Stops the Python backend on the server. You must restart the bot manually

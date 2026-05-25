@@ -4,7 +4,7 @@
 
 | Module | Role |
 |--------|------|
-| `app.py` | Entry: Telegram + FastAPI + scheduler |
+| `app.py` | Entry: Telegram + FastAPI + scheduler loops |
 | `config.py` | Environment and startup validation |
 | `api/` | Admin REST API (FastAPI) |
 | `api/routes/` | Route handlers by domain (`jobs`, `render`, `settings`, `system`) |
@@ -16,7 +16,11 @@
 | `jobs/runner.py` | `run_render_job`, `run_retry_job` |
 | `jobs/workdir.py` | Temp file cleanup on VPS |
 | `handlers.py` | Telegram command/callback handlers |
-| `sheets.py` | Google Sheet read/write |
+| `sheets.py` | Google Sheet read/write, queue reserve, schedule, auto-do |
+| `scheduler.py` | Due scheduled poll + interval trigger (do-only) loops |
+| `interval_triggers.py` | Persisted Settings interval triggers |
+| `schedule_time.py` | Parse/compare `Schedule_Time` |
+| `sheet_cache.py` | In-memory cache for Jobs tab sheet reads |
 | `drive.py` | Google Drive backgrounds & thumbnails |
 | `media.py` | FFmpeg download/render |
 | `youtube.py` | YouTube upload & thumbnail |

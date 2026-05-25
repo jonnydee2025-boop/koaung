@@ -156,8 +156,13 @@ export default function RowRulesTable() {
                 : Number(r.background_loop_count),
           };
         });
-      await saveRowRules(payload);
-      setSuccess('Row rules saved.');
+      const result = await saveRowRules(payload);
+      const autoDoCount = result.auto_do_rows?.length ?? 0;
+      setSuccess(
+        autoDoCount
+          ? `Row rules saved. ${autoDoCount} row(s) set to do in the sheet.`
+          : 'Row rules saved.',
+      );
       setTimeout(() => setSuccess(''), 3000);
       await loadAll();
     } catch (e) {
@@ -168,19 +173,25 @@ export default function RowRulesTable() {
   };
 
   return (
-    <div className="card row-rules-card">
-      <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <div className="card-title">Row-Based Rules</div>
-          <p className="modal-hint" style={{ marginTop: 6, marginBottom: 0 }}>
+    <div className="card settings-card row-rules-card">
+      <div className="settings-section-header">
+        <div className="settings-section-header-main">
+          <div className="settings-section-title">Row-Based Rules</div>
+          <p className="settings-section-hint">
             Map sheet rows to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
             and/or loop count. Use <strong>Select Rows</strong> with comma-separated sheet row
             numbers from the Jobs tab (first row is the anchor/trigger). Multiple rows concatenate
             audio into one render; member rows are marked complete automatically. Loops apply only
             to single-row rules.
           </p>
+          <p className="settings-section-hint">
+            Saving a background or thumbnail sets those rows to <code>do</code> in the sheet
+            immediately (rows already <code>scheduled</code> are left unchanged). For batch jobs,
+            schedule the <strong>anchor row</strong> (first in Select Rows) — scheduling any batch
+            row from Jobs applies the time to the anchor automatically.
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+        <div className="settings-section-actions">
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -203,18 +214,18 @@ export default function RowRulesTable() {
       </div>
 
       {error && (
-        <p className="login-error" style={{ marginBottom: 12 }}>
+        <p className="settings-feedback settings-feedback--error">
           {error}
         </p>
       )}
       {success && (
-        <p style={{ color: 'var(--green)', fontSize: 12, marginBottom: 12 }}>
+        <p className="settings-feedback settings-feedback--success">
           {success}
         </p>
       )}
 
       {loading ? (
-        <p className="text-muted" style={{ fontSize: 13 }}>
+        <p className="settings-loading-text">
           Loading rules and Drive files…
         </p>
       ) : (
@@ -307,8 +318,7 @@ export default function RowRulesTable() {
 
       <button
         type="button"
-        className="btn btn-ghost btn-sm"
-        style={{ marginTop: 12 }}
+        className="btn btn-ghost btn-sm row-rules-add-btn"
         onClick={addRule}
         disabled={loading}
       >

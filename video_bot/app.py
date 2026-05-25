@@ -17,7 +17,7 @@ from telegram.ext import (
 from .api import app as fastapi_app
 from .config import ADMIN_CHAT_ID, API_HOST, API_PORT, BOT_TOKEN, logger, validate_startup
 from .render_cleanup import cleanup_active_render
-from .scheduler import scheduled_render_loop
+from .scheduler import interval_trigger_loop, scheduled_render_loop
 from .handlers import (
     handle_menu_button,
     handle_retry_button,
@@ -90,6 +90,7 @@ def main() -> None:
         telegram_started = False
         api_task = asyncio.create_task(uv_server.serve())
         scheduler_task = asyncio.create_task(scheduled_render_loop())
+        interval_task = asyncio.create_task(interval_trigger_loop())
 
         try:
             try:
@@ -114,10 +115,12 @@ def main() -> None:
                 await application.stop()
         finally:
             scheduler_task.cancel()
-            try:
-                await scheduler_task
-            except asyncio.CancelledError:
-                pass
+            interval_task.cancel()
+            for task in (scheduler_task, interval_task):
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
             cleanup_active_render("Bot shut down — render interrupted")
             if telegram_initialized:
                 await application.shutdown()

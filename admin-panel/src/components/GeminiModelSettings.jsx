@@ -71,15 +71,17 @@ export default function GeminiModelSettings() {
   ].filter(Boolean);
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <div>
-          <div className="card-title">Gemini Model Fallback</div>
-          <div className="card-subtitle">
+    <div className="card settings-card">
+      <div className="settings-section-header">
+        <div className="settings-section-header-main">
+          <div className="settings-section-title">
+            Gemini Model Fallback
+          </div>
+          <div className="settings-section-subtitle">
             Primary model first, then fallbacks if the API call fails
           </div>
         </div>
-        <Sparkles size={16} style={{ color: 'var(--accent)' }} />
+        <Sparkles size={16} className="settings-section-icon" />
       </div>
 
       {error && <div className="settings-alert settings-alert--error">⚠ {error}</div>}
@@ -126,8 +128,9 @@ export default function GeminiModelSettings() {
         <div className="settings-status-row">
           <span className="settings-status-label">API key</span>
           <span
-            className="settings-status-value"
-            style={{ color: apiKeyConfigured ? '#22c55e' : 'var(--yellow)' }}
+            className={`settings-status-value ${
+              apiKeyConfigured ? 'settings-status-value--green' : 'settings-status-value--yellow'
+            }`}
           >
             {apiKeyConfigured ? 'Configured' : 'Not set in .env'}
           </span>

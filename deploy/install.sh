@@ -58,7 +58,9 @@ cp "$APP_DIR/deploy/videobot.service" /etc/systemd/system/videobot.service
 systemctl daemon-reload
 systemctl enable videobot
 
-if [[ -f "$APP_DIR/admin-panel/package.json" ]] && command -v npm &>/dev/null; then
+if [[ -f "$APP_DIR/admin-panel/dist/index.html" ]]; then
+  echo "==> Admin panel dist/ present — skip server-side npm build."
+elif [[ -f "$APP_DIR/admin-panel/package.json" ]] && command -v npm &>/dev/null; then
   echo "==> Building admin panel..."
   if [[ ! -f "$APP_DIR/admin-panel/.env" ]]; then
     cp "$APP_DIR/deploy/admin-panel.env.production.example" "$APP_DIR/admin-panel/.env"

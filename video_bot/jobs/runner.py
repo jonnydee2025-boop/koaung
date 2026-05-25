@@ -5,6 +5,7 @@ from ..models import NoPendingRows, RenderTaskFailed, RetryJob
 from ..sheets import (
     get_sheet_rows,
     prepare_failed_row_for_retry,
+    reserve_next_do_row,
     reserve_next_pending_row,
     update_task_status,
 )
@@ -28,6 +29,7 @@ def run_render_job(
     progress_callback=None,
     *,
     row_number: int | None = None,
+    do_only: bool = False,
 ) -> dict[str, str]:
     sheets, youtube = build_google_services()
     if row_number is not None:
@@ -39,6 +41,10 @@ def run_render_job(
                 anchor_row,
             )
         headers, selected = prepare_failed_row_for_retry(sheets, anchor_row)
+    elif do_only:
+        headers, selected = reserve_next_do_row(sheets)
+        if selected is None:
+            raise NoPendingRows()
     else:
         headers, selected = reserve_next_pending_row(sheets)
         if selected is None:

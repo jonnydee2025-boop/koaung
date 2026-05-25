@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from ..interval_triggers import IntervalTrigger
 from ..row_rules import RowRangeRule, parse_batch_rows_string
 
 
@@ -36,6 +37,36 @@ class RowRulesUpdateRequest(BaseModel):
 class GeminiModelSettingsPayload(BaseModel):
     primary_model: str = Field(..., min_length=1, max_length=64)
     fallback_models: list[str] = Field(default_factory=list)
+
+
+class IntervalTriggerPayload(BaseModel):
+    id: str = Field(..., min_length=1, max_length=64)
+    name: str = ""
+    enabled: bool = True
+    schedule_type: Literal["weekly", "daily", "once"] = "daily"
+    time: str = "09:00"
+    days_of_week: list[int] = Field(default_factory=list)
+    once_at: str | None = None
+    timezone: str = "UTC"
+    last_fired_at: str | None = None
+
+
+class IntervalTriggersUpdateRequest(BaseModel):
+    triggers: list[IntervalTriggerPayload]
+
+
+def payload_to_interval_trigger(item: IntervalTriggerPayload) -> IntervalTrigger:
+    return IntervalTrigger(
+        id=item.id.strip(),
+        name=item.name.strip(),
+        enabled=item.enabled,
+        schedule_type=item.schedule_type,
+        time=item.time.strip(),
+        days_of_week=list(item.days_of_week),
+        once_at=item.once_at.strip() if item.once_at else None,
+        timezone=item.timezone.strip() or "UTC",
+        last_fired_at=item.last_fired_at,
+    )
 
 
 def payload_to_row_rule(item: RowRangeRulePayload) -> RowRangeRule:

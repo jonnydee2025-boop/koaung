@@ -39,3 +39,23 @@ export async function saveGeminiModels(payload) {
     'Save Gemini models failed',
   );
 }
+
+export async function fetchIntervalTriggers() {
+  return requestJson(
+    `${API_BASE}/api/settings/interval-triggers`,
+    undefined,
+    'Interval triggers failed',
+  );
+}
+
+export async function saveIntervalTriggers(triggers) {
+  return requestJson(
+    `${API_BASE}/api/settings/interval-triggers`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ triggers }),
+    },
+    'Save interval triggers failed',
+  );
+}

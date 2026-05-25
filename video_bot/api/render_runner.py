@@ -25,7 +25,11 @@ from ..telegram_notify import (
 import video_bot.state as state
 
 
-async def run_admin_render(row_number: int | None = None) -> None:
+async def run_admin_render(
+    row_number: int | None = None,
+    *,
+    do_only: bool = False,
+) -> None:
     try:
 
         def progress_cb(status: str, pct: float | None = None) -> None:
@@ -37,7 +41,11 @@ async def run_admin_render(row_number: int | None = None) -> None:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
-                lambda: run_render_job(progress_cb, row_number=row_number),
+                lambda: run_render_job(
+                    progress_cb,
+                    row_number=row_number,
+                    do_only=do_only,
+                ),
             )
 
         if state.render_cancel_requested:
@@ -54,7 +62,8 @@ async def run_admin_render(row_number: int | None = None) -> None:
         logger.info("Admin panel render complete: %s", result.get("title"))
         await notify_render_success(result)
     except NoPendingRows:
-        reset_current_render_idle("No pending rows")
+        idle_msg = "No do rows" if do_only else "No do or scheduled rows"
+        reset_current_render_idle(idle_msg)
         await notify_no_pending_rows()
     except ValueError as exc:
         logger.error("Admin panel render rejected: %s", exc)

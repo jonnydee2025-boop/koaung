@@ -1,10 +1,16 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from .config import SHEET_NAME, SPREADSHEET_ID
+from .config import SHEET_NAME, SPREADSHEET_ID, logger
 from .google_services import build_google_services
 from .models import SheetRow
-from .row_rules import is_batch_member_row
+from .row_rules import (
+    RowRangeRule,
+    get_batch_rule_for_anchor,
+    is_batch_member_row,
+    parse_batch_rows,
+    resolve_batch_anchor_row,
+)
 from .schedule_time import (
     normalize_schedule_time,
     read_row_schedule_time,
@@ -87,6 +93,60 @@ def update_task_status(
         update_sheet_cell(sheets, row_number, logs_col, log_message[:45000])
 
 
+def _normalize_row_status(values: dict[str, str]) -> str:
+    return values.get("status", "").strip().lower()
+
+
+def _rule_has_media(rule: RowRangeRule) -> bool:
+    return bool(rule.background_video_id or rule.thumbnail_file_id)
+
+
+def auto_trigger_do_for_row_rules(
+    rules: list[RowRangeRule],
+    *,
+    sheets: Any | None = None,
+) -> dict[str, list[int]]:
+    """Set sheet rows to do when a saved rule assigns background or thumbnail."""
+    target_rows: list[int] = []
+    seen: set[int] = set()
+    for rule in rules:
+        if not _rule_has_media(rule):
+            continue
+        for row_number in parse_batch_rows(rule):
+            if row_number not in seen:
+                seen.add(row_number)
+                target_rows.append(row_number)
+
+    if not target_rows:
+        return {"auto_do_rows": []}
+
+    if sheets is None:
+        sheets, _ = build_google_services()
+
+    headers, sheet_rows = get_sheet_rows(sheets)
+    by_number = {row.row_number: row for row in sheet_rows}
+    updated: list[int] = []
+
+    for row_number in target_rows:
+        row = by_number.get(row_number)
+        if row is None:
+            logger.warning("Row rules auto-do: sheet row %s not found, skipping", row_number)
+            continue
+        if _normalize_row_status(row.values) == "scheduled":
+            logger.info(
+                "Row rules auto-do: row %s is scheduled, keeping status",
+                row_number,
+            )
+            continue
+        if _normalize_row_status(row.values) == "do":
+            continue
+        update_task_status(sheets, headers, row_number, "do")
+        updated.append(row_number)
+        logger.info("Row rules auto-do: set row %s to do", row_number)
+
+    return {"auto_do_rows": updated}
+
+
 def update_schedule_time(
     sheets: Any,
     headers: list[str],
@@ -121,13 +181,44 @@ def find_schedule_time_conflict(
 
 def has_due_scheduled_row(rows: list[SheetRow], *, now: datetime | None = None) -> bool:
     moment = now or datetime.now(timezone.utc)
+    return bool(_collect_due_scheduled_anchors(rows, moment))
+
+
+def has_do_row(rows: list[SheetRow]) -> bool:
+    return bool(_collect_do_anchor_candidates(rows))
+
+
+def _resolve_do_anchor(row: SheetRow, rows_by_number: dict[int, SheetRow]) -> SheetRow | None:
+    anchor_number = resolve_batch_anchor_row(row.row_number)
+    anchor = rows_by_number.get(anchor_number)
+    if anchor is None:
+        return None
+    if anchor_number != row.row_number:
+        logger.info(
+            "Do row %s is batch member — using anchor row %s",
+            row.row_number,
+            anchor_number,
+        )
+    if _normalize_row_status(anchor.values) == "scheduled":
+        return None
+    if not _row_eligible_for_queue(anchor):
+        return None
+    return anchor
+
+
+def _collect_do_anchor_candidates(rows: list[SheetRow]) -> list[SheetRow]:
+    rows_by_number = _sheet_row_map(rows)
+    seen: set[int] = set()
+    anchors: list[SheetRow] = []
     for row in rows:
-        if row.values.get("status", "").strip().lower() != "scheduled":
+        if row.values.get("status", "").strip().lower() != "do":
             continue
-        scheduled_at = read_row_schedule_time(row.values)
-        if scheduled_at is not None and scheduled_at <= moment:
-            return True
-    return False
+        anchor = _resolve_do_anchor(row, rows_by_number)
+        if anchor is None or anchor.row_number in seen:
+            continue
+        seen.add(anchor.row_number)
+        anchors.append(anchor)
+    return sorted(anchors, key=lambda item: item.row_number)
 
 
 def get_sheet_rows_by_numbers(
@@ -151,37 +242,86 @@ def _row_eligible_for_queue(row: SheetRow) -> bool:
     return True
 
 
+def _sheet_row_map(rows: list[SheetRow]) -> dict[int, SheetRow]:
+    return {row.row_number: row for row in rows}
+
+
+def _resolve_scheduled_candidate(
+    row: SheetRow,
+    rows_by_number: dict[int, SheetRow],
+) -> SheetRow | None:
+    anchor_number = resolve_batch_anchor_row(row.row_number)
+    anchor = rows_by_number.get(anchor_number)
+    if anchor is None:
+        return None
+    if anchor_number != row.row_number:
+        logger.info(
+            "Scheduled row %s is batch member — using anchor row %s",
+            row.row_number,
+            anchor_number,
+        )
+    if not _row_eligible_for_queue(anchor):
+        return None
+    return anchor
+
+
+def _collect_due_scheduled_anchors(
+    rows: list[SheetRow],
+    moment: datetime,
+) -> list[tuple[datetime, SheetRow]]:
+    rows_by_number = _sheet_row_map(rows)
+    best_by_anchor: dict[int, tuple[datetime, SheetRow]] = {}
+    for row in rows:
+        if row.values.get("status", "").strip().lower() != "scheduled":
+            continue
+        scheduled_at = read_row_schedule_time(row.values)
+        if scheduled_at is None or scheduled_at > moment:
+            continue
+        anchor = _resolve_scheduled_candidate(row, rows_by_number)
+        if anchor is None:
+            continue
+        existing = best_by_anchor.get(anchor.row_number)
+        if existing is None or scheduled_at < existing[0]:
+            best_by_anchor[anchor.row_number] = (scheduled_at, anchor)
+    return sorted(best_by_anchor.values(), key=lambda item: item[0])
+
+
+def reserve_next_do_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
+    """Reserve the next do row only (never scheduled); batch members resolve to anchor."""
+    headers, rows = get_sheet_rows(sheets)
+    if "status" not in headers:
+        raise RuntimeError("Missing required 'status' column.")
+
+    candidates = _collect_do_anchor_candidates(rows)
+    if not candidates:
+        return headers, None
+
+    candidate = candidates[0]
+    update_task_status(sheets, headers, candidate.row_number, "processing", "")
+    return headers, candidate
+
+
 def reserve_next_pending_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
+    """Reserve the next render row: due Scheduled first, then do (never pending)."""
     headers, rows = get_sheet_rows(sheets)
     if "status" not in headers:
         raise RuntimeError("Missing required 'status' column.")
 
     now = datetime.now(timezone.utc)
-    due_scheduled: list[tuple[datetime, SheetRow]] = []
-    for row in rows:
-        if row.values.get("status", "").strip().lower() != "scheduled":
-            continue
-        scheduled_at = read_row_schedule_time(row.values)
-        if scheduled_at is not None and scheduled_at <= now:
-            due_scheduled.append((scheduled_at, row))
+    due_scheduled = _collect_due_scheduled_anchors(rows, now)
 
     if due_scheduled:
-        due_scheduled.sort(key=lambda item: item[0])
-        for _, candidate in due_scheduled:
-            if _row_eligible_for_queue(candidate):
-                update_task_status(
-                    sheets, headers, candidate.row_number, "processing", ""
-                )
-                return headers, candidate
+        _, candidate = due_scheduled[0]
+        update_task_status(
+            sheets, headers, candidate.row_number, "processing", ""
+        )
+        return headers, candidate
 
-    for desired_status in ("do", "pending"):
-        for row in rows:
-            if row.values.get("status", "").strip().lower() != desired_status:
-                continue
-            if not _row_eligible_for_queue(row):
-                continue
-            update_task_status(sheets, headers, row.row_number, "processing", "")
-            return headers, row
+    do_candidates = _collect_do_anchor_candidates(rows)
+    if do_candidates:
+        candidate = do_candidates[0]
+        update_task_status(sheets, headers, candidate.row_number, "processing", "")
+        return headers, candidate
 
     return headers, None
 
@@ -281,9 +421,38 @@ def update_sheet_row_status(row_number: int, status: str) -> dict[str, str | int
     }
 
 
-def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str]:
+def _clear_batch_member_schedules(
+    anchor_number: int,
+    *,
+    sheets: Any,
+    headers: list[str],
+    rows: list[SheetRow],
+) -> None:
+    """Reset scheduled batch members so only the anchor holds the schedule."""
+    batch = get_batch_rule_for_anchor(anchor_number)
+    if batch is None:
+        return
+    _, batch_rows = batch
+    for member_number in batch_rows[1:]:
+        member = next((row for row in rows if row.row_number == member_number), None)
+        if member is None:
+            continue
+        if _normalize_row_status(member.values) != "scheduled":
+            continue
+        clear_schedule_time(sheets, headers, member_number)
+        update_task_status(
+            sheets,
+            headers,
+            member_number,
+            "pending",
+            "Schedule applied to batch anchor row",
+        )
+
+
+def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str | int | bool]:
     """
     Set status to Scheduled and store Schedule_Time.
+    Batch member rows schedule the anchor (first Select Rows row) instead.
     Raises ValueError if row missing, processing, duplicate time, or invalid time.
     """
     schedule_at = normalize_schedule_time(schedule_time_raw)
@@ -299,12 +468,27 @@ def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str
     if target is None:
         raise ValueError(f"Sheet row {row_number} not found.")
 
-    previous = target.values.get("status", "").strip().lower()
-    if previous == "processing":
+    if target.values.get("status", "").strip().lower() == "processing":
         raise ValueError(f"Row {row_number} is currently processing.")
 
+    anchor_number = resolve_batch_anchor_row(row_number)
+    redirected = anchor_number != row_number
+    if redirected:
+        logger.info(
+            "Scheduling batch member row %s — using anchor row %s",
+            row_number,
+            anchor_number,
+        )
+
+    anchor = next((r for r in rows if r.row_number == anchor_number), None)
+    if anchor is None:
+        raise ValueError(f"Sheet row {anchor_number} not found.")
+
+    if anchor.values.get("status", "").strip().lower() == "processing":
+        raise ValueError(f"Row {anchor_number} is currently processing.")
+
     conflict_row = find_schedule_time_conflict(
-        rows, schedule_at, exclude_row_number=row_number
+        rows, schedule_at, exclude_row_number=anchor_number
     )
     if conflict_row is not None:
         raise ValueError(
@@ -312,17 +496,27 @@ def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str
             "Choose a different date and time."
         )
 
-    update_schedule_time(sheets, headers, row_number, schedule_at)
+    _clear_batch_member_schedules(
+        anchor_number,
+        sheets=sheets,
+        headers=headers,
+        rows=rows,
+    )
+
+    previous = anchor.values.get("status", "").strip().lower()
+    update_schedule_time(sheets, headers, anchor_number, schedule_at)
     update_task_status(
         sheets,
         headers,
-        row_number,
+        anchor_number,
         "Scheduled",
         f"Scheduled for {schedule_time_storage_value(schedule_at)}",
     )
     stored = schedule_time_storage_value(schedule_at)
     return {
-        "row": row_number,
+        "row": anchor_number,
+        "requested_row": row_number,
+        "redirected_to_anchor": redirected,
         "status": "scheduled",
         "schedule_time": stored,
         "previous_status": previous,

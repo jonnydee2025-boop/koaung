@@ -52,6 +52,6 @@ async def notify_no_pending_rows() -> None:
         return
     await bot.send_message(
         chat_id=ADMIN_CHAT_ID,
-        text="No do or pending rows found.",
+        text="No do or scheduled rows found.",
         reply_markup=main_menu(),
     )

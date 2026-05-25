@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException
 
 from ..schemas import (
     GeminiModelSettingsPayload,
+    IntervalTriggersUpdateRequest,
     RowRulesUpdateRequest,
+    payload_to_interval_trigger,
     payload_to_row_rule,
     row_rule_to_dict,
 )
@@ -27,7 +29,14 @@ from ...gemini_settings import (
     save_gemini_model_settings,
     validate_gemini_model_settings,
 )
+from ...interval_triggers import (
+    interval_triggers_to_dict,
+    load_interval_triggers,
+    save_interval_triggers,
+    validate_interval_triggers,
+)
 from ...row_rules import load_row_rules, save_row_rules, validate_row_rules
+from ...sheets import auto_trigger_do_for_row_rules
 
 router = APIRouter(tags=["settings"])
 
@@ -36,6 +45,7 @@ router = APIRouter(tags=["settings"])
 def get_settings():
     missing = missing_media_binaries()
     gemini = load_gemini_model_settings()
+    interval_meta = interval_triggers_to_dict(load_interval_triggers())
     return {
         "sheet_name": SHEET_NAME,
         "tmp_root": str(TMP_ROOT),
@@ -49,6 +59,8 @@ def get_settings():
         "row_rules_path": str(ROW_RULES_PATH),
         "gemini_api_key_configured": bool(GEMINI_API_KEY),
         "gemini_models": gemini_settings_to_dict(gemini),
+        "interval_triggers_count": interval_meta["interval_triggers_count"],
+        "next_interval_trigger_at": interval_meta["next_trigger_at"],
     }
 
 
@@ -80,6 +92,24 @@ def put_gemini_models(body: GeminiModelSettingsPayload):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.get("/settings/interval-triggers")
+def get_interval_triggers():
+    return interval_triggers_to_dict(load_interval_triggers())
+
+
+@router.put("/settings/interval-triggers")
+def put_interval_triggers(body: IntervalTriggersUpdateRequest):
+    try:
+        triggers = [payload_to_interval_trigger(item) for item in body.triggers]
+        validate_interval_triggers(triggers)
+        save_interval_triggers(triggers)
+        return {"saved": True, **interval_triggers_to_dict(triggers)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.get("/settings/row-rules")
 def get_row_rules():
     return {"rules": [row_rule_to_dict(rule) for rule in load_row_rules()]}
@@ -91,7 +121,12 @@ def put_row_rules(body: RowRulesUpdateRequest):
         rules = [payload_to_row_rule(item) for item in body.rules]
         validate_row_rules(rules)
         save_row_rules(rules)
-        return {"saved": True, "count": len(rules)}
+        trigger_result = auto_trigger_do_for_row_rules(rules)
+        return {
+            "saved": True,
+            "count": len(rules),
+            **trigger_result,
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

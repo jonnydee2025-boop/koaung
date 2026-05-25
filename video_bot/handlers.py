@@ -72,7 +72,7 @@ async def run_telegram_render(
                 admin_progress_callback,
             )
         except NoPendingRows:
-            reset_current_render_idle("No pending rows")
+            reset_current_render_idle("No do or scheduled rows")
             await notify_no_pending_rows()
             return
         except Exception as exc:
