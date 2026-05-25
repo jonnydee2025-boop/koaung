@@ -35,5 +35,16 @@ export function invalidateCache(keyOrPattern) {
 /** Clear sheet-derived data after renders, job actions, or manual refresh. */
 export function invalidateSheetCaches() {
   invalidateCache('stats');
-  invalidateCache('jobs:*'); /* jobs:all, jobs:6, … */
+  invalidateCache('jobs:*'); /* jobs:page:*, jobs:monks, jobs:6, … */
+}
+
+/** Silent background fetch — writes to cache without React state updates. */
+export async function prefetchCache(key, fetcher, ttlMs) {
+  const cached = readCache(key);
+  if (cached?.isFresh) {
+    return cached.data;
+  }
+  const data = await fetcher();
+  writeCache(key, data, ttlMs);
+  return data;
 }

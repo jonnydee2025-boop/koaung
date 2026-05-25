@@ -1,17 +1,29 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
+import { useMobileNav } from '../context/MobileNavContext';
 import {
   FloatingDropdownMenu,
   useDropdownDismiss,
   useFloatingDropdown,
 } from './FloatingDropdownMenu';
 
-export default function MonkFilterTab({ value, options, onChange }) {
+export default function MonkFilterTab({ value, options, onChange, statusFilter }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
+  const { closeSidebar, sidebarOpen } = useMobileNav();
   const isActive = Boolean(value);
   const { menuRef, coords } = useFloatingDropdown(open, anchorRef);
   useDropdownDismiss(open, setOpen, anchorRef, menuRef);
+
+  useEffect(() => {
+    if (open && sidebarOpen) {
+      closeSidebar();
+    }
+  }, [open, sidebarOpen, closeSidebar]);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [statusFilter]);
 
   const handleSelect = (next) => {
     onChange?.(next);
@@ -28,7 +40,11 @@ export default function MonkFilterTab({ value, options, onChange }) {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Filter by monk"
-        onClick={() => setOpen((current) => !current)}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={() => {
+          closeSidebar();
+          setOpen((current) => !current);
+        }}
       >
         Monks 🔽
         {isActive && (

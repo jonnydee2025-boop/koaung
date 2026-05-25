@@ -7,6 +7,7 @@ from video_bot.api.job_listing import (
     JOB_STATUS_FILTER_KEYS,
     filter_jobs,
     job_status_counts,
+    unique_monk_names,
 )
 
 
@@ -46,6 +47,25 @@ class JobListingTests(unittest.TestCase):
             filter_jobs(jobs, "all", "vimala"),
             [sample_job(1, "pending", title="Morning talk", monk="U Vimala")],
         )
+
+    def test_filter_jobs_monk_exact_match(self) -> None:
+        jobs = [
+            sample_job(1, "pending", monk="U Vimala"),
+            sample_job(2, "pending", monk="U Pandita"),
+        ]
+        self.assertEqual(
+            filter_jobs(jobs, "all", "", "U Vimala"),
+            [sample_job(1, "pending", monk="U Vimala")],
+        )
+
+    def test_unique_monk_names_sorted(self) -> None:
+        jobs = [
+            sample_job(1, "pending", monk="U Pandita"),
+            sample_job(2, "pending", monk="U Vimala"),
+            sample_job(3, "pending", monk="U Vimala"),
+            sample_job(4, "pending", monk=""),
+        ]
+        self.assertEqual(unique_monk_names(jobs), ["U Pandita", "U Vimala"])
 
 
 if __name__ == "__main__":

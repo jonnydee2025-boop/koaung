@@ -1,4 +1,5 @@
-import { Bell, RefreshCw, Play, Square } from 'lucide-react';
+import { Bell, RefreshCw, Play, Square, Menu } from 'lucide-react';
+import { useMobileNav } from '../context/MobileNavContext';
 
 export default function Header({
   title,
@@ -9,6 +10,8 @@ export default function Header({
   onRenderNext,
   onStopRender,
 }) {
+  const { toggleSidebar } = useMobileNav();
+
   const handleRenderClick = () => {
     if (renderRunning) {
       onStopRender?.();
@@ -25,9 +28,19 @@ export default function Header({
 
   return (
     <header className="header">
-      <div>
-        <div className="header-title">{title}</div>
-        {subtitle && <div className="header-subtitle">{subtitle}</div>}
+      <div className="header-leading">
+        <button
+          type="button"
+          className="btn-icon mobile-only header-menu-btn"
+          aria-label="Open navigation menu"
+          onClick={toggleSidebar}
+        >
+          <Menu size={18} />
+        </button>
+        <div className="header-titles">
+          <div className="header-title">{title}</div>
+          {subtitle && <div className="header-subtitle">{subtitle}</div>}
+        </div>
       </div>
       <div className="header-actions">
         <button type="button" className="btn-icon" title="Notifications">
@@ -35,11 +48,11 @@ export default function Header({
         </button>
         <button
           type="button"
-          className="btn btn-ghost btn-sm"
+          className="btn btn-ghost btn-sm header-refresh-btn"
           onClick={() => window.location.reload()}
         >
           <RefreshCw size={14} />
-          Refresh
+          <span className="header-btn-label">Refresh</span>
         </button>
         {showRenderControl && (
           <button
@@ -50,7 +63,7 @@ export default function Header({
             disabled={renderStarting}
           >
             {renderRunning ? <Square size={14} /> : <Play size={14} />}
-            {renderLabel}
+            <span className="header-btn-label">{renderLabel}</span>
           </button>
         )}
       </div>

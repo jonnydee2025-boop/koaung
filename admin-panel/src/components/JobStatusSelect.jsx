@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import {
   EDITABLE_STATUS_OPTIONS,
   selectStatusValue,
   statusThemeFor,
 } from '../data/statusTheme';
+import { useMobileNav } from '../context/MobileNavContext';
 import {
   FloatingDropdownMenu,
   useDropdownDismiss,
@@ -19,6 +20,7 @@ export default function JobStatusSelect({
 }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
+  const { closeSidebar, sidebarOpen } = useMobileNav();
   const isProcessing = status === 'processing';
   const value = selectStatusValue(status);
   const triggerTheme = statusThemeFor(status);
@@ -45,8 +47,10 @@ export default function JobStatusSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Change status"
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={() => {
           if (!isLocked) {
+            closeSidebar();
             setOpen((current) => !current);
           }
         }}

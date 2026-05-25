@@ -1,7 +1,12 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from ..http_errors import http_error_from_value
-from ..job_listing import all_jobs_sorted, filter_jobs, job_status_counts
+from ..job_listing import (
+    all_jobs_sorted,
+    filter_jobs,
+    job_status_counts,
+    unique_monk_names,
+)
 from ..render_runner import queue_admin_render
 from ..schemas import ScheduleJobRequest, UpdateJobStatusRequest
 from ...sheet_cache import invalidate_sheet_cache
@@ -15,12 +20,22 @@ from ...sheets import (
 router = APIRouter(tags=["jobs"])
 
 
+@router.get("/jobs/monks")
+def list_job_monks(refresh: bool = Query(default=False)):
+    try:
+        jobs = all_jobs_sorted(force_refresh=refresh)
+        return {"monks": unique_monk_names(jobs)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.get("/jobs")
 def list_jobs(
     page: int | None = Query(default=None, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     status: str = Query(default="all"),
     search: str = Query(default=""),
+    monk: str = Query(default=""),
     limit: int | None = Query(default=None, ge=1, le=500),
     refresh: bool = Query(default=False),
     full: bool = Query(default=False),
@@ -37,10 +52,10 @@ def list_jobs(
             }
 
         if page is None and limit is not None:
-            return filter_jobs(jobs, status, search)[:limit]
+            return filter_jobs(jobs, status, search, monk)[:limit]
 
         current_page = page or 1
-        filtered = filter_jobs(jobs, status, search)
+        filtered = filter_jobs(jobs, status, search, monk)
         total = len(filtered)
         start = (current_page - 1) * page_size
         items = filtered[start : start + page_size]

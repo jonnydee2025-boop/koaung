@@ -6,6 +6,7 @@ import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { isAuthenticated } from './data/adminAuth';
+import { MobileNavProvider, useMobileNav } from './context/MobileNavContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Jobs = lazy(() => import('./pages/Jobs'));
@@ -35,35 +36,53 @@ function RequireAuth({ children }) {
   return children;
 }
 
+function AppShell() {
+  const { sidebarOpen, closeSidebar } = useMobileNav();
+
+  return (
+    <div className={`app-layout${sidebarOpen ? ' sidebar-open' : ''}`}>
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Close navigation menu"
+          onClick={closeSidebar}
+        />
+      )}
+      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+      <div className="main-content">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <LazyPage>
+                <Dashboard />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/jobs"
+            element={
+              <LazyPage>
+                <Jobs />
+              </LazyPage>
+            }
+          />
+          <Route path="/logs" element={<Logs />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <RequireAuth>
-      <div className="app-layout">
-        <Sidebar />
-        <div className="main-content">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <LazyPage>
-                  <Dashboard />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="/jobs"
-              element={
-                <LazyPage>
-                  <Jobs />
-                </LazyPage>
-              }
-            />
-            <Route path="/logs" element={<Logs />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </div>
-      </div>
+        <MobileNavProvider>
+          <AppShell />
+        </MobileNavProvider>
       </RequireAuth>
     </BrowserRouter>
   );

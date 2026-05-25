@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
 import Skeleton from '../components/Skeleton';
-import CacheHint from '../components/CacheHint';
 import ErrorBanner from '../components/ErrorBanner';
 import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle, RefreshCw } from 'lucide-react';
 import { cancelRender } from '../data/api';
@@ -11,12 +10,17 @@ import {
   useCachedStats,
   useCachedJobs,
   useCachedRenderStatus,
+  warmJobsCache,
 } from '../hooks/useSheetData';
 
 export default function Dashboard() {
   const statsQuery = useCachedStats({ pollMs: 8000 });
   const jobsQuery = useCachedJobs(6, { pollMs: 8000 });
   const renderQuery = useCachedRenderStatus();
+
+  useEffect(() => {
+    warmJobsCache();
+  }, []);
 
   const stats = statsQuery.data;
   const jobs = jobsQuery.data ?? [];
@@ -31,8 +35,6 @@ export default function Dashboard() {
 
   const errors = [statsQuery.error, jobsQuery.error, renderQuery.error].filter(Boolean);
   const error = actionError || errors.join(' | ');
-  const refreshing = statsQuery.refreshing || jobsQuery.refreshing || renderQuery.refreshing;
-  const lastRefresh = statsQuery.updatedAt || jobsQuery.updatedAt;
 
   const refreshAll = () => {
     invalidateSheetCaches();
@@ -92,19 +94,9 @@ export default function Dashboard() {
     <>
       <Header
         title="Dashboard"
-        subtitle={
-          lastRefresh
-            ? `Last updated ${lastRefresh.toLocaleTimeString()}`
-            : 'Dhamma Channel — overview'
-        }
+        subtitle="Dhamma Channel — overview"
       />
       <div className="page-content">
-        {(refreshing || lastRefresh) && (
-          <div className="cache-bar">
-            <CacheHint refreshing={refreshing} updatedAt={lastRefresh} />
-          </div>
-        )}
-
         {error && <ErrorBanner message={error} />}
 
         {renderStatus.running && (

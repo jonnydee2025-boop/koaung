@@ -138,13 +138,13 @@ export default function LazyJobTable({
                 {(job.logs || '').trim() ? (
                   <button
                     type="button"
-                    className="btn btn-ghost btn-sm job-action-btn"
+                    className="btn btn-ghost btn-sm job-log-btn"
                     onClick={() => setLogJob(job)}
                     title="View log"
                     aria-label="View log"
                   >
                     <NotebookText size={14} />
-                    <span style={{ fontSize: 11, marginLeft: 4 }}>View Log</span>
+                    <span className="job-log-btn-label">View Log</span>
                   </button>
                 ) : (
                   '—'
@@ -152,10 +152,7 @@ export default function LazyJobTable({
               </td>
               {showActions && (
                 <td>
-                  <div
-                    className="job-actions"
-                    style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}
-                  >
+                  <div className="job-actions">
                     {job.youtube_id && (
                       <a
                         href={`https://studio.youtube.com/video/${job.youtube_id}/edit`}

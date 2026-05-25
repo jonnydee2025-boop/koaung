@@ -4,8 +4,16 @@ import { createPortal } from 'react-dom';
 const MENU_GAP = 6;
 const VIEWPORT_PADDING = 8;
 
+function coordsEqual(a, b) {
+  if (!a || !b) {
+    return a === b;
+  }
+  return a.top === b.top && a.left === b.left && a.transform === b.transform;
+}
+
 export function useFloatingDropdown(open, anchorRef) {
   const menuRef = useRef(null);
+  const coordsRef = useRef(null);
   const [coords, setCoords] = useState(null);
 
   const updatePosition = useCallback(() => {
@@ -38,31 +46,19 @@ export function useFloatingDropdown(open, anchorRef) {
       left = VIEWPORT_PADDING;
     }
 
-    setCoords({ top, left, transform });
+    const next = { top, left, transform };
+    if (coordsEqual(coordsRef.current, next)) {
+      return;
+    }
+
+    coordsRef.current = next;
+    setCoords(next);
   }, [anchorRef]);
 
   useLayoutEffect(() => {
     if (!open) {
+      coordsRef.current = null;
       setCoords(null);
-      return undefined;
-    }
-
-    updatePosition();
-    const frame = requestAnimationFrame(updatePosition);
-
-    const handleScrollOrResize = () => updatePosition();
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-    };
-  }, [open, updatePosition]);
-
-  useLayoutEffect(() => {
-    if (!open || !coords) {
       return undefined;
     }
 
@@ -72,18 +68,24 @@ export function useFloatingDropdown(open, anchorRef) {
       requestAnimationFrame(updatePosition);
     });
 
+    const handleScrollOrResize = () => updatePosition();
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+
     const menu = menuRef.current;
-    if (!menu || typeof ResizeObserver === 'undefined') {
-      return () => cancelAnimationFrame(frame);
+    let observer;
+    if (menu && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => updatePosition());
+      observer.observe(menu);
     }
 
-    const observer = new ResizeObserver(() => updatePosition());
-    observer.observe(menu);
     return () => {
       cancelAnimationFrame(frame);
-      observer.disconnect();
+      observer?.disconnect();
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
     };
-  }, [open, coords, updatePosition]);
+  }, [open, updatePosition]);
 
   return { menuRef, coords, updatePosition };
 }
@@ -98,7 +100,7 @@ export function FloatingDropdownMenu({
   ariaLabel,
   children,
 }) {
-  if (!open || !coords || typeof document === 'undefined') {
+  if (!open || typeof document === 'undefined') {
     return null;
   }
 
@@ -110,16 +112,26 @@ export function FloatingDropdownMenu({
       aria-label={ariaLabel}
       style={{
         position: 'fixed',
-        top: coords.top,
-        left: coords.left,
-        transform: coords.transform,
-        zIndex: 2000,
+        top: coords?.top ?? -9999,
+        left: coords?.left ?? 0,
+        transform: coords?.transform ?? 'none',
+        visibility: coords ? 'visible' : 'hidden',
+        zIndex: 3000,
       }}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       {children}
     </div>,
     document.body,
   );
+}
+
+function eventHitsDropdown(event, anchorRef, menuRef) {
+  const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+  if (path.length > 0) {
+    return path.includes(anchorRef.current) || path.includes(menuRef.current);
+  }
+  return !isOutsideFloatingDropdown(event, anchorRef, menuRef);
 }
 
 export function isOutsideFloatingDropdown(event, anchorRef, menuRef) {
@@ -143,9 +155,10 @@ export function useDropdownDismiss(open, setOpen, anchorRef, menuRef) {
     }
 
     const handlePointerDown = (event) => {
-      if (isOutsideFloatingDropdown(event, anchorRef, menuRef)) {
-        setOpen(false);
+      if (eventHitsDropdown(event, anchorRef, menuRef)) {
+        return;
       }
+      setOpen(false);
     };
 
     const handleKeyDown = (event) => {
@@ -154,10 +167,15 @@ export function useDropdownDismiss(open, setOpen, anchorRef, menuRef) {
       }
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
+    // Defer so the same tap that opened the menu does not instantly close it.
+    const attachTimer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDown, true);
+    }, 0);
+
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
+      window.clearTimeout(attachTimer);
+      document.removeEventListener('pointerdown', handlePointerDown, true);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [open, anchorRef, menuRef, setOpen]);

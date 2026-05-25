@@ -58,8 +58,27 @@ def job_status_counts(jobs: list[dict]) -> dict[str, int]:
     return {key: counts[key] for key in JOB_STATUS_FILTER_KEYS}
 
 
-def filter_jobs(jobs: list[dict], status: str, search: str) -> list[dict]:
+def job_monk_name(job: dict) -> str:
+    return (job.get("monk") or job.get("monk_name") or "").strip()
+
+
+def unique_monk_names(jobs: list[dict]) -> list[str]:
+    names: set[str] = set()
+    for job in jobs:
+        name = job_monk_name(job)
+        if name:
+            names.add(name)
+    return sorted(names)
+
+
+def filter_jobs(
+    jobs: list[dict],
+    status: str,
+    search: str,
+    monk: str = "",
+) -> list[dict]:
     query = search.strip().lower()
+    monk_filter = monk.strip()
     filtered: list[dict] = []
 
     for job in jobs:
@@ -77,10 +96,13 @@ def filter_jobs(jobs: list[dict], status: str, search: str) -> list[dict]:
         if status == "scheduled" and job_status != "scheduled":
             continue
 
+        if monk_filter and job_monk_name(job) != monk_filter:
+            continue
+
         if query:
             title = job.get("title", "").lower()
-            monk = (job.get("monk") or "").lower()
-            if query not in title and query not in monk:
+            monk_name = job_monk_name(job).lower()
+            if query not in title and query not in monk_name:
                 continue
 
         filtered.append(job)

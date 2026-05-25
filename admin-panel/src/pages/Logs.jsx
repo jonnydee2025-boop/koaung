@@ -122,39 +122,26 @@ export default function Logs() {
             ⚠ {displayError}
           </div>
         )}
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Activity Log</div>
-              <div className="card-subtitle">{filtered.length} entries</div>
+        <div className="card logs-card">
+          <div className="logs-toolbar">
+            <div className="logs-level-filters">
+              {LEVELS.map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  className={`btn btn-ghost btn-sm logs-level-tab${levelFilter === level ? ' is-active' : ''}`}
+                  onClick={() => setLevel(level)}
+                >
+                  {level}
+                </button>
+              ))}
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <select
-                id="log-level-filter"
-                className="form-select"
-                value={levelFilter}
-                onChange={(e) => setLevel(e.target.value)}
-                style={{ fontSize: 12, padding: '5px 10px' }}
-              >
-                {LEVELS.map((l) => (
-                  <option key={l}>{l}</option>
-                ))}
-              </select>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 12,
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                }}
-              >
+            <div className="logs-toolbar-actions">
+              <label className="logs-autoscroll">
                 <input
                   type="checkbox"
                   checked={autoScroll}
                   onChange={(e) => setAutoScroll(e.target.checked)}
-                  style={{ accentColor: 'var(--accent)' }}
                 />
                 Auto-scroll
               </label>
@@ -167,6 +154,11 @@ export default function Logs() {
                 Export
               </button>
             </div>
+          </div>
+
+          <div className="logs-card-meta">
+            <div className="card-title">Activity Log</div>
+            <div className="card-subtitle">{filtered.length} entries</div>
           </div>
 
           <div className="log-container" id="log-viewer">

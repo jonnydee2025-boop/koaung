@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ListVideo, ScrollText, Settings,
-  Bot, Play, Square, Loader
+  Bot, Play, Square, Loader, X,
 } from 'lucide-react';
 import { fetchBotStatus, startBot, stopBot } from '../data/api';
 
@@ -13,7 +13,7 @@ const navItems = [
   { icon: Settings,        label: 'Settings',  to: '/settings' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose }) {
   const [online, setOnline]         = useState(null); // null = unknown
   const [toggling, setToggling]     = useState(false);
   const [error, setError]           = useState('');
@@ -61,7 +61,7 @@ export default function Sidebar() {
   const BtnIcon       = toggling ? Loader : online ? Square : Play;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' is-open' : ''}`}>
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="logo-mark">
@@ -70,6 +70,14 @@ export default function Sidebar() {
             <div className="logo-text">မုဒြာ Dhamma Channel</div>
             <div className="logo-sub">Admin Panel</div>
           </div>
+          <button
+            type="button"
+            className="sidebar-close mobile-only"
+            aria-label="Close navigation menu"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
         </div>
       </div>
 
@@ -82,6 +90,7 @@ export default function Sidebar() {
             to={to}
             end={to === '/'}
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+            onClick={onClose}
           >
             <Icon size={16} />
             {label}
