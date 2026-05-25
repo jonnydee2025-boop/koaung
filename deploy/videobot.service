@@ -9,6 +9,7 @@ User=videobot
 Group=videobot
 WorkingDirectory=/opt/videobot
 EnvironmentFile=/opt/videobot/.env
+ExecStartPre=/bin/mkdir -p /opt/videobot/tmp_video_jobs
 ExecStart=/opt/videobot/.venv/bin/python /opt/videobot/video_automation_bot.py
 Restart=on-failure
 RestartSec=10

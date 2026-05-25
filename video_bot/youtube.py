@@ -107,13 +107,18 @@ def upload_video_to_youtube(
     progress_callback: ProgressCallback | None = None,
     *,
     privacy_status: PrivacyStatus = "private",
+    tags: list[str] | None = None,
 ) -> str:
+    snippet: dict[str, Any] = {
+        "title": title[:100],
+        "description": description,
+        "categoryId": "27",
+    }
+    if tags:
+        snippet["tags"] = tags[:30]
+
     request_body = {
-        "snippet": {
-            "title": title[:100],
-            "description": description,
-            "categoryId": "27",
-        },
+        "snippet": snippet,
         "status": {
             "privacyStatus": privacy_status,
             "selfDeclaredMadeForKids": False,

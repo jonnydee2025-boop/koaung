@@ -65,9 +65,9 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="logo-mark">
-          <div className="logo-icon">🎬</div>
+          <img src="/logo.jpg" alt="Dhamma Channel logo" className="logo-image" />
           <div>
-            <div className="logo-text">VideoBot</div>
+            <div className="logo-text">မုဒြာ Dhamma Channel</div>
             <div className="logo-sub">Admin Panel</div>
           </div>
         </div>

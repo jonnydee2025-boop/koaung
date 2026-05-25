@@ -14,6 +14,7 @@ class RetryJob:
     row: SheetRow
     title: str
     description: str
+    tags: list[str] | None = None
     video_id: str | None = None
     thumbnail_warning: str = ""
     workdir: Path | None = None

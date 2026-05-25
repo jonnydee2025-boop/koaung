@@ -2,14 +2,25 @@ import { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
-import { Search, RefreshCw } from 'lucide-react';
+import CollapsibleSearch from '../components/CollapsibleSearch';
+import MonkFilterTab from '../components/MonkFilterTab';
+import { RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
 import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
-import { buildJobsPageView, EMPTY_COUNTS } from '../data/jobsSheet';
+import { buildJobsPageView, EMPTY_COUNTS, uniqueMonkNames } from '../data/jobsSheet';
 import { useJobsSheet } from '../hooks/useSheetData';
 
 const PAGE_SIZE = 100;
+
+const STATUS_FILTERS = [
+  ['all', 'All'],
+  ['done', 'Done'],
+  ['processing', 'Processing'],
+  ['pending', 'Pending'],
+  ['scheduled', 'Scheduled'],
+  ['failed', 'Failed'],
+];
 
 function CacheHint({ refreshing, updatedAt, sheetTotal, isStale }) {
   if (!updatedAt && sheetTotal == null) return null;
@@ -32,6 +43,7 @@ export default function Jobs() {
 
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState('all');
+  const [monkFilter, setMonkFilter] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -49,11 +61,19 @@ export default function Jobs() {
 
   useEffect(() => {
     setPage(1);
-  }, [filter, debouncedSearch]);
+  }, [filter, monkFilter, debouncedSearch]);
 
   const allJobs = sheetQuery.data?.jobs;
   const counts = sheetQuery.data?.counts ?? EMPTY_COUNTS;
   const sheetTotal = sheetQuery.data?.sheet_total ?? null;
+
+  const monkOptions = useMemo(() => uniqueMonkNames(allJobs ?? []), [allJobs]);
+
+  useEffect(() => {
+    if (monkFilter && !monkOptions.includes(monkFilter)) {
+      setMonkFilter('');
+    }
+  }, [monkFilter, monkOptions]);
 
   const pageView = useMemo(() => {
     if (!allJobs) {
@@ -64,8 +84,9 @@ export default function Jobs() {
       pageSize: PAGE_SIZE,
       status: filter,
       search: debouncedSearch,
+      monkFilter,
     });
-  }, [allJobs, counts, page, filter, debouncedSearch]);
+  }, [allJobs, counts, page, filter, debouncedSearch, monkFilter]);
 
   useEffect(() => {
     if (!pageView) return;
@@ -191,75 +212,30 @@ export default function Jobs() {
         )}
 
         <div className="card">
-          <div
-            style={{
-              display: 'flex',
-              gap: 6,
-              marginBottom: 20,
-              flexWrap: 'wrap',
-              alignItems: 'center',
-            }}
-          >
-            {[
-              ['all', 'All'],
-              ['done', 'Done'],
-              ['processing', 'Processing'],
-              ['pending', 'Pending'],
-              ['scheduled', 'Scheduled'],
-              ['failed', 'Failed'],
-            ].map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                id={`filter-${val}`}
-                onClick={() => handleFilterChange(val)}
-                className="btn btn-ghost btn-sm"
-                style={
-                  filter === val
-                    ? {
-                        background: 'var(--accent-dim)',
-                        color: 'var(--accent)',
-                        borderColor: 'var(--accent)',
-                      }
-                    : {}
-                }
-              >
-                {label}
-                <span
-                  style={{
-                    marginLeft: 4,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    background: 'rgba(255,255,255,0.08)',
-                    padding: '1px 6px',
-                    borderRadius: 10,
-                  }}
+          <div className="jobs-toolbar">
+            <div className="jobs-toolbar-filters">
+              {STATUS_FILTERS.map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  id={`filter-${val}`}
+                  onClick={() => handleFilterChange(val)}
+                  className={`btn btn-ghost btn-sm jobs-filter-tab${filter === val ? ' is-active' : ''}`}
                 >
-                  {counts[val]?.toLocaleString?.() ?? counts[val]}
-                </span>
-              </button>
-            ))}
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ position: 'relative' }}>
-                <Search
-                  size={13}
-                  style={{
-                    position: 'absolute',
-                    left: 10,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-muted)',
-                  }}
-                />
-                <input
-                  id="job-search"
-                  className="form-input"
-                  placeholder="Search title or monk…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ paddingLeft: 30, width: 220, fontSize: 12 }}
-                />
-              </div>
+                  {label}
+                  <span className="jobs-filter-count">
+                    {counts[val]?.toLocaleString?.() ?? counts[val]}
+                  </span>
+                </button>
+              ))}
+              <MonkFilterTab
+                value={monkFilter}
+                options={monkOptions}
+                onChange={setMonkFilter}
+              />
+            </div>
+            <div className="jobs-toolbar-actions">
+              <CollapsibleSearch value={search} onChange={setSearch} />
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"

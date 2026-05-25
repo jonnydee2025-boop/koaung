@@ -19,8 +19,25 @@ function isPendingStatus(status) {
   return status === 'pending' || status === 'do';
 }
 
-export function filterJobs(jobs, status, search) {
+export function jobMonkName(job) {
+  return (job.monk || job.monk_name || '').trim();
+}
+
+/** Distinct monk names from cached sheet rows, sorted for dropdown options. */
+export function uniqueMonkNames(jobs) {
+  const names = new Set();
+  for (const job of jobs ?? []) {
+    const name = jobMonkName(job);
+    if (name) {
+      names.add(name);
+    }
+  }
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+export function filterJobs(jobs, status, search, monkFilter = '') {
   const query = search.trim().toLowerCase();
+  const monk = monkFilter.trim();
   const filtered = [];
 
   for (const job of jobs) {
@@ -31,10 +48,11 @@ export function filterJobs(jobs, status, search) {
     if (status === 'failed' && jobStatus !== 'failed') continue;
     if (status === 'scheduled' && jobStatus !== 'scheduled') continue;
 
+    if (monk && jobMonkName(job) !== monk) continue;
+
     if (query) {
       const title = (job.title || '').toLowerCase();
-      const monk = (job.monk || '').toLowerCase();
-      if (!title.includes(query) && !monk.includes(query)) continue;
+      if (!title.includes(query)) continue;
     }
 
     filtered.push(job);
@@ -69,8 +87,12 @@ export function paginateJobs(jobs, page, pageSize) {
   };
 }
 
-export function buildJobsPageView(allJobs, counts, { page, pageSize, status, search }) {
-  const filtered = filterJobs(allJobs ?? [], status, search);
+export function buildJobsPageView(
+  allJobs,
+  counts,
+  { page, pageSize, status, search, monkFilter = '' },
+) {
+  const filtered = filterJobs(allJobs ?? [], status, search, monkFilter);
   const slice = paginateJobs(filtered, page, pageSize);
   return {
     ...slice,

@@ -1,23 +1,10 @@
-const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'do', label: 'Do Next' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'done', label: 'Done' },
-];
-
-function isDoneStatus(status) {
-  return status === 'uploaded_to_yt' || status === 'done';
-}
-
-function selectValue(status) {
-  if (isDoneStatus(status)) {
-    return 'done';
-  }
-  if (STATUS_OPTIONS.some((option) => option.value === status)) {
-    return status;
-  }
-  return '';
-}
+import { useEffect, useRef, useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
+import {
+  EDITABLE_STATUS_OPTIONS,
+  selectStatusValue,
+  statusThemeFor,
+} from '../data/statusTheme';
 
 export default function JobStatusSelect({
   status,
@@ -25,39 +12,89 @@ export default function JobStatusSelect({
   saving = false,
   onChange,
 }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
   const isProcessing = status === 'processing';
-  const isScheduled = status === 'scheduled';
-  const value = selectValue(status);
+  const value = selectStatusValue(status);
+  const triggerTheme = statusThemeFor(status);
   const isLocked = isProcessing || disabled || saving;
 
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  const handleSelect = (next) => {
+    if (next && next !== value) {
+      onChange?.(next);
+    }
+    setOpen(false);
+  };
+
   return (
-    <select
-      className="form-input job-status-select"
-      value={value}
-      disabled={isLocked}
-      aria-label="Change status"
-      onChange={(e) => {
-        const next = e.target.value;
-        if (next && next !== value) {
-          onChange?.(next);
-        }
-      }}
+    <div
+      ref={rootRef}
+      className={`status-dropdown${open ? ' is-open' : ''}${isLocked ? ' is-locked' : ''}`}
     >
-      {isScheduled && (
-        <option value="" disabled>
-          Scheduled
-        </option>
+      <button
+        type="button"
+        className={`status-dropdown-trigger badge ${triggerTheme.badgeClass}`}
+        disabled={isLocked}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Change status"
+        onClick={() => {
+          if (!isLocked) {
+            setOpen((current) => !current);
+          }
+        }}
+      >
+        <span className="badge-dot" />
+        <span>{triggerTheme.label}</span>
+        {!isLocked && <ChevronDown size={12} className="status-dropdown-chevron" />}
+      </button>
+
+      {open && !isLocked && (
+        <div className="toolbar-dropdown-menu" role="listbox" aria-label="Status options">
+          {EDITABLE_STATUS_OPTIONS.map((option) => {
+            const isActive = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                className={`toolbar-dropdown-item badge ${option.badgeClass}${isActive ? ' is-active' : ''}`}
+                onClick={() => handleSelect(option.value)}
+              >
+                <span className="badge-dot" />
+                <span>{option.label}</span>
+                {isActive && <Check size={12} className="toolbar-dropdown-check" />}
+              </button>
+            );
+          })}
+        </div>
       )}
-      {isProcessing && (
-        <option value="" disabled>
-          Rendering
-        </option>
-      )}
-      {STATUS_OPTIONS.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    </div>
   );
 }

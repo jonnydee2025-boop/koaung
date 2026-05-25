@@ -103,6 +103,8 @@ ADMIN_API_CORS_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
 
 MENU_RENDER_NEXT = "menu:render_next"
 MENU_VIEW_STATS = "menu:view_stats"

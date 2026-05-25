@@ -94,7 +94,7 @@ export default function Dashboard() {
         {
           label: 'Processing',
           value: stats.processing,
-          color: '#6c63ff',
+          color: 'var(--accent)',
           pct: stats.total ? +(stats.processing / stats.total * 100).toFixed(1) : 0,
         },
         {
@@ -115,7 +115,7 @@ export default function Dashboard() {
         subtitle={
           lastRefresh
             ? `Last updated ${lastRefresh.toLocaleTimeString()}`
-            : 'Video Automation Bot — overview'
+            : 'Dhamma Channel — overview'
         }
       />
       <div className="page-content">
@@ -315,7 +315,7 @@ export default function Dashboard() {
                 ['Total Sheet Rows', stats?.total ?? '—', 'var(--text-primary)'],
                 ['Successfully Uploaded', stats?.done ?? '—', '#22c55e'],
                 ['Awaiting Render', stats?.pending ?? '—', '#f59e0b'],
-                ['Currently Processing', stats?.processing ?? '—', '#6c63ff'],
+                ['Currently Processing', stats?.processing ?? '—', 'var(--accent)'],
                 ['Failed / Error', stats?.failed ?? '—', '#ef4444'],
               ].map(([label, val, color]) => (
                 <div

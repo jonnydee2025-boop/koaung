@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import ENABLE_AUDIO_ENHANCE, TMP_ROOT, logger
+from ..gemini_youtube_metadata import generate_youtube_metadata
 from ..drive import prepare_background_video
 from ..media import download_file, enhance_audio, render_video
 from ..models import RenderTaskFailed, RetryJob, SheetRow
@@ -76,6 +77,8 @@ def process_reserved_row(
     cleanup_workdir = True
     uploaded_video_id = None
     thumbnail_warning = ""
+    upload_description = description
+    upload_tags: list[str] = []
 
     try:
         if is_batch:
@@ -149,13 +152,28 @@ def process_reserved_row(
                 job_progress("Thumbnail skipped", None)
 
         if job_progress is not None:
+            job_progress("Generating YouTube metadata", None)
+        generated = generate_youtube_metadata(
+            monk_name=monk_name,
+            dhamma_title=title,
+        )
+        if generated:
+            upload_description = generated.description
+            upload_tags = generated.tags
+            if job_progress is not None:
+                job_progress("Generated YouTube metadata", None)
+        else:
+            logger.info("Using sheet description (Gemini skipped or unavailable).")
+
+        if job_progress is not None:
             job_progress("Uploading to YouTube", None)
         video_id = upload_video_to_youtube(
             youtube,
             video_path,
             title,
-            description,
+            upload_description,
             job_progress,
+            tags=upload_tags,
         )
         uploaded_video_id = video_id
         delete_render_files_after_youtube_upload(
@@ -236,7 +254,8 @@ def process_reserved_row(
             video_path=video_path,
             row=row,
             title=title,
-            description=description,
+            description=upload_description,
+            tags=upload_tags,
             thumbnail_warning=thumbnail_warning,
             workdir=workdir,
             thumbnail_path=thumbnail_path,
@@ -256,6 +275,7 @@ def _register_failure_retry(
     row: SheetRow,
     title: str,
     description: str,
+    tags: list[str] | None = None,
     thumbnail_warning: str,
     workdir: Path,
     thumbnail_path: Path | None,
@@ -267,6 +287,7 @@ def _register_failure_retry(
                 row=row,
                 title=title,
                 description=description,
+                tags=tags,
                 video_id=uploaded_video_id,
                 thumbnail_warning=thumbnail_warning or "",
                 workdir=workdir,
@@ -280,6 +301,7 @@ def _register_failure_retry(
                 row=row,
                 title=title,
                 description=description,
+                tags=tags,
                 workdir=workdir,
                 video_path=video_path,
                 thumbnail_path=thumbnail_path,
@@ -291,5 +313,6 @@ def _register_failure_retry(
             row=row,
             title=title,
             description=description,
+            tags=tags,
         )
     )

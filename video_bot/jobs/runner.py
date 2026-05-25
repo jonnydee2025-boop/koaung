@@ -171,6 +171,7 @@ def _retry_youtube_upload(
             job.title,
             job.description,
             job_progress,
+            tags=job.tags or [],
         )
         unlink_if_exists(job.video_path)
         if job.workdir is not None:

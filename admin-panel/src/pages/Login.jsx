@@ -29,10 +29,10 @@ export default function Login({ onSuccess }) {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
-        <div className="logo-icon" style={{ margin: '0 auto 16px' }}>▶</div>
-        <h1 className="login-title">VideoBot Admin</h1>
+        <img src="/logo.jpg" alt="Dhamma Channel logo" className="logo-image" style={{ margin: '0 auto 16px' }} />
+        <h1 className="login-title">မုဒြာ Dhamma Channel</h1>
         <p className="login-subtitle">
-          Enter the <code>ADMIN_API_KEY</code> from your server <code>.env</code>.
+          Sign in with your <code>ADMIN_API_KEY</code> from the server <code>.env</code>.
         </p>
         <label className="login-label" htmlFor="admin-api-key">
           Admin API key
