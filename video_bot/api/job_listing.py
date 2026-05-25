@@ -2,21 +2,20 @@
 
 from typing import Any
 
+from ..job_status import (
+    JOB_STATUS_FILTER_KEYS,
+    is_done_status,
+    is_pending_status,
+)
+from ..jobs.row_helpers import get_monk_name
 from ..schedule_time import read_row_schedule_time
 from ..sheet_cache import get_cached_sheet_rows
-
-MONK_NAME_KEYS = ("moke_name", "monk_name", "monk", "speaker", "teacher", "sayadaw")
 
 
 def row_to_job_dict(row: Any, headers: list[str]) -> dict:
     status = row.values.get("status", "").strip().lower()
     title = row.values.get("dhamma_title", row.values.get("title", "")).strip()
-    monk = ""
-    for key in MONK_NAME_KEYS:
-        value = row.values.get(key, "").strip()
-        if value:
-            monk = value
-            break
+    monk = get_monk_name(row)
 
     logs_col = row.values.get("logs", "")
     youtube_id = ""
@@ -47,21 +46,16 @@ def all_jobs_sorted(*, force_refresh: bool = False) -> list[dict]:
 
 
 def job_status_counts(jobs: list[dict]) -> dict[str, int]:
-    def is_done(status: str) -> bool:
-        return status in ("uploaded_to_yt", "done")
-
-    def is_pending(status: str) -> bool:
-        return status == "pending"
-
-    return {
+    counts = {
         "all": len(jobs),
-        "done": sum(1 for job in jobs if is_done(job["status"])),
+        "done": sum(1 for job in jobs if is_done_status(job["status"])),
         "processing": sum(1 for job in jobs if job["status"] == "processing"),
-        "pending": sum(1 for job in jobs if is_pending(job["status"])),
+        "pending": sum(1 for job in jobs if is_pending_status(job["status"])),
         "do": sum(1 for job in jobs if job["status"] == "do"),
         "scheduled": sum(1 for job in jobs if job["status"] == "scheduled"),
         "failed": sum(1 for job in jobs if job["status"] == "failed"),
     }
+    return {key: counts[key] for key in JOB_STATUS_FILTER_KEYS}
 
 
 def filter_jobs(jobs: list[dict], status: str, search: str) -> list[dict]:
@@ -70,11 +64,11 @@ def filter_jobs(jobs: list[dict], status: str, search: str) -> list[dict]:
 
     for job in jobs:
         job_status = job["status"]
-        if status == "done" and job_status not in ("uploaded_to_yt", "done"):
+        if status == "done" and not is_done_status(job_status):
             continue
         if status == "processing" and job_status != "processing":
             continue
-        if status == "pending" and job_status != "pending":
+        if status == "pending" and not is_pending_status(job_status):
             continue
         if status == "do" and job_status != "do":
             continue

@@ -4,40 +4,21 @@ import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
 import CollapsibleSearch from '../components/CollapsibleSearch';
 import MonkFilterTab from '../components/MonkFilterTab';
+import CacheHint from '../components/CacheHint';
+import ErrorBanner from '../components/ErrorBanner';
 import { RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
 import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
-import { buildJobsPageView, EMPTY_COUNTS, uniqueMonkNames } from '../data/jobsSheet';
+import {
+  buildJobsPageView,
+  EMPTY_COUNTS,
+  STATUS_FILTERS,
+  uniqueMonkNames,
+} from '../data/jobsSheet';
 import { useJobsSheet } from '../hooks/useSheetData';
 
 const PAGE_SIZE = 100;
-
-const STATUS_FILTERS = [
-  ['all', 'All'],
-  ['done', 'Done'],
-  ['processing', 'Processing'],
-  ['pending', 'Pending'],
-  ['do', 'Priority'],
-  ['scheduled', 'Scheduled'],
-  ['failed', 'Failed'],
-];
-
-function CacheHint({ refreshing, updatedAt, sheetTotal, isStale }) {
-  if (!updatedAt && sheetTotal == null) return null;
-  return (
-    <span className="cache-hint">
-      {refreshing
-        ? 'Updating…'
-        : isStale
-          ? 'Stale · refreshing…'
-          : 'Cached · in memory'}
-      {' · '}
-      {updatedAt?.toLocaleTimeString() ?? '—'}
-      {sheetTotal != null ? ` · ${sheetTotal.toLocaleString()} rows in sheet` : ''}
-    </span>
-  );
-}
 
 export default function Jobs() {
   const sheetQuery = useJobsSheet({ pollMs: 15000 });
@@ -193,24 +174,11 @@ export default function Jobs() {
             updatedAt={updatedAt}
             sheetTotal={sheetTotal}
             isStale={sheetQuery.isStale}
+            mode="sheet"
           />
         </div>
 
-        {displayError && (
-          <div
-            style={{
-              background: 'var(--red-dim)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 8,
-              padding: '10px 16px',
-              marginBottom: 16,
-              fontSize: 13,
-              color: 'var(--red)',
-            }}
-          >
-            ⚠ {displayError}
-          </div>
-        )}
+        {displayError && <ErrorBanner message={displayError} />}
 
         <div className="card">
           <div className="jobs-toolbar">

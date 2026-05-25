@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const MENU_GAP = 6;
@@ -62,9 +62,10 @@ export function useFloatingDropdown(open, anchorRef) {
   }, [open, updatePosition]);
 
   useLayoutEffect(() => {
-    if (!open) {
+    if (!open || !coords) {
       return undefined;
     }
+
     updatePosition();
     const frame = requestAnimationFrame(() => {
       updatePosition();
@@ -82,7 +83,7 @@ export function useFloatingDropdown(open, anchorRef) {
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [open, updatePosition]);
+  }, [open, coords, updatePosition]);
 
   return { menuRef, coords, updatePosition };
 }
@@ -133,4 +134,31 @@ export function isOutsideFloatingDropdown(event, anchorRef, menuRef) {
     return false;
   }
   return true;
+}
+
+export function useDropdownDismiss(open, setOpen, anchorRef, menuRef) {
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (isOutsideFloatingDropdown(event, anchorRef, menuRef)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open, anchorRef, menuRef, setOpen]);
 }

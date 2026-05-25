@@ -1,24 +1,37 @@
 /**
- * Client-side filter/pagination for the Jobs tab (mirrors video_bot/api.py).
+ * Client-side filter/pagination for the Jobs tab (mirrors video_bot/api/job_listing.py).
  */
 
-const EMPTY_COUNTS = {
-  all: 0,
-  done: 0,
-  processing: 0,
-  pending: 0,
-  do: 0,
-  scheduled: 0,
-  failed: 0,
+import { isDoneStatus, isPendingStatus } from './statusTheme';
+
+export const JOB_STATUS_FILTER_KEYS = [
+  'all',
+  'done',
+  'processing',
+  'pending',
+  'do',
+  'scheduled',
+  'failed',
+];
+
+export const STATUS_FILTER_LABELS = {
+  all: 'All',
+  done: 'Done',
+  processing: 'Processing',
+  pending: 'Pending',
+  do: 'Priority',
+  scheduled: 'Scheduled',
+  failed: 'Failed',
 };
 
-function isDoneStatus(status) {
-  return status === 'uploaded_to_yt' || status === 'done';
-}
+export const STATUS_FILTERS = JOB_STATUS_FILTER_KEYS.map((key) => [
+  key,
+  STATUS_FILTER_LABELS[key],
+]);
 
-function isPendingStatus(status) {
-  return status === 'pending';
-}
+const EMPTY_COUNTS = Object.fromEntries(
+  JOB_STATUS_FILTER_KEYS.map((key) => [key, 0]),
+);
 
 export function jobMonkName(job) {
   return (job.monk || job.monk_name || '').trim();
@@ -54,7 +67,8 @@ export function filterJobs(jobs, status, search, monkFilter = '') {
 
     if (query) {
       const title = (job.title || '').toLowerCase();
-      if (!title.includes(query)) continue;
+      const monkName = jobMonkName(job).toLowerCase();
+      if (!title.includes(query) && !monkName.includes(query)) continue;
     }
 
     filtered.push(job);

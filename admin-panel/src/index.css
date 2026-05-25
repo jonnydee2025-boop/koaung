@@ -625,6 +625,23 @@ tbody td:first-child { color: var(--text-primary); font-weight: 500; }
   border: 1px solid var(--border);
 }
 
+.error-banner {
+  background: var(--red-dim);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--red);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-content > .error-banner:first-of-type {
+  margin-bottom: 20px;
+}
+
 .lazy-load-sentinel {
   text-align: center;
   padding: 16px;

@@ -2,27 +2,11 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import StatusBadge from './StatusBadge';
 import JobLogModal from './JobLogModal';
 import JobStatusSelect from './JobStatusSelect';
+import Skeleton from './Skeleton';
 import { RotateCcw, ExternalLink, CalendarClock, NotebookText } from 'lucide-react';
-
-function isDoneStatus(status) {
-  return status === 'done' || status === 'uploaded_to_yt';
-}
+import { isDoneStatus } from '../data/statusTheme';
 
 const PAGE_SIZE = 25;
-
-function Skeleton({ h = 18 }) {
-  return (
-    <div
-      style={{
-        height: h,
-        width: '100%',
-        borderRadius: 6,
-        background: 'var(--bg-hover)',
-        animation: 'shimmer 1.5s infinite',
-      }}
-    />
-  );
-}
 
 export default function LazyJobTable({
   jobs,

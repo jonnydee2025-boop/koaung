@@ -13,25 +13,6 @@ export async function fetchAllJobs({ refresh = false } = {}) {
   return requestJson(`${API_BASE}/api/jobs?${params}`, undefined, 'Jobs failed');
 }
 
-export async function fetchJobsPage({
-  page = 1,
-  pageSize = 50,
-  status = 'all',
-  search = '',
-  refresh = false,
-} = {}) {
-  const params = new URLSearchParams({
-    page: String(page),
-    page_size: String(pageSize),
-    status,
-    search,
-  });
-  if (refresh) {
-    params.set('refresh', 'true');
-  }
-  return requestJson(`${API_BASE}/api/jobs?${params}`, undefined, 'Jobs failed');
-}
-
 export async function scheduleJob(rowNumber, scheduleTimeIso) {
   const result = await requestJson(
     `${API_BASE}/api/jobs/${rowNumber}/schedule`,

@@ -6,7 +6,6 @@ export { fetchStats } from './statsApi';
 export {
   fetchJobs,
   fetchAllJobs,
-  fetchJobsPage,
   scheduleJob,
   updateJobStatus,
   retryJobRender,

@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import {
   FloatingDropdownMenu,
-  isOutsideFloatingDropdown,
+  useDropdownDismiss,
   useFloatingDropdown,
 } from './FloatingDropdownMenu';
 
@@ -11,31 +11,7 @@ export default function MonkFilterTab({ value, options, onChange }) {
   const anchorRef = useRef(null);
   const isActive = Boolean(value);
   const { menuRef, coords } = useFloatingDropdown(open, anchorRef);
-
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    const handlePointerDown = (event) => {
-      if (isOutsideFloatingDropdown(event, anchorRef, menuRef)) {
-        setOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open, menuRef]);
+  useDropdownDismiss(open, setOpen, anchorRef, menuRef);
 
   const handleSelect = (next) => {
     onChange?.(next);

@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
+import Skeleton from '../components/Skeleton';
+import CacheHint from '../components/CacheHint';
+import ErrorBanner from '../components/ErrorBanner';
 import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle, RefreshCw } from 'lucide-react';
 import { cancelRender } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
@@ -9,29 +12,6 @@ import {
   useCachedJobs,
   useCachedRenderStatus,
 } from '../hooks/useSheetData';
-
-function Skeleton({ h = 20, w = '100%', r = 6 }) {
-  return (
-    <div
-      style={{
-        height: h,
-        width: w,
-        borderRadius: r,
-        background: 'var(--bg-hover)',
-        animation: 'shimmer 1.5s infinite',
-      }}
-    />
-  );
-}
-
-function CacheHint({ refreshing, updatedAt }) {
-  if (!updatedAt) return null;
-  return (
-    <span className="cache-hint" title="Data may be served from cache while refreshing">
-      {refreshing ? 'Updating…' : `Cached · ${updatedAt.toLocaleTimeString()}`}
-    </span>
-  );
-}
 
 export default function Dashboard() {
   const statsQuery = useCachedStats({ pollMs: 8000 });
@@ -125,24 +105,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {error && (
-          <div
-            style={{
-              background: 'var(--red-dim)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 8,
-              padding: '10px 16px',
-              marginBottom: 20,
-              fontSize: 13,
-              color: 'var(--red)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            ⚠ {error}
-          </div>
-        )}
+        {error && <ErrorBanner message={error} />}
 
         {renderStatus.running && (
           <div className="render-banner">
