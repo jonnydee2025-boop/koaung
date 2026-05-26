@@ -1,0 +1,46 @@
+{
+  "channel_brand": "မုဒြာ Dhamma Channel",
+  "temperature": 0.7,
+  "system_prompt": "See video_bot/gemini_youtube_prompt_spec.json — loaded automatically as the built-in default. Paste your full specification here if you customize.",
+  "user_prompt_template": "Monk name: {monk_name}\nDhamma title: {dhamma_title}\nChannel: {channel_brand}\nGenerate YouTube metadata JSON according to the system specification.",
+  "response_schema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "hashtags": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "credit": {
+        "type": "object",
+        "properties": {
+          "channel": { "type": "string" },
+          "speaker": { "type": "string" },
+          "source_acknowledgement": { "type": "string" },
+          "editorial_note": { "type": "string" },
+          "copyright_notice": { "type": "string" },
+          "channel_note": { "type": "string" }
+        },
+        "required": [
+          "channel",
+          "speaker",
+          "source_acknowledgement",
+          "editorial_note",
+          "copyright_notice",
+          "channel_note"
+        ]
+      },
+      "keywords": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "required": ["title", "description", "hashtags", "credit", "keywords"]
+  },
+  "description_template": "{description}\n\n{credit_block}\n\n{hashtags_line}",
+  "title_field": "title",
+  "tags_field": "keywords",
+  "hashtags_field": "hashtags",
+  "credit_field": "credit"
+}

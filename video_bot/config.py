@@ -113,6 +113,9 @@ GEMINI_MODEL_FALLBACKS = os.getenv("GEMINI_MODEL_FALLBACKS", "gemini-2.0-flash")
 GEMINI_SETTINGS_PATH = Path(
     os.getenv("GEMINI_SETTINGS_PATH", "gemini_models.json"),
 ).resolve()
+GEMINI_PROMPT_PATH = Path(
+    os.getenv("GEMINI_PROMPT_PATH", "gemini_youtube_prompt.json"),
+).resolve()
 INTERVAL_TRIGGERS_PATH = Path(
     os.getenv("INTERVAL_TRIGGERS_PATH", "interval_triggers.json"),
 ).resolve()

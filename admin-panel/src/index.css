@@ -335,6 +335,18 @@ html, body, #root { height: 100%; font-family: 'Inter', sans-serif; background: 
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
+.settings-gemini-prompt,
+.settings-gemini-schema {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.settings-gemini-schema {
+  min-height: 220px;
+}
 .settings-gemini-hint {
   margin: 8px 0 0;
   font-size: 11px;

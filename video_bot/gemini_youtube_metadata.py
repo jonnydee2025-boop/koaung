@@ -8,42 +8,28 @@ from dataclasses import dataclass
 from typing import Any
 
 from .config import GEMINI_API_KEY, logger
+from .gemini_prompt_settings import GeminiPromptSettings, load_gemini_prompt_settings
 from .gemini_settings import get_gemini_model_chain
 
-CHANNEL_BRAND = "မုဒြာ Dhamma Channel"
 MAX_YOUTUBE_TAGS = 30
 MAX_TAG_LENGTH = 30
 MAX_TOTAL_TAG_CHARS = 500
 
-SYSTEM_PROMPT = f"""You write YouTube video metadata for {CHANNEL_BRAND}, a respectful Burmese Dhamma channel.
-
-Return JSON only with these fields:
-- intro: A warm Burmese Dhamma greeting, then exactly 3 sentences summarizing the sermon topic. Write in natural Burmese.
-- copyright_disclaimer: Standard boilerplate crediting the monk/speaker and Dhamma audio source, plus a brief disclaimer that visuals are produced for {CHANNEL_BRAND}.
-- keywords: One string of 10 to 15 high-performing SEO tags, comma-separated (Burmese and/or English).
-- hashtags: An array of 3 to 5 clean hashtags including #တရားတော်, a monk-related tag, and #MudraDhamma or #မုဒြာ.
-
-Keep tone respectful, accurate, and suitable for a Buddhist Dhamma audience. Do not invent facts beyond the title and monk name provided."""
-
-RESPONSE_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "intro": {"type": "string"},
-        "copyright_disclaimer": {"type": "string"},
-        "keywords": {"type": "string"},
-        "hashtags": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-    },
-    "required": ["intro", "copyright_disclaimer", "keywords", "hashtags"],
-}
+CREDIT_LINE_ORDER = (
+    "speaker",
+    "source_acknowledgement",
+    "editorial_note",
+    "copyright_notice",
+    "channel_note",
+    "channel",
+)
 
 
 @dataclass(frozen=True)
 class YouTubeMetadata:
     description: str
     tags: list[str]
+    title: str | None = None
 
 
 def sanitize_youtube_tags(keywords: str) -> list[str]:
@@ -73,41 +59,91 @@ def sanitize_youtube_tags(keywords: str) -> list[str]:
     return tags
 
 
-def assemble_description(
-    intro: str,
-    copyright_disclaimer: str,
-    hashtags: list[str],
-) -> str:
-    intro_text = (intro or "").strip()
-    disclaimer_text = (copyright_disclaimer or "").strip()
-    tag_line = " ".join(
-        tag if tag.startswith("#") else f"#{tag.lstrip('#')}"
-        for tag in (hashtags or [])
+def extract_youtube_tags(raw: Any) -> list[str]:
+    if isinstance(raw, list):
+        return sanitize_youtube_tags(", ".join(str(item).strip() for item in raw if str(item).strip()))
+    return sanitize_youtube_tags(str(raw or ""))
+
+
+def format_hashtags_line(raw_hashtags: Any) -> str:
+    if isinstance(raw_hashtags, list):
+        items = raw_hashtags
+    elif raw_hashtags is None:
+        items = []
+    else:
+        items = [raw_hashtags]
+    return " ".join(
+        tag if str(tag).startswith("#") else f"#{str(tag).lstrip('#')}"
+        for tag in items
         if str(tag).strip()
     ).strip()
 
-    sections = [section for section in (intro_text, disclaimer_text, tag_line) if section]
-    return "\n\n".join(sections)
+
+def format_credit_block(raw_credit: Any) -> str:
+    if isinstance(raw_credit, str):
+        return raw_credit.strip()
+    if not isinstance(raw_credit, dict):
+        return ""
+    lines: list[str] = []
+    seen: set[str] = set()
+    for key in CREDIT_LINE_ORDER:
+        text = str(raw_credit.get(key, "")).strip()
+        if text:
+            lines.append(text)
+            seen.add(key)
+    for key, value in raw_credit.items():
+        if key in seen:
+            continue
+        text = str(value).strip()
+        if text:
+            lines.append(text)
+    return "\n\n".join(lines)
 
 
-def _parse_gemini_payload(payload: dict[str, Any]) -> YouTubeMetadata:
-    intro = str(payload.get("intro", "")).strip()
-    disclaimer = str(payload.get("copyright_disclaimer", "")).strip()
-    keywords = str(payload.get("keywords", "")).strip()
-    raw_hashtags = payload.get("hashtags") or []
-    if not isinstance(raw_hashtags, list):
-        raw_hashtags = [str(raw_hashtags)]
-    hashtags = [str(item).strip() for item in raw_hashtags if str(item).strip()]
-
-    if not intro or not disclaimer or not keywords:
-        raise ValueError("Gemini response missing required metadata fields.")
-
-    description = assemble_description(intro, disclaimer, hashtags)
-    tags = sanitize_youtube_tags(keywords)
+def build_description_from_template(
+    template: str,
+    payload: dict[str, Any],
+    *,
+    hashtags_field: str,
+    credit_field: str,
+) -> str:
+    values: dict[str, str] = {}
+    for key, value in payload.items():
+        if isinstance(value, (str, int, float)):
+            values[key] = str(value).strip()
+        elif isinstance(value, list):
+            values[key] = ", ".join(str(item).strip() for item in value if str(item).strip())
+    values["hashtags_line"] = format_hashtags_line(payload.get(hashtags_field))
+    values["credit_block"] = format_credit_block(payload.get(credit_field))
+    try:
+        description = template.format(**values).strip()
+    except KeyError as exc:
+        missing = exc.args[0]
+        raise ValueError(
+            f"description_template references field {missing!r} missing from Gemini JSON."
+        ) from exc
     if not description:
         raise ValueError("Assembled YouTube description is empty.")
+    return description
 
-    return YouTubeMetadata(description=description, tags=tags)
+
+def _parse_gemini_payload(
+    payload: dict[str, Any],
+    settings: GeminiPromptSettings,
+) -> YouTubeMetadata:
+    description = build_description_from_template(
+        settings.description_template,
+        payload,
+        hashtags_field=settings.hashtags_field,
+        credit_field=settings.credit_field,
+    )
+    tags: list[str] = []
+    if settings.tags_field:
+        tags = extract_youtube_tags(payload.get(settings.tags_field))
+    title: str | None = None
+    if settings.title_field:
+        title = str(payload.get(settings.title_field, "")).strip() or None
+    return YouTubeMetadata(description=description, tags=tags, title=title)
 
 
 def generate_youtube_metadata(
@@ -128,12 +164,12 @@ def generate_youtube_metadata(
         logger.warning("Skipping Gemini metadata: empty dhamma_title.")
         return None
 
-    user_prompt = (
-        f"Monk name: {monk}\n"
-        f"Dhamma title: {title}\n"
-        f"Channel: {CHANNEL_BRAND}\n"
-        "Generate the JSON metadata for this YouTube upload."
+    prompt_settings = load_gemini_prompt_settings()
+    user_prompt = prompt_settings.render_user_prompt(
+        monk_name=monk,
+        dhamma_title=title,
     )
+    system_prompt = prompt_settings.render_system_prompt()
 
     try:
         from google import genai
@@ -149,10 +185,10 @@ def generate_youtube_metadata(
                     model=model,
                     contents=user_prompt,
                     config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_PROMPT,
+                        system_instruction=system_prompt,
                         response_mime_type="application/json",
-                        response_schema=RESPONSE_SCHEMA,
-                        temperature=0.7,
+                        response_schema=prompt_settings.response_schema,
+                        temperature=prompt_settings.temperature,
                     ),
                 )
                 text = (response.text or "").strip()
@@ -161,7 +197,7 @@ def generate_youtube_metadata(
                 payload = json.loads(text)
                 if not isinstance(payload, dict):
                     raise ValueError("Gemini response was not a JSON object.")
-                metadata = _parse_gemini_payload(payload)
+                metadata = _parse_gemini_payload(payload, prompt_settings)
                 logger.info(
                     "Gemini YouTube metadata ready with %s (%s tags, %s chars description).",
                     model,

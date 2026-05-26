@@ -1,6 +1,6 @@
 """Pydantic request/response models for the admin API."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -42,6 +42,20 @@ class RowRulesUpdateRequest(BaseModel):
 class GeminiModelSettingsPayload(BaseModel):
     primary_model: str = Field(..., min_length=1, max_length=64)
     fallback_models: list[str] = Field(default_factory=list)
+
+
+class GeminiPromptSettingsPayload(BaseModel):
+    channel_brand: str = Field(..., min_length=1, max_length=120)
+    temperature: float = Field(default=0.7, ge=0, le=2)
+    system_prompt: str = Field(..., min_length=1)
+    user_prompt_template: str = Field(..., min_length=1)
+    response_schema: dict[str, Any]
+    description_template: str = Field(..., min_length=1)
+    title_field: str = "title"
+    tags_field: str = "keywords"
+    hashtags_field: str = "hashtags"
+    credit_field: str = "credit"
+    credit_field: str = "credit"
 
 
 class IntervalTriggerPayload(BaseModel):

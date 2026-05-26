@@ -194,12 +194,29 @@ Videos are **uploaded as private** first. After the full pipeline succeeds, visi
 
 ## Gemini YouTube metadata (optional)
 
-When `GEMINI_API_KEY` is set, the bot calls **Google Gemini** before each YouTube upload with the row's monk name and `dhamma_title`. Gemini returns Burmese JSON metadata:
+When `GEMINI_API_KEY` is set, the bot calls **Google Gemini** before each YouTube upload with the row's monk name and `dhamma_title`. Gemini returns JSON metadata defined by your prompt settings (default fields below):
 
 - **Intro** — warm Dhamma greeting + 3-sentence sermon summary
 - **Copyright disclaimer** — credits for monk/audio and visual production
 - **Keywords** — 10–15 comma-separated SEO tags (YouTube `snippet.tags`)
 - **Hashtags** — 3–5 tags appended at the bottom of the description
+
+### Editing the Gemini prompt
+
+You can change the prompt and JSON schema without editing Python code:
+
+1. **Admin panel** — Settings → **Gemini YouTube Prompt** (system prompt, user template, JSON schema, description template).
+2. **JSON file on server** — copy `gemini_youtube_prompt.example.json` → `gemini_youtube_prompt.json` in the project root and edit.
+
+| Field | Purpose |
+|-------|---------|
+| `system_prompt` | Instructions for Gemini (`{channel_brand}` placeholder) |
+| `user_prompt_template` | Per-video input (`{monk_name}`, `{dhamma_title}`, `{channel_brand}`) |
+| `response_schema` | JSON schema Gemini must return (structured output) |
+| `description_template` | How to build YouTube description from JSON fields (`{hashtags_line}` for hashtag array) |
+| `tags_field` | Which JSON field holds comma-separated YouTube tags |
+| `hashtags_field` | Which JSON field holds the hashtag array |
+| `temperature` | Gemini creativity (0–2) |
 
 If the key is missing or Gemini fails, the upload falls back to the sheet `description` column and sends no tags. Upload retries reuse the same generated description/tags without calling Gemini again.
 
@@ -207,6 +224,7 @@ If the key is missing or Gemini fails, the upload falls back to the sheet `descr
 |----------|---------|
 | `GEMINI_API_KEY` | Gemini Developer API key (optional) |
 | `GEMINI_MODEL` | Model id (default: `gemini-2.0-flash`) |
+| `GEMINI_PROMPT_PATH` | Path to prompt JSON (default: `gemini_youtube_prompt.json`) |
 
 YouTube tag limits enforced: max 30 tags, 30 chars per tag, 500 total tag characters.
 
@@ -306,7 +324,7 @@ Example row-rules file: `row_range_rules.example.json`.
 
 ## Security notes
 
-- Do not commit `.env`, `token.json`, `client_secret.json`, `row_range_rules.json`, `interval_triggers.json`, `repeat_jobs.json`, or `gemini_models.json`.
+- Do not commit `.env`, `token.json`, `client_secret.json`, `row_range_rules.json`, `interval_triggers.json`, `repeat_jobs.json`, `gemini_models.json`, or `gemini_youtube_prompt.json`.
 - Do not set `VITE_ADMIN_API_KEY` in production builds (users sign in with the API key).
 - Run a single bot instance per sheet to avoid Telegram `getUpdates` conflicts.
 

@@ -40,6 +40,22 @@ export async function saveGeminiModels(payload) {
   );
 }
 
+export async function fetchGeminiPrompt() {
+  return requestJson(`${API_BASE}/api/settings/gemini-prompt`, undefined, 'Gemini prompt failed');
+}
+
+export async function saveGeminiPrompt(payload) {
+  return requestJson(
+    `${API_BASE}/api/settings/gemini-prompt`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    'Save Gemini prompt failed',
+  );
+}
+
 export async function fetchIntervalTriggers() {
   return requestJson(
     `${API_BASE}/api/settings/interval-triggers`,

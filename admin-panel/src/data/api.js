@@ -26,6 +26,8 @@ export {
   fetchDriveMediaOptions,
   fetchGeminiModels,
   saveGeminiModels,
+  fetchGeminiPrompt,
+  saveGeminiPrompt,
   fetchIntervalTriggers,
   saveIntervalTriggers,
 } from './settingsApi';

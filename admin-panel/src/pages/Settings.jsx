@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import RowRulesTable from '../components/RowRulesTable';
 import GeminiModelSettings from '../components/GeminiModelSettings';
+import GeminiPromptSettings from '../components/GeminiPromptSettings';
 import IntervalTriggerSettings from '../components/IntervalTriggerSettings';
 import { fetchSettings, shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
@@ -206,6 +207,8 @@ export default function Settings() {
         </div>
 
         <GeminiModelSettings />
+
+        <GeminiPromptSettings />
 
         <IntervalTriggerSettings />
 

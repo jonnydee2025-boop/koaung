@@ -161,6 +161,8 @@ def process_reserved_row(
         if generated:
             upload_description = generated.description
             upload_tags = generated.tags
+            if generated.title:
+                title = generated.title
             if job_progress is not None:
                 job_progress("Generated YouTube metadata", None)
         else:

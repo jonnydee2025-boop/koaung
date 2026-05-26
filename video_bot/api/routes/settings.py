@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from ..schemas import (
     GeminiModelSettingsPayload,
+    GeminiPromptSettingsPayload,
     IntervalTriggersUpdateRequest,
     RowRulesUpdateRequest,
     payload_to_interval_trigger,
@@ -21,6 +22,13 @@ from ...config import (
     missing_media_binaries,
 )
 from ...drive import fetch_drive_media_catalog
+from ...gemini_prompt_settings import (
+    GeminiPromptSettings,
+    gemini_prompt_settings_to_dict,
+    load_gemini_prompt_settings,
+    save_gemini_prompt_settings,
+    validate_gemini_prompt_settings,
+)
 from ...gemini_settings import (
     GeminiModelSettings,
     dedupe_models,
@@ -86,6 +94,35 @@ def put_gemini_models(body: GeminiModelSettingsPayload):
         validate_gemini_model_settings(settings)
         save_gemini_model_settings(settings)
         return {"saved": True, **gemini_settings_to_dict(settings)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/settings/gemini-prompt")
+def get_gemini_prompt():
+    return gemini_prompt_settings_to_dict(load_gemini_prompt_settings())
+
+
+@router.put("/settings/gemini-prompt")
+def put_gemini_prompt(body: GeminiPromptSettingsPayload):
+    try:
+        settings = GeminiPromptSettings(
+            channel_brand=body.channel_brand.strip(),
+            temperature=body.temperature,
+            system_prompt=body.system_prompt,
+            user_prompt_template=body.user_prompt_template,
+            response_schema=body.response_schema,
+            description_template=body.description_template,
+            title_field=body.title_field.strip(),
+            tags_field=body.tags_field.strip(),
+            hashtags_field=body.hashtags_field.strip(),
+            credit_field=body.credit_field.strip(),
+        )
+        validate_gemini_prompt_settings(settings)
+        save_gemini_prompt_settings(settings)
+        return {"saved": True, **gemini_prompt_settings_to_dict(settings)}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
