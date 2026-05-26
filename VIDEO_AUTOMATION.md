@@ -9,24 +9,30 @@ and control.
 
 ## How jobs are picked
 
-When a render starts (`/render_next`, admin **Render Next**, a **scheduled** due-time
-poll, or an **interval trigger**), the bot reserves **one** row and sets
+When a render starts (`/render_next`, admin **Render Next**, a **scheduled** or **repeat**
+due-time poll, or an **interval trigger**), the bot reserves **one** row and sets
 `status=processing`. Batch member rows (non-anchor rows in a multi-row **Select Rows**
 rule) are never picked directly — only the anchor row starts a batch job:
 
 | Source | What it picks |
 |--------|----------------|
-| **Jobs → Schedule** (per row) | `scheduled` rows at due `Schedule_Time` |
-| **30s scheduled poll** | Due `scheduled` rows only |
+| **Jobs → Schedule** (once) | `scheduled` rows at due `Schedule_Time` |
+| **Jobs → Schedule** (repeat) | `repeat` rows at due `Schedule_Time` (next run) |
+| **30s scheduled poll** | Due `scheduled` and `repeat` rows |
 | **Interval triggers** (Settings) | **`do` rows only** |
-| **Render Next** / `/render_next` | Due `scheduled` first, then `do` |
+| **Render Next** / `/render_next` | Due `scheduled` / `repeat` first, then `do` |
 
 The scheduled poll runs every `SCHEDULE_CHECK_INTERVAL_SECONDS` (default 30s) for
-due **Scheduled** rows only. **`do`** rows are **not** auto-picked by that poll.
+due **Scheduled** and **Repeat** rows. **`do`** rows are **not** auto-picked by that poll.
+
+**`scheduled`** jobs run once at their Jobs → Schedule datetime.
+**`repeat`** jobs run on a daily or weekly pattern; after a successful upload the
+anchor stays **`repeat`** with an updated **`Schedule_Time`** for the next run.
 
 **Interval triggers** (Settings → Interval Triggers) run on your schedule (weekly,
 daily time, or one custom date). Each firing processes **`do`** rows only.
-**`scheduled`** jobs are unchanged — they still run at their Jobs → Schedule time.
+**`scheduled`** and **`repeat`** jobs are unchanged — they still run at their due
+`Schedule_Time`.
 
 **`pending`** rows are never picked automatically. Set a row to **`do`**, configure
 an interval trigger, or **Schedule** it when you want it rendered.
@@ -34,29 +40,52 @@ an interval trigger, or **Schedule** it when you want it rendered.
 ### Scheduling with batch rules
 
 When you use **Row-Based Rules** with multiple rows in **Select Rows**, schedule
-only the **anchor** (first row in the rule). Batch member rows stay **`pending`**
-(or any non-processing status) with an empty `Schedule_Time`.
+or repeat only the **anchor** (first row in the rule). Batch member rows stay
+**`pending`** (or any non-processing status) with an empty `Schedule_Time`.
 
 | Row | status | Schedule_Time |
 |-----|--------|---------------|
-| Anchor (first in Select Rows) | `scheduled` | Your due datetime |
-| Batch members | `pending` (or any non-processing) | empty |
+| Anchor (first in Select Rows) | `scheduled` or `repeat` | Next due datetime |
+| Batch members | `pending` (or `uploaded_to_yt` after a run) | empty |
 
-Example: Select Rows = `13409, 13410, 13411` — set row **13409** to `scheduled`
-with a due time; rows 13410 and 13411 stay `pending`. Configure background and
-thumbnail in Settings only.
+Example: Select Rows = `13409, 13410, 13411` — set row **13409** to **`repeat`**
+(daily 07:00) or **`scheduled`** (one-time); rows 13410 and 13411 stay **`pending`**.
+Configure background and thumbnail in Settings only.
 
 **`do` is optional manual priority only** — not required when using schedule +
 row rules. The standby loop picks due scheduled anchors and applies your row-rule
 media automatically.
 
-If you set `scheduled` on a batch **member** row by mistake, the bot resolves it
-to the anchor row and renders once at the due time.
+If you set `scheduled` or `repeat` on a batch **member** row by mistake, the bot
+resolves it to the anchor row and renders once at the due time.
 
 When you save **Row-Based Rules** with a background or thumbnail, the bot sets **all
-rows in the batch** to **`do`** (the scheduled anchor is skipped if already
-**`scheduled`**). Rendering still starts from the **anchor** row; member `do`
-rows resolve to the anchor automatically.
+rows in the batch** to **`do`** (the scheduled/repeat anchor is skipped if already
+**`scheduled`** or **`repeat`**). Rendering still starts from the **anchor** row;
+member `do` rows resolve to the anchor automatically.
+
+### Repeat jobs (Jobs → Schedule → Repeat)
+
+Per-job repeat is configured from the Jobs tab **Schedule** modal:
+
+| Mode | Sheet status | Storage |
+|------|--------------|---------|
+| **Schedule once** | `scheduled` | `Schedule_Time` = exact datetime |
+| **Repeat** (daily / weekly) | `repeat` | `Schedule_Time` = next run; pattern in `repeat_jobs.json` |
+
+- **Daily:** same local time every day (timezone selectable, e.g. `Asia/Yangon`).
+- **Weekly:** pick weekdays + local time.
+- Only the **anchor row** holds `repeat` / `Schedule_Time`; batch members are **not**
+  synced to `repeat`.
+- After a successful upload: batch members → **`uploaded_to_yt`**; anchor → **`repeat`**
+  with the next `Schedule_Time`.
+- On failed render: anchor → **`failed`**; repeat config is kept for manual retry.
+- One time slot per job — schedule-once and repeat cannot overlap the same local slot.
+
+**Repeat vs interval triggers:** **Repeat** is per job (anchor row, `repeat` status).
+**Interval triggers** (Settings) fire global schedules that process **`do`** rows only.
+Use repeat when one track/batch should run on its own cadence; use interval triggers
+when many **`do`** rows should render at shared times.
 
 ### Interval triggers (Settings)
 
@@ -68,7 +97,7 @@ Configure in **Settings → Interval Triggers**:
 | **Daily time** | Every day at 18:30 |
 | **Custom date (once)** | 2026-06-01 10:00 (fires once) |
 
-- Only **`do`** rows are processed; **`scheduled`** rows are not affected.
+- Only **`do`** rows are processed; **`scheduled`** and **`repeat`** rows are not affected.
 - Persisted in `interval_triggers.json` on the server.
 - Poll interval: `INTERVAL_TRIGGER_CHECK_SECONDS` (default 60s).
 
@@ -81,7 +110,7 @@ Only one bot instance should run per sheet.
 
 | Column | Required | Notes |
 |--------|----------|--------|
-| `status` | Yes | e.g. `pending`, `do`, `Scheduled`, `processing`, `failed`, `uploaded_to_yt` |
+| `status` | Yes | e.g. `pending`, `do`, `scheduled`, `repeat`, `processing`, `failed`, `uploaded_to_yt` |
 | `mp3_url` | Yes | Source audio URL |
 | `dhamma_title` | Yes | Used for video title and template thumbnails |
 | `description` | No | Fallback YouTube description when Gemini is off or fails |
@@ -188,7 +217,7 @@ YouTube tag limits enforced: max 30 tags, 30 chars per tag, 500 total tag charac
 | **Login** | `ADMIN_API_KEY` entered once per browser session (not baked into production builds) |
 | **Dashboard / Jobs** | Live sheet data with pagination and filters |
 | **Status dropdown** | Sets row `status` to `pending`, `do`, `failed`, or `done` from the Jobs table |
-| **Schedule** | Sets `status=Scheduled` + `Schedule_Time`; duplicate times are rejected; hidden for done rows |
+| **Schedule** | Once (`scheduled`) or repeat (`repeat` daily/weekly); duplicate time slots rejected; hidden for done rows |
 | **Row rules** | Settings table above |
 | **Render Next / Stop** | Queue or cancel renders from the Logs header |
 
@@ -263,6 +292,7 @@ Example row-rules file: `row_range_rules.example.json`.
 | `video_bot/drive.py` | Drive listing, downloads, row-rule media |
 | `video_bot/row_rules.py` | Load/save/validate row-range rules |
 | `video_bot/interval_triggers.py` | Settings interval triggers (do-only render times) |
+| `video_bot/repeat_jobs.py` | Per-anchor repeat config (`repeat_jobs.json`) |
 | `video_bot/schedule_time.py` | Parse/compare `Schedule_Time` |
 | `video_bot/scheduler.py` | Scheduled poll + interval trigger loops |
 | `video_bot/jobs/` | Render pipeline (`runner.py`, `pipeline.py`, …) |
@@ -276,7 +306,7 @@ Example row-rules file: `row_range_rules.example.json`.
 
 ## Security notes
 
-- Do not commit `.env`, `token.json`, `client_secret.json`, `row_range_rules.json`, `interval_triggers.json`, or `gemini_models.json`.
+- Do not commit `.env`, `token.json`, `client_secret.json`, `row_range_rules.json`, `interval_triggers.json`, `repeat_jobs.json`, or `gemini_models.json`.
 - Do not set `VITE_ADMIN_API_KEY` in production builds (users sign in with the API key).
 - Run a single bot instance per sheet to avoid Telegram `getUpdates` conflicts.
 

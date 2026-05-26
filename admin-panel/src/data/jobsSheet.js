@@ -9,6 +9,7 @@ export const JOB_STATUS_FILTER_KEYS = [
   'pending',
   'do',
   'scheduled',
+  'repeat',
   'failed',
 ];
 
@@ -19,6 +20,7 @@ export const STATUS_FILTER_LABELS = {
   pending: 'Pending',
   do: 'Priority',
   scheduled: 'Scheduled',
+  repeat: 'Repeat',
   failed: 'Failed',
 };
 

@@ -15,7 +15,7 @@ from ...sheet_cache import invalidate_sheet_cache
 from ...row_rules import resolve_batch_anchor_row
 from ...sheets import (
     assert_row_retryable,
-    schedule_sheet_row,
+    schedule_job_row,
     update_sheet_row_status,
 )
 from ...media import iter_remote_file
@@ -105,7 +105,15 @@ def stream_job_audio(row_number: int):
 @router.post("/jobs/{row_number}/schedule")
 def schedule_job(row_number: int, body: ScheduleJobRequest):
     try:
-        result = schedule_sheet_row(row_number, body.schedule_time)
+        result = schedule_job_row(
+            row_number,
+            mode=body.mode,
+            schedule_time_raw=body.schedule_time,
+            repeat_type=body.repeat_type,
+            repeat_time=body.repeat_time,
+            days_of_week=body.days_of_week,
+            timezone=body.timezone,
+        )
         invalidate_sheet_cache()
         return result
     except ValueError as exc:

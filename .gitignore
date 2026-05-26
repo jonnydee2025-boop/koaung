@@ -44,6 +44,7 @@ htmlcov/
 tmp_video_jobs/
 row_range_rules.json
 interval_triggers.json
+repeat_jobs.json
 gemini_models.json
 
 # ── OS & editors ─────────────────────────────────────────────────────────────

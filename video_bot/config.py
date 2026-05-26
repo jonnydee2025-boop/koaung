@@ -116,6 +116,9 @@ GEMINI_SETTINGS_PATH = Path(
 INTERVAL_TRIGGERS_PATH = Path(
     os.getenv("INTERVAL_TRIGGERS_PATH", "interval_triggers.json"),
 ).resolve()
+REPEAT_JOBS_PATH = Path(
+    os.getenv("REPEAT_JOBS_PATH", "repeat_jobs.json"),
+).resolve()
 
 MENU_RENDER_NEXT = "menu:render_next"
 MENU_VIEW_STATS = "menu:view_stats"

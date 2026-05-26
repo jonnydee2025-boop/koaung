@@ -7,6 +7,7 @@ JOB_STATUS_FILTER_KEYS = (
     "pending",
     "do",
     "scheduled",
+    "repeat",
     "failed",
 )
 

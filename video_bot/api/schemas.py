@@ -9,10 +9,15 @@ from ..row_rules import RowRangeRule, parse_batch_rows_string
 
 
 class ScheduleJobRequest(BaseModel):
-    schedule_time: str = Field(
-        ...,
-        description="ISO 8601 date/time (e.g. 2026-05-22T14:30:00+00:00)",
+    mode: Literal["once", "repeat"] = "once"
+    schedule_time: str | None = Field(
+        default=None,
+        description="ISO 8601 date/time for one-time schedule",
     )
+    repeat_type: Literal["daily", "weekly"] = "daily"
+    repeat_time: str = "07:00"
+    days_of_week: list[int] = Field(default_factory=list)
+    timezone: str = "UTC"
 
 
 class UpdateJobStatusRequest(BaseModel):

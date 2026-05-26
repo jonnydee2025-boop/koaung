@@ -11,6 +11,15 @@ from .row_rules import (
     parse_batch_rows,
     resolve_batch_anchor_row,
 )
+from .repeat_jobs import (
+    RepeatJob,
+    compute_next_run,
+    delete_repeat_job,
+    get_repeat_job,
+    load_repeat_jobs,
+    repeat_job_description,
+    save_repeat_job,
+)
 from .schedule_time import (
     normalize_schedule_time,
     read_row_schedule_time,
@@ -138,6 +147,12 @@ def auto_trigger_do_for_row_rules(
                 row_number,
             )
             continue
+        if _normalize_row_status(row.values) == "repeat":
+            logger.info(
+                "Row rules auto-do: row %s is repeat, keeping status",
+                row_number,
+            )
+            continue
         if _normalize_row_status(row.values) == "do":
             continue
         update_task_status(sheets, headers, row_number, "do")
@@ -199,7 +214,7 @@ def _resolve_do_anchor(row: SheetRow, rows_by_number: dict[int, SheetRow]) -> Sh
             row.row_number,
             anchor_number,
         )
-    if _normalize_row_status(anchor.values) == "scheduled":
+    if _normalize_row_status(anchor.values) in ("scheduled", "repeat"):
         return None
     if not _row_eligible_for_queue(anchor):
         return None
@@ -265,14 +280,15 @@ def _resolve_scheduled_candidate(
     return anchor
 
 
-def _collect_due_scheduled_anchors(
+def _collect_due_timed_anchors(
     rows: list[SheetRow],
     moment: datetime,
 ) -> list[tuple[datetime, SheetRow]]:
     rows_by_number = _sheet_row_map(rows)
     best_by_anchor: dict[int, tuple[datetime, SheetRow]] = {}
     for row in rows:
-        if row.values.get("status", "").strip().lower() != "scheduled":
+        status = row.values.get("status", "").strip().lower()
+        if status not in ("scheduled", "repeat"):
             continue
         scheduled_at = read_row_schedule_time(row.values)
         if scheduled_at is None or scheduled_at > moment:
@@ -284,6 +300,13 @@ def _collect_due_scheduled_anchors(
         if existing is None or scheduled_at < existing[0]:
             best_by_anchor[anchor.row_number] = (scheduled_at, anchor)
     return sorted(best_by_anchor.values(), key=lambda item: item[0])
+
+
+def _collect_due_scheduled_anchors(
+    rows: list[SheetRow],
+    moment: datetime,
+) -> list[tuple[datetime, SheetRow]]:
+    return _collect_due_timed_anchors(rows, moment)
 
 
 def reserve_next_do_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
@@ -404,8 +427,9 @@ def update_sheet_row_status(row_number: int, status: str) -> dict[str, str | int
     if previous == "processing":
         raise ValueError(f"Row {row_number} is currently processing.")
 
-    if previous == "scheduled":
+    if previous in ("scheduled", "repeat"):
         clear_schedule_time(sheets, headers, row_number)
+        delete_repeat_job(row_number)
 
     update_task_status(
         sheets,
@@ -449,7 +473,108 @@ def _clear_batch_member_schedules(
         )
 
 
-def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str | int | bool]:
+def find_time_slot_conflict_once(
+    rows: list[SheetRow],
+    schedule_at: datetime,
+    *,
+    exclude_anchor: int | None = None,
+) -> str | None:
+    conflict = find_schedule_time_conflict(
+        rows, schedule_at, exclude_row_number=exclude_anchor
+    )
+    if conflict is not None:
+        return (
+            f"Schedule time already used by row {conflict}. "
+            "Choose a different date and time."
+        )
+    for anchor, job in load_repeat_jobs().items():
+        if exclude_anchor is not None and anchor == exclude_anchor:
+            continue
+        from .repeat_jobs import local_time_matches_repeat
+
+        if local_time_matches_repeat(job, schedule_at):
+            return (
+                f"Time slot used by row #{anchor} — {repeat_job_description(job)}. "
+                "Choose a different date and time."
+            )
+    return None
+
+
+def find_time_slot_conflict_repeat(
+    rows: list[SheetRow],
+    job: RepeatJob,
+    *,
+    exclude_anchor: int | None = None,
+) -> str | None:
+    from .repeat_jobs import local_time_matches_repeat, repeat_jobs_overlap
+
+    for anchor, other in load_repeat_jobs().items():
+        if exclude_anchor is not None and anchor == exclude_anchor:
+            continue
+        if repeat_jobs_overlap(job, other):
+            return (
+                f"Time slot used by row #{anchor} — {repeat_job_description(other)}. "
+                "Choose a different time."
+            )
+    for row in rows:
+        if exclude_anchor is not None and row.row_number == exclude_anchor:
+            continue
+        if _normalize_row_status(row.values) != "scheduled":
+            continue
+        existing = read_row_schedule_time(row.values)
+        if existing is not None and local_time_matches_repeat(job, existing):
+            return (
+                f"Schedule on row #{row.row_number} conflicts with this repeat time. "
+                "Choose a different time."
+            )
+    return None
+
+
+def reschedule_repeat_anchor_after_upload(
+    sheets: Any,
+    headers: list[str],
+    anchor_row: int,
+    log_message: str,
+) -> None:
+    """After a successful repeat render, set anchor to repeat with next Schedule_Time."""
+    job = get_repeat_job(anchor_row)
+    if job is None:
+        raise RuntimeError(f"No repeat config for anchor row {anchor_row}.")
+    next_run = compute_next_run(job, after=datetime.now(timezone.utc))
+    update_schedule_time(sheets, headers, anchor_row, next_run)
+    update_task_status(
+        sheets,
+        headers,
+        anchor_row,
+        "repeat",
+        f"{log_message} Next repeat: {schedule_time_storage_value(next_run)}.",
+    )
+
+
+def schedule_job_row(
+    row_number: int,
+    *,
+    mode: str = "once",
+    schedule_time_raw: str | None = None,
+    repeat_type: str = "daily",
+    repeat_time: str = "07:00",
+    days_of_week: list[int] | None = None,
+    timezone: str = "UTC",
+) -> dict[str, str | int | bool]:
+    if mode == "repeat":
+        return schedule_sheet_row_repeat(
+            row_number,
+            repeat_type=repeat_type,
+            repeat_time=repeat_time,
+            days_of_week=days_of_week or [],
+            job_timezone=timezone,
+        )
+    if not schedule_time_raw:
+        raise ValueError("Schedule time is required for one-time schedule.")
+    return schedule_sheet_row_once(row_number, schedule_time_raw)
+
+
+def schedule_sheet_row_once(row_number: int, schedule_time_raw: str) -> dict[str, str | int | bool]:
     """
     Set status to Scheduled and store Schedule_Time.
     Batch member rows schedule the anchor (first Select Rows row) instead.
@@ -487,14 +612,11 @@ def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str
     if anchor.values.get("status", "").strip().lower() == "processing":
         raise ValueError(f"Row {anchor_number} is currently processing.")
 
-    conflict_row = find_schedule_time_conflict(
-        rows, schedule_at, exclude_row_number=anchor_number
+    conflict_message = find_time_slot_conflict_once(
+        rows, schedule_at, exclude_anchor=anchor_number
     )
-    if conflict_row is not None:
-        raise ValueError(
-            f"Schedule time already used by row {conflict_row}. "
-            "Choose a different date and time."
-        )
+    if conflict_message is not None:
+        raise ValueError(conflict_message)
 
     _clear_batch_member_schedules(
         anchor_number,
@@ -503,6 +625,7 @@ def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str
         rows=rows,
     )
 
+    delete_repeat_job(anchor_number)
     previous = anchor.values.get("status", "").strip().lower()
     update_schedule_time(sheets, headers, anchor_number, schedule_at)
     update_task_status(
@@ -518,9 +641,100 @@ def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str
         "requested_row": row_number,
         "redirected_to_anchor": redirected,
         "status": "scheduled",
+        "mode": "once",
         "schedule_time": stored,
         "previous_status": previous,
     }
+
+
+def schedule_sheet_row_repeat(
+    row_number: int,
+    *,
+    repeat_type: str,
+    repeat_time: str,
+    days_of_week: list[int],
+    job_timezone: str,
+) -> dict[str, str | int | bool]:
+    """Set anchor to repeat status with next Schedule_Time from repeat config."""
+    sheets, _ = build_google_services()
+    headers, rows = get_sheet_rows(sheets)
+    if "status" not in headers:
+        raise RuntimeError("Missing required 'status' column.")
+
+    target = next((r for r in rows if r.row_number == row_number), None)
+    if target is None:
+        raise ValueError(f"Sheet row {row_number} not found.")
+
+    if target.values.get("status", "").strip().lower() == "processing":
+        raise ValueError(f"Row {row_number} is currently processing.")
+
+    anchor_number = resolve_batch_anchor_row(row_number)
+    redirected = anchor_number != row_number
+    if redirected:
+        logger.info(
+            "Repeat on batch member row %s — using anchor row %s",
+            row_number,
+            anchor_number,
+        )
+
+    anchor = next((r for r in rows if r.row_number == anchor_number), None)
+    if anchor is None:
+        raise ValueError(f"Sheet row {anchor_number} not found.")
+
+    if anchor.values.get("status", "").strip().lower() == "processing":
+        raise ValueError(f"Row {anchor_number} is currently processing.")
+
+    repeat_job = RepeatJob(
+        anchor_row=anchor_number,
+        repeat_type=repeat_type,  # type: ignore[arg-type]
+        time=repeat_time,
+        days_of_week=list(days_of_week),
+        timezone=job_timezone,
+    )
+
+    conflict_message = find_time_slot_conflict_repeat(
+        rows, repeat_job, exclude_anchor=anchor_number
+    )
+    if conflict_message is not None:
+        raise ValueError(conflict_message)
+
+    _clear_batch_member_schedules(
+        anchor_number,
+        sheets=sheets,
+        headers=headers,
+        rows=rows,
+    )
+
+    next_run = compute_next_run(repeat_job, after=datetime.now(timezone.utc))
+    save_repeat_job(repeat_job)
+    previous = anchor.values.get("status", "").strip().lower()
+    update_schedule_time(sheets, headers, anchor_number, next_run)
+    update_task_status(
+        sheets,
+        headers,
+        anchor_number,
+        "repeat",
+        f"Repeat {repeat_type} at {repeat_time} {job_timezone}. "
+        f"Next: {schedule_time_storage_value(next_run)}",
+    )
+    stored = schedule_time_storage_value(next_run)
+    return {
+        "row": anchor_number,
+        "requested_row": row_number,
+        "redirected_to_anchor": redirected,
+        "status": "repeat",
+        "mode": "repeat",
+        "schedule_time": stored,
+        "repeat_type": repeat_type,
+        "repeat_time": repeat_time,
+        "timezone": job_timezone,
+        "previous_status": previous,
+    }
+
+
+def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str | int | bool]:
+    """Backward-compatible one-time schedule entry point."""
+    return schedule_sheet_row_once(row_number, schedule_time_raw)
 
 
 def get_status_statistics() -> dict[str, int]:

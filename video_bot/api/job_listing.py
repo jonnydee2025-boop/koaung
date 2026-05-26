@@ -8,6 +8,7 @@ from ..job_status import (
     is_pending_status,
 )
 from ..jobs.row_helpers import get_duration_min, get_monk_name
+from ..repeat_jobs import get_repeat_job
 from ..schedule_time import read_row_schedule_time
 from ..sheet_cache import get_cached_sheet_rows
 
@@ -27,6 +28,16 @@ def row_to_job_dict(row: Any, headers: list[str]) -> dict:
     schedule_dt = read_row_schedule_time(row.values)
     schedule_time = schedule_dt.isoformat() if schedule_dt else ""
 
+    repeat_job = get_repeat_job(row.row_number)
+    repeat_info = None
+    if repeat_job is not None:
+        repeat_info = {
+            "repeat_type": repeat_job.repeat_type,
+            "repeat_time": repeat_job.time,
+            "timezone": repeat_job.timezone,
+            "days_of_week": repeat_job.days_of_week,
+        }
+
     return {
         "row": row.row_number,
         "title": title,
@@ -35,6 +46,7 @@ def row_to_job_dict(row: Any, headers: list[str]) -> dict:
         "logs": logs_col[:300] if logs_col else "",
         "youtube_id": youtube_id,
         "schedule_time": schedule_time,
+        "repeat": repeat_info,
         "mp3_url": row.values.get("mp3_url", "").strip(),
         "duration": get_duration_min(row),
     }
@@ -63,6 +75,7 @@ def job_status_counts(jobs: list[dict]) -> dict[str, int]:
         "pending": sum(1 for job in jobs if is_pending_status(job["status"])),
         "do": sum(1 for job in jobs if job["status"] == "do"),
         "scheduled": sum(1 for job in jobs if job["status"] == "scheduled"),
+        "repeat": sum(1 for job in jobs if job["status"] == "repeat"),
         "failed": sum(1 for job in jobs if job["status"] == "failed"),
     }
     return {key: counts[key] for key in JOB_STATUS_FILTER_KEYS}
@@ -104,6 +117,8 @@ def filter_jobs(
         if status == "failed" and job_status != "failed":
             continue
         if status == "scheduled" and job_status != "scheduled":
+            continue
+        if status == "repeat" and job_status != "repeat":
             continue
 
         if monk_filter and job_monk_name(job) != monk_filter:

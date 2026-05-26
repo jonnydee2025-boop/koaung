@@ -154,13 +154,13 @@ export default function Jobs() {
     setScheduleModalError('');
   };
 
-  const handleScheduleSave = async (scheduleTimeIso) => {
+  const handleScheduleSave = async (payload) => {
     if (!scheduleTarget) return;
     setScheduleModalError('');
     setSchedulingRow(scheduleTarget.row);
     setActionError('');
     try {
-      await scheduleJob(scheduleTarget.row, scheduleTimeIso);
+      await scheduleJob(scheduleTarget.row, payload);
       setScheduleTarget(null);
       refreshSheet();
     } catch (e) {

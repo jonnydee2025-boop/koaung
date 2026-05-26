@@ -6,6 +6,7 @@ export const STATUS_THEME = {
   uploaded_to_yt: { label: 'Done', badgeClass: 'badge-green' },
   processing: { label: 'Rendering', badgeClass: 'badge-accent' },
   scheduled: { label: 'Scheduled', badgeClass: 'badge-blue' },
+  repeat: { label: 'Repeat', badgeClass: 'badge-accent' },
 };
 
 const EDITABLE_STATUS_VALUES = ['pending', 'do', 'failed', 'done'];

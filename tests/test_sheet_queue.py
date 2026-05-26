@@ -36,6 +36,33 @@ class SheetQueueTests(unittest.TestCase):
             has_due_scheduled_row(rows, now=datetime(2020, 1, 1, 13, 0, tzinfo=timezone.utc)),
         )
 
+    def test_has_due_repeat_row_past_time(self) -> None:
+        rows = [
+            _row(10, "repeat", schedule_time="2020-01-01T12:00:00+00:00"),
+        ]
+        self.assertTrue(
+            has_due_scheduled_row(rows, now=datetime(2020, 1, 1, 13, 0, tzinfo=timezone.utc)),
+        )
+
+    @patch("video_bot.sheets.update_task_status")
+    @patch("video_bot.sheets.get_sheet_rows")
+    def test_reserve_picks_due_repeat_before_do(
+        self,
+        mock_get_rows: MagicMock,
+        mock_update: MagicMock,
+    ) -> None:
+        headers = ["status", "schedule_time"]
+        repeat_row = _row(5, "repeat", schedule_time="2020-01-01T10:00:00+00:00")
+        do_row = _row(6, "do")
+        mock_get_rows.return_value = (headers, [do_row, repeat_row])
+        sheets = MagicMock()
+
+        _, selected = reserve_next_pending_row(sheets)
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected.row_number, 5)
+        mock_update.assert_called_once()
+
     @patch("video_bot.sheets.update_task_status")
     @patch("video_bot.sheets.get_sheet_rows")
     def test_reserve_picks_due_scheduled_before_do(
@@ -105,6 +132,24 @@ class SheetQueueTests(unittest.TestCase):
 
     @patch("video_bot.sheets.update_task_status")
     @patch("video_bot.sheets.get_sheet_rows")
+    def test_reserve_do_row_skips_repeat(
+        self,
+        mock_get_rows: MagicMock,
+        mock_update: MagicMock,
+    ) -> None:
+        headers = ["status", "schedule_time"]
+        repeat_row = _row(5, "repeat", schedule_time="2020-01-01T10:00:00+00:00")
+        do_row = _row(6, "do")
+        mock_get_rows.return_value = (headers, [repeat_row, do_row])
+        sheets = MagicMock()
+
+        _, selected = reserve_next_do_row(sheets)
+
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected.row_number, 6)
+
+    @patch("video_bot.sheets.update_task_status")
+    @patch("video_bot.sheets.get_sheet_rows")
     def test_reserve_do_row_skips_scheduled(
         self,
         mock_get_rows: MagicMock,
@@ -171,6 +216,15 @@ class SheetQueueTests(unittest.TestCase):
         mock_update.assert_called_once_with(
             sheets, headers, 70, "processing", "",
         )
+
+    @patch("video_bot.sheets.resolve_batch_anchor_row")
+    def test_has_do_row_false_when_anchor_repeat(
+        self,
+        mock_resolve: MagicMock,
+    ) -> None:
+        mock_resolve.return_value = 70
+        rows = [_row(70, "repeat"), _row(601, "do")]
+        self.assertFalse(has_do_row(rows))
 
     @patch("video_bot.sheets.resolve_batch_anchor_row")
     def test_has_do_row_false_when_anchor_scheduled(

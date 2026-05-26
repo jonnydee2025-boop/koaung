@@ -10,8 +10,9 @@ from ..gemini_youtube_metadata import generate_youtube_metadata
 from ..drive import prepare_background_video
 from ..media import download_file, enhance_audio, render_video
 from ..models import RenderTaskFailed, RetryJob, SheetRow
+from ..repeat_jobs import get_repeat_job
 from ..row_rules import get_background_loop_count_for_row, get_batch_rule_for_anchor, row_has_thumbnail
-from ..sheets import get_sheet_rows, get_sheet_rows_by_numbers, update_task_status
+from ..sheets import get_sheet_rows, get_sheet_rows_by_numbers, reschedule_repeat_anchor_after_upload, update_task_status
 from ..state import current_render, register_retry_job
 from ..thumbnails import prepare_row_thumbnail
 from ..youtube import (
@@ -211,14 +212,33 @@ def process_reserved_row(
             thumbnail_warning=thumbnail_warning,
         )
         rows_to_update = batch_row_numbers if is_batch else [row.row_number]
-        for sheet_row_number in rows_to_update:
-            update_task_status(
+        repeat_job = get_repeat_job(row.row_number)
+        if repeat_job is not None:
+            for sheet_row_number in rows_to_update:
+                if sheet_row_number == row.row_number:
+                    continue
+                update_task_status(
+                    sheets,
+                    headers,
+                    sheet_row_number,
+                    "uploaded_to_yt",
+                    log_message,
+                )
+            reschedule_repeat_anchor_after_upload(
                 sheets,
                 headers,
-                sheet_row_number,
-                "uploaded_to_yt",
+                row.row_number,
                 log_message,
             )
+        else:
+            for sheet_row_number in rows_to_update:
+                update_task_status(
+                    sheets,
+                    headers,
+                    sheet_row_number,
+                    "uploaded_to_yt",
+                    log_message,
+                )
         logger.info("Upload complete: %s (%s)", video_id, privacy)
         if job_progress is not None:
             job_progress("Finished", None)

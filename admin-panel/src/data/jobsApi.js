@@ -39,13 +39,13 @@ export async function fetchJobMonks({ refresh = false } = {}) {
   return requestJson(url, undefined, 'Monks failed');
 }
 
-export async function scheduleJob(rowNumber, scheduleTimeIso) {
+export async function scheduleJob(rowNumber, payload) {
   const result = await requestJson(
     `${API_BASE}/api/jobs/${rowNumber}/schedule`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schedule_time: scheduleTimeIso }),
+      body: JSON.stringify(payload),
     },
     'Schedule failed',
   );
