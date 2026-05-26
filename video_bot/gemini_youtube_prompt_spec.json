@@ -14,11 +14,16 @@
     "channel_name": "မုဒြာ Dhamma Channel",
     "channel_type": "Myanmar Buddhist Dhamma YouTube Channel",
     "content_style": "Transformative Buddhist Educational Content",
-    "tone": ["peaceful", "respectful", "devotional", "spiritual"]
+    "tone": [
+      "peaceful",
+      "respectful",
+      "devotional",
+      "spiritual"
+    ]
   },
   "input": {
-    "monk_name": "from user message",
-    "dhamma_title": "from user message"
+    "monk_name": "{{monk_name}}",
+    "dhamma_title": "{{dhamma_title}}"
   },
   "rules": [
     "Return valid JSON only",
@@ -38,9 +43,22 @@
   ],
   "hashtag_system": {
     "categories": {
-      "core_buddhist": ["#Dhamma", "#Buddhism", "#Meditation", "#Vipassana", "#Mindfulness"],
-      "myanmar_dhamma": ["#MyanmarDhamma", "#တရားတော်", "#တရားဓမ္မ"],
-      "channel_branding": ["#မုဒြာDhammaChannel", "#MudraDhammaChannel"]
+      "core_buddhist": [
+        "#Dhamma",
+        "#Buddhism",
+        "#Meditation",
+        "#Vipassana",
+        "#Mindfulness"
+      ],
+      "myanmar_dhamma": [
+        "#MyanmarDhamma",
+        "#တရားတော်",
+        "#တရားဓမ္မ"
+      ],
+      "channel_branding": [
+        "#မုဒြာDhammaChannel",
+        "#MudraDhammaChannel"
+      ]
     },
     "rules": [
       "Generate 6 to 12 hashtags",
@@ -58,15 +76,23 @@
     "editorial_style": "Transformative Buddhist Educational Presentation",
     "respect_notice": "Full respect and credit are given to the original Dhamma speaker and source organizations.",
     "removal_contact": "If any content owner has concerns regarding this upload, please contact the channel directly for immediate review or removal.",
-    "avoid_claims": ["No Copyright", "Official Upload", "Owned By Us"]
+    "avoid_claims": [
+      "No Copyright",
+      "Official Upload",
+      "Owned By Us"
+    ]
   },
   "output_format": {
     "title": "SEO optimized YouTube title",
     "description": "SEO optimized Burmese dhamma description with peaceful devotional tone",
-    "hashtags": ["#မုဒြာDhammaChannel", "#MyanmarDhamma", "#Dhamma"],
+    "hashtags": [
+      "#မုဒြာDhammaChannel",
+      "#MyanmarDhamma",
+      "#Dhamma"
+    ],
     "credit": {
       "channel": "Mudra Dhamma Channel",
-      "speaker": "Dhamma discourse by Venerable {monk_name}",
+      "speaker": "Dhamma discourse by Venerable {{monk_name}}",
       "source_acknowledgement": "Original teachings belong respectfully to the Dhamma speaker and respective source organizations.",
       "editorial_note": "Edited and published by Mudra Dhamma Channel with educational and spiritual intent.",
       "copyright_notice": "This transformed presentation is intended for Buddhist educational and Dhamma propagation purposes.",
@@ -75,6 +101,8 @@
     "keywords": [
       "Myanmar Dhamma",
       "Buddhist sermon",
+      "{{monk_name}}",
+      "{{dhamma_title}}",
       "Vipassana",
       "Meditation",
       "မုဒြာ Dhamma Channel"
@@ -82,8 +110,19 @@
   },
   "seo_guidelines": {
     "title_length": "50-90 characters",
-    "description_style": ["warm", "searchable", "calm", "devotional", "educational"],
+    "description_style": [
+      "warm",
+      "searchable",
+      "calm",
+      "devotional",
+      "educational"
+    ],
     "keyword_density": "natural only",
-    "avoid": ["spam hashtags", "fake promises", "keyword stuffing", "misleading metadata"]
+    "avoid": [
+      "spam hashtags",
+      "fake promises",
+      "keyword stuffing",
+      "misleading metadata"
+    ]
   }
 }
