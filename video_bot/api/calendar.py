@@ -1,4 +1,4 @@
-"""Build calendar events for scheduled and repeat jobs."""
+"""Build calendar events for scheduled, repeat, and priority (do) jobs."""
 
 from __future__ import annotations
 
@@ -52,12 +52,38 @@ def _expand_repeat_occurrences(
 def build_calendar_events(year: int, month: int) -> list[dict[str, Any]]:
     month_start, month_end = month_range(year, month)
     events: list[dict[str, Any]] = []
+    today = datetime.now(timezone.utc).date()
+    today_in_month = month_start.date() <= today <= month_end.date()
 
     for job in all_jobs_sorted():
         status = (job.get("status") or "").strip().lower()
         title = (job.get("title") or "").strip() or f"Row {job.get('row')}"
         monk = (job.get("monk") or "").strip()
         row = job.get("row")
+
+        if status == "do":
+            if today_in_month:
+                stagger_minutes = int(row) if row is not None else 0
+                display_at = datetime(
+                    today.year,
+                    today.month,
+                    today.day,
+                    12,
+                    0,
+                    0,
+                    tzinfo=timezone.utc,
+                ) + timedelta(minutes=stagger_minutes)
+                events.append(
+                    {
+                        "at": display_at.isoformat(),
+                        "kind": "do",
+                        "row": row,
+                        "title": title,
+                        "monk": monk,
+                        "status": status,
+                    }
+                )
+            continue
 
         if status == "scheduled":
             schedule_dt = _parse_schedule_time(job.get("schedule_time", ""))

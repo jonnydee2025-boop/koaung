@@ -55,6 +55,60 @@ class BuildCalendarEventsTests(unittest.TestCase):
         self.assertTrue(all(event["kind"] == "repeat" for event in events))
         self.assertEqual(events[0]["row"], 20)
 
+    @patch("video_bot.api.calendar.datetime")
+    @patch("video_bot.api.calendar.all_jobs_sorted")
+    def test_do_job_on_today_when_month_includes_today(
+        self,
+        mock_jobs,
+        mock_datetime,
+    ) -> None:
+        fixed_today = datetime(2026, 6, 15, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_today
+        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+        mock_jobs.return_value = [
+            {
+                "row": 5,
+                "title": "Urgent edit",
+                "status": "do",
+                "monk": "U Vimala",
+                "schedule_time": "",
+            }
+        ]
+        events = build_calendar_events(2026, 6)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["kind"], "do")
+        self.assertEqual(events[0]["row"], 5)
+        self.assertEqual(events[0]["title"], "Urgent edit")
+        self.assertEqual(events[0]["status"], "do")
+        at = datetime.fromisoformat(events[0]["at"])
+        self.assertEqual(at.date(), fixed_today.date())
+        self.assertEqual(at.hour, 12)
+        self.assertEqual(at.minute, 5)
+
+    @patch("video_bot.api.calendar.datetime")
+    @patch("video_bot.api.calendar.all_jobs_sorted")
+    def test_do_job_not_in_other_month(
+        self,
+        mock_jobs,
+        mock_datetime,
+    ) -> None:
+        fixed_today = datetime(2026, 6, 15, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_today
+        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+        mock_jobs.return_value = [
+            {
+                "row": 5,
+                "title": "Urgent edit",
+                "status": "do",
+                "monk": "",
+                "schedule_time": "",
+            }
+        ]
+        past_events = build_calendar_events(2026, 5)
+        future_events = build_calendar_events(2026, 7)
+        self.assertEqual(past_events, [])
+        self.assertEqual(future_events, [])
+
 
 class RepeatExpansionConsistencyTests(unittest.TestCase):
     def test_repeat_expansion_matches_compute_next_run(self) -> None:

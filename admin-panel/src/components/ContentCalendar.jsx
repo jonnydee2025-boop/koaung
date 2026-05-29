@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import Skeleton from './Skeleton';
-import { fetchCalendarEvents } from '../data/jobsApi';
+import { useLazyVisible } from '../hooks/useLazyVisible';
+import {
+  prefetchAdjacentCalendarMonths,
+  useCalendarEvents,
+} from '../hooks/useSheetData';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const POLL_MS = 45000;
 const MAX_CHIPS = 3;
 
 const KIND_META = {
   scheduled: { label: 'Scheduled', color: 'var(--blue)', className: 'scheduled' },
   repeat: { label: 'Repeat', color: '#a78bfa', className: 'repeat' },
+  do: { label: 'Priority', color: '#f59e0b', className: 'do' },
 };
 
 function pad(n) {
@@ -115,37 +119,58 @@ function EventDetail({ event, onClose }) {
   );
 }
 
-export default function ContentCalendar({ refreshKey = 0 }) {
+function CalendarGridSkeleton() {
+  return (
+    <div className="content-calendar-grid content-calendar-grid--loading" aria-hidden="true">
+      {WEEKDAYS.map((label) => (
+        <div key={label} className="content-calendar-weekday">
+          {label}
+        </div>
+      ))}
+      {Array.from({ length: 35 }).map((_, index) => (
+        <div key={index} className="content-calendar-day content-calendar-day-skeleton">
+          <Skeleton h={14} w={18} />
+          <Skeleton h={18} w="70%" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function ContentCalendar() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const { ref: rootRef, isVisible } = useLazyVisible({ rootMargin: '160px' });
 
-  const loadEvents = useCallback(async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const data = await fetchCalendarEvents(year, month);
-      setEvents(Array.isArray(data?.events) ? data.events : []);
-    } catch (e) {
-      setError(e.message || 'Failed to load calendar');
-    } finally {
-      setLoading(false);
-    }
-  }, [year, month]);
+  const calendarQuery = useCalendarEvents(year, month, { enabled: isVisible });
+  const {
+    data,
+    loading,
+    refreshing,
+    error,
+    refresh,
+  } = calendarQuery;
 
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents, refreshKey]);
+    if (!isVisible) return undefined;
+    prefetchAdjacentCalendarMonths(year, month);
+  }, [year, month, isVisible]);
 
   useEffect(() => {
-    const timer = setInterval(loadEvents, POLL_MS);
-    return () => clearInterval(timer);
-  }, [loadEvents]);
+    const handleInvalidate = () => {
+      refresh();
+    };
+    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
+    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
+  }, [refresh]);
+
+  const events = useMemo(
+    () => (Array.isArray(data?.events) ? data.events : []),
+    [data],
+  );
 
   const eventsByDay = useMemo(() => {
     const map = new Map();
@@ -170,17 +195,25 @@ export default function ContentCalendar({ refreshKey = 0 }) {
   };
 
   const selectedDayEvents = selectedDay ? eventsByDay.get(selectedDay) || [] : [];
+  const monthLoading = isVisible && loading && events.length === 0;
+  const showInitialLoad = !isVisible || monthLoading;
+  const isBusy = loading || refreshing;
 
   return (
-    <div className="card content-calendar-card">
+    <div ref={rootRef} className="card content-calendar-card">
       <div className="card-header">
         <div>
           <div className="card-title">Content Calendar</div>
-          <div className="card-subtitle">Scheduled jobs and repeat schedules</div>
+          <div className="card-subtitle">Scheduled jobs, repeat schedules, and priority queue jobs</div>
         </div>
         <div className="content-calendar-header-actions">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={loadEvents} disabled={loading}>
-            <RefreshCw size={12} className={loading ? 'content-calendar-spin' : ''} />
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={refresh}
+            disabled={!isVisible || isBusy}
+          >
+            <RefreshCw size={12} className={isBusy ? 'content-calendar-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -190,7 +223,20 @@ export default function ContentCalendar({ refreshKey = 0 }) {
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftMonth(-1)} aria-label="Previous month">
           <ChevronLeft size={16} />
         </button>
-        <div className="content-calendar-month-label">{formatMonthLabel(year, month)}</div>
+        <div className="content-calendar-month-label">
+          <span>{formatMonthLabel(year, month)}</span>
+          {monthLoading ? (
+            <span className="content-calendar-month-status" role="status" aria-live="polite">
+              <Loader2 size={12} className="settings-tab-status-icon" aria-hidden="true" />
+              Loading month…
+            </span>
+          ) : null}
+          {!monthLoading && refreshing ? (
+            <span className="content-calendar-month-status content-calendar-month-status--refresh" role="status">
+              Updating…
+            </span>
+          ) : null}
+        </div>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => shiftMonth(1)} aria-label="Next month">
           <ChevronRight size={16} />
         </button>
@@ -207,56 +253,60 @@ export default function ContentCalendar({ refreshKey = 0 }) {
 
       {error ? <div className="content-calendar-error">{error}</div> : null}
 
-      <div className="content-calendar-grid">
-        {WEEKDAYS.map((label) => (
-          <div key={label} className="content-calendar-weekday">
-            {label}
-          </div>
-        ))}
+      {showInitialLoad ? (
+        <CalendarGridSkeleton />
+      ) : (
+        <div className={`content-calendar-grid${refreshing ? ' content-calendar-grid--refreshing' : ''}`}>
+          {WEEKDAYS.map((label) => (
+            <div key={label} className="content-calendar-weekday">
+              {label}
+            </div>
+          ))}
 
-        {cells.map((cell, index) => {
-          if (!cell.inMonth || cell.day == null) {
-            return <div key={`empty-${index}`} className="content-calendar-day content-calendar-day-outside" />;
-          }
+          {cells.map((cell, index) => {
+            if (!cell.inMonth || cell.day == null) {
+              return <div key={`empty-${index}`} className="content-calendar-day content-calendar-day-outside" />;
+            }
 
-          const key = dateKey(year, month, cell.day);
-          const dayEvents = eventsByDay.get(key) || [];
-          const isToday = key === todayKey;
-          const isSelected = selectedDay === key;
+            const key = dateKey(year, month, cell.day);
+            const dayEvents = eventsByDay.get(key) || [];
+            const isToday = key === todayKey;
+            const isSelected = selectedDay === key;
 
-          return (
-            <button
-              key={key}
-              type="button"
-              className={`content-calendar-day${isToday ? ' content-calendar-day-today' : ''}${isSelected ? ' content-calendar-day-selected' : ''}`}
-              onClick={() => {
-                setSelectedDay(key);
-                setSelectedEvent(null);
-              }}
-            >
-              <div className="content-calendar-day-number">{cell.day}</div>
-              <div className="content-calendar-day-events">
-                {loading && dayEvents.length === 0 ? (
-                  <Skeleton h={18} w="80%" />
-                ) : (
-                  <>
-                    {dayEvents.slice(0, MAX_CHIPS).map((event, eventIndex) => (
-                      <EventChip
-                        key={`${event.at}-${event.row ?? event.label}-${eventIndex}`}
-                        event={event}
-                        onSelect={setSelectedEvent}
-                      />
-                    ))}
-                    {dayEvents.length > MAX_CHIPS ? (
-                      <span className="content-calendar-more">+{dayEvents.length - MAX_CHIPS} more</span>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`content-calendar-day${isToday ? ' content-calendar-day-today' : ''}${isSelected ? ' content-calendar-day-selected' : ''}`}
+                onClick={() => {
+                  setSelectedDay(key);
+                  setSelectedEvent(null);
+                }}
+              >
+                <div className="content-calendar-day-number">{cell.day}</div>
+                <div className="content-calendar-day-events">
+                  {dayEvents.slice(0, MAX_CHIPS).map((event, eventIndex) => (
+                    <EventChip
+                      key={`${event.at}-${event.row ?? event.label}-${eventIndex}`}
+                      event={event}
+                      onSelect={setSelectedEvent}
+                    />
+                  ))}
+                  {dayEvents.length > MAX_CHIPS ? (
+                    <span className="content-calendar-more">+{dayEvents.length - MAX_CHIPS} more</span>
+                  ) : null}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {isVisible && !monthLoading && refreshing && events.length > 0 ? (
+        <div className="lazy-load-meta content-calendar-cache-meta">
+          Showing cached events — refreshing this month…
+        </div>
+      ) : null}
 
       {selectedEvent ? (
         <EventDetail event={selectedEvent} onClose={() => setSelectedEvent(null)} />

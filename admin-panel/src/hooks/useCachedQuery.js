@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useLayoutEffect } from 'react';
-import { readCache, writeCache } from '../data/queryCache';
+import { readCache, fetchWithCache } from '../data/queryCache';
 
 /**
  * Stale-while-revalidate hook: show cached data immediately, refresh in background.
@@ -45,9 +45,13 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
       }
 
       try {
-        const result = await fetcherRef.current(force);
+        const result = await fetchWithCache(
+          cacheKey,
+          (forced) => fetcherRef.current(forced),
+          ttlMs,
+          { force },
+        );
         if (!mounted.current) return;
-        writeCache(cacheKey, result, ttlMs);
         setData(result);
         setError('');
         setUpdatedAt(new Date());
@@ -69,6 +73,13 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
 
   useLayoutEffect(() => {
     mounted.current = true;
+
+    if (!enabled) {
+      return () => {
+        mounted.current = false;
+      };
+    }
+
     const cached = readCache(cacheKey);
     if (cached?.data != null) {
       setData(cached.data);
@@ -81,7 +92,7 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
     loadRef.current(!cached?.isFresh);
 
     let intervalId;
-    if (pollMs > 0 && enabled) {
+    if (pollMs > 0) {
       intervalId = setInterval(() => loadRef.current(false), pollMs);
     }
 
@@ -103,5 +114,6 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
     updatedAt,
     refresh,
     isStale: Boolean(data && cachedNow && !cachedNow.isFresh),
+    isInitialLoad: enabled && loading && data == null,
   };
 }

@@ -5,6 +5,7 @@ import {
   Bot, Play, Square, Loader, X,
 } from 'lucide-react';
 import { fetchBotStatus, startBot, stopBot } from '../data/api';
+import { prefetchRouteData } from '../hooks/routePrefetch';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
@@ -91,6 +92,8 @@ export default function Sidebar({ open = false, onClose }) {
             end={to === '/'}
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             onClick={onClose}
+            onMouseEnter={() => prefetchRouteData(to)}
+            onFocus={() => prefetchRouteData(to)}
           >
             <Icon size={16} />
             {label}

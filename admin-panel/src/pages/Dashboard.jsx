@@ -6,19 +6,20 @@ import ErrorBanner from '../components/ErrorBanner';
 import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle } from 'lucide-react';
 import { cancelRender } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
+import { useLazyVisible } from '../hooks/useLazyVisible';
 import {
   useCachedStats,
   useCachedRenderStatus,
-  warmJobsCache,
+  warmAppCache,
 } from '../hooks/useSheetData';
 
 export default function Dashboard() {
-  const statsQuery = useCachedStats({ pollMs: 8000 });
-  const renderQuery = useCachedRenderStatus();
-  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const { ref: pageRef, isVisible } = useLazyVisible({ initialVisible: true });
+  const statsQuery = useCachedStats({ pollMs: 8000, enabled: isVisible });
+  const renderQuery = useCachedRenderStatus({ enabled: isVisible });
 
   useEffect(() => {
-    warmJobsCache();
+    warmAppCache();
   }, []);
 
   const stats = statsQuery.data;
@@ -38,7 +39,6 @@ export default function Dashboard() {
     invalidateSheetCaches();
     statsQuery.refresh();
     renderQuery.refresh();
-    setCalendarRefreshKey((key) => key + 1);
   };
 
   const handleCancelRender = async () => {
@@ -94,7 +94,7 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle="Dhamma Channel — overview"
       />
-      <div className="page-content">
+      <div ref={pageRef} className="page-content">
         {error && <ErrorBanner message={error} />}
 
         {renderStatus.running && (
@@ -289,7 +289,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <ContentCalendar refreshKey={calendarRefreshKey} />
+        <ContentCalendar />
       </div>
     </>
   );

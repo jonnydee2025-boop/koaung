@@ -1,53 +1,37 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header';
-import {
-  fetchLogs,
-  fetchRenderStatus,
-  triggerRenderNext,
-  cancelRender,
-} from '../data/api';
+import { triggerRenderNext, cancelRender } from '../data/api';
+import { invalidateSheetCaches } from '../data/queryCache';
+import { useLazyVisible } from '../hooks/useLazyVisible';
+import { useCachedLogs, useCachedRenderStatus } from '../hooks/useSheetData';
 import { Download, RefreshCw } from 'lucide-react';
 
 const LEVELS = ['ALL', 'INFO', 'SUCCESS', 'WARNING', 'ERROR'];
 
 export default function Logs() {
-  const [logs, setLogs] = useState([]);
+  const { ref: pageRef, isVisible } = useLazyVisible();
+  const logsQuery = useCachedLogs({ enabled: isVisible });
+  const renderQuery = useCachedRenderStatus({ enabled: isVisible });
+
   const [levelFilter, setLevel] = useState('ALL');
   const [autoScroll, setAutoScroll] = useState(true);
-  const [error, setError] = useState('');
-  const [renderRunning, setRenderRunning] = useState(false);
   const [renderStarting, setRenderStarting] = useState(false);
   const [renderError, setRenderError] = useState('');
   const bottomRef = useRef(null);
 
-  const load = useCallback(async () => {
-    try {
-      setLogs(await fetchLogs(150));
-      setError('');
-    } catch (e) {
-      setError(e.message);
-    }
-  }, []);
-
-  const pollRenderStatus = useCallback(async () => {
-    try {
-      const status = await fetchRenderStatus();
-      setRenderRunning(Boolean(status.running));
-    } catch {
-      // API unreachable — keep last known state
-    }
-  }, []);
+  const logs = logsQuery.data ?? [];
+  const renderRunning = Boolean(renderQuery.data?.running);
+  const loading = !isVisible || logsQuery.isInitialLoad;
+  const error = logsQuery.error;
 
   useEffect(() => {
-    load();
-    pollRenderStatus();
-    const logsInterval = setInterval(load, 5000);
-    const renderInterval = setInterval(pollRenderStatus, 2000);
-    return () => {
-      clearInterval(logsInterval);
-      clearInterval(renderInterval);
+    const handleInvalidate = () => {
+      logsQuery.refresh();
+      renderQuery.refresh();
     };
-  }, [load, pollRenderStatus]);
+    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
+    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
+  }, [logsQuery.refresh, renderQuery.refresh]);
 
   useEffect(() => {
     if (autoScroll && bottomRef.current) {
@@ -55,12 +39,18 @@ export default function Logs() {
     }
   }, [logs, autoScroll]);
 
+  const refreshAll = () => {
+    invalidateSheetCaches();
+    logsQuery.refresh();
+    renderQuery.refresh();
+  };
+
   const handleRenderNext = async () => {
     setRenderError('');
     setRenderStarting(true);
     try {
       await triggerRenderNext();
-      await pollRenderStatus();
+      refreshAll();
     } catch (e) {
       setRenderError(e.message);
     } finally {
@@ -72,11 +62,9 @@ export default function Logs() {
     setRenderError('');
     try {
       await cancelRender();
-      setRenderRunning(false);
+      refreshAll();
     } catch (e) {
       setRenderError(e.message);
-    } finally {
-      await pollRenderStatus();
     }
   };
 
@@ -106,7 +94,7 @@ export default function Logs() {
         onRenderNext={handleRenderNext}
         onStopRender={handleStopRender}
       />
-      <div className="page-content">
+      <div ref={pageRef} className="page-content">
         {displayError && (
           <div
             style={{
@@ -145,7 +133,7 @@ export default function Logs() {
                 />
                 Auto-scroll
               </label>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={load}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={refreshAll}>
                 <RefreshCw size={13} />
                 Refresh
               </button>
@@ -161,8 +149,10 @@ export default function Logs() {
             <div className="card-subtitle">{filtered.length} entries</div>
           </div>
 
-          <div className="log-container" id="log-viewer">
-            {filtered.length === 0 ? (
+          <div className={`log-container${loading ? ' log-container--loading' : ''}`} id="log-viewer">
+            {loading ? (
+              <div className="log-container-placeholder">Loading logs…</div>
+            ) : filtered.length === 0 ? (
               <div
                 style={{
                   color: 'var(--text-muted)',

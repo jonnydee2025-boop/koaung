@@ -11,3 +11,10 @@ export function jobsPageCacheKey({
 }
 
 export const JOBS_MONKS_CACHE_KEY = 'jobs:monks';
+
+export function calendarCacheKey(year, month) {
+  return `calendar:${year}:${month}`;
+}
+
+export const LOGS_CACHE_KEY = 'logs:recent:150';
+export const RENDER_STATUS_CACHE_KEY = 'render-status';

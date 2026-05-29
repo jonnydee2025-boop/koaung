@@ -8,11 +8,12 @@ import ErrorBanner from '../components/ErrorBanner';
 import { RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
 import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
-import { readCache, invalidateSheetCaches } from '../data/queryCache';
-import { jobsPageCacheKey } from '../data/jobsCacheKeys';
+import { invalidateSheetCaches } from '../data/queryCache';
 import { EMPTY_COUNTS, JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
+import { useLazyVisible } from '../hooks/useLazyVisible';
 import {
   prefetchAdjacentJobsPages,
+  prefetchJobsFilterTabs,
   useJobMonks,
   useJobsPage,
 } from '../hooks/useSheetData';
@@ -32,28 +33,24 @@ export default function Jobs() {
   const [schedulingRow, setSchedulingRow] = useState(null);
   const [scheduleTarget, setScheduleTarget] = useState(null);
   const [scheduleModalError, setScheduleModalError] = useState('');
-
-  const jobsQuery = useJobsPage({
-    page,
-    pageSize: PAGE_SIZE,
-    status: filter,
-    search: debouncedSearch,
-    monk: monkFilter,
-  });
-  const monksQuery = useJobMonks();
-
-  const queryKey = jobsPageCacheKey({
-    page,
-    pageSize: PAGE_SIZE,
-    status: filter,
-    search: debouncedSearch,
-    monk: monkFilter,
-  });
+  const { ref: pageRef, isVisible } = useLazyVisible();
 
   const countsRef = useRef(EMPTY_COUNTS);
   const sheetTotalRef = useRef(null);
 
-  const pageData = readCache(queryKey)?.data ?? null;
+  const jobsQuery = useJobsPage(
+    {
+      page,
+      pageSize: PAGE_SIZE,
+      status: filter,
+      search: debouncedSearch,
+      monk: monkFilter,
+    },
+    { enabled: isVisible },
+  );
+  const monksQuery = useJobMonks({ enabled: isVisible });
+
+  const pageData = jobsQuery.data;
   if (pageData?.counts) {
     countsRef.current = pageData.counts;
   }
@@ -63,6 +60,7 @@ export default function Jobs() {
 
   const counts = pageData?.counts ?? countsRef.current;
   const sheetTotal = pageData?.sheet_total ?? sheetTotalRef.current;
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 350);
     return () => clearTimeout(timer);
@@ -71,6 +69,15 @@ export default function Jobs() {
   useEffect(() => {
     setPage(1);
   }, [filter, monkFilter, debouncedSearch]);
+
+  useEffect(() => {
+    const handleInvalidate = () => {
+      jobsQuery.refresh();
+      monksQuery.refresh();
+    };
+    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
+    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
+  }, [jobsQuery.refresh, monksQuery.refresh]);
 
   const monkOptions = monksQuery.data?.monks ?? [];
 
@@ -88,7 +95,16 @@ export default function Jobs() {
   }, [pageData?.page, pageData?.total_pages, page]);
 
   useEffect(() => {
-    if (!pageData) return;
+    if (!isVisible) return;
+    prefetchJobsFilterTabs({
+      pageSize: PAGE_SIZE,
+      search: debouncedSearch,
+      monk: monkFilter,
+    });
+  }, [isVisible, debouncedSearch, monkFilter]);
+
+  useEffect(() => {
+    if (!pageData || !isVisible) return;
     prefetchAdjacentJobsPages({
       page: pageData.page ?? page,
       totalPages: pageData.total_pages ?? 1,
@@ -97,14 +113,19 @@ export default function Jobs() {
       search: debouncedSearch,
       monk: monkFilter,
     });
-  }, [pageData, page, filter, debouncedSearch, monkFilter]);
+    prefetchJobsFilterTabs({
+      pageSize: PAGE_SIZE,
+      search: debouncedSearch,
+      monk: monkFilter,
+    });
+  }, [pageData, page, filter, debouncedSearch, monkFilter, isVisible]);
 
   const filterCount = counts[filter] ?? 0;
   const items = pageData?.items ?? [];
   const total = pageData?.total ?? filterCount;
   const totalPages = pageData?.total_pages
     ?? Math.max(1, Math.ceil(filterCount / PAGE_SIZE) || 1);
-  const loading = jobsQuery.loading || pageData == null;
+  const loading = !isVisible || (jobsQuery.loading && items.length === 0 && sheetTotal == null);
   const error = jobsQuery.error;
 
   const refreshSheet = () => {
@@ -197,7 +218,7 @@ export default function Jobs() {
             : 'Live from Google Sheet'
         }
       />
-      <div className="page-content">
+      <div ref={pageRef} className="page-content">
         {displayError && <ErrorBanner message={displayError} />}
 
         <div className="card">
@@ -209,6 +230,22 @@ export default function Jobs() {
                   type="button"
                   id={`filter-${val}`}
                   onClick={() => handleFilterChange(val)}
+                  onMouseEnter={() =>
+                    prefetchJobsFilterTabs({
+                      pageSize: PAGE_SIZE,
+                      search: debouncedSearch,
+                      monk: monkFilter,
+                      status: val,
+                    })
+                  }
+                  onFocus={() =>
+                    prefetchJobsFilterTabs({
+                      pageSize: PAGE_SIZE,
+                      search: debouncedSearch,
+                      monk: monkFilter,
+                      status: val,
+                    })
+                  }
                   className={`btn btn-ghost btn-sm jobs-filter-tab${filter === val ? ' is-active' : ''}`}
                 >
                   {label}

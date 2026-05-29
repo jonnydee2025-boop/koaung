@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { setAdminApiKey } from '../data/adminAuth';
 import { verifyAdminApiKey } from '../data/api';
+import { warmAppCache } from '../hooks/useSheetData';
 
 export default function Login({ onSuccess }) {
   const [key, setKey] = useState('');
@@ -18,6 +19,7 @@ export default function Login({ onSuccess }) {
     try {
       await verifyAdminApiKey(key.trim());
       setAdminApiKey(key);
+      warmAppCache().catch(() => {});
       onSuccess();
     } catch (err) {
       setError(err.message || 'Invalid API key.');

@@ -3,6 +3,7 @@
  */
 
 const store = new Map();
+const inflight = new Map();
 
 export function readCache(key) {
   const entry = store.get(key);
@@ -35,16 +36,46 @@ export function invalidateCache(keyOrPattern) {
 /** Clear sheet-derived data after renders, job actions, or manual refresh. */
 export function invalidateSheetCaches() {
   invalidateCache('stats');
-  invalidateCache('jobs:*'); /* jobs:page:*, jobs:monks, jobs:6, … */
+  invalidateCache('jobs:*');
+  invalidateCache('calendar:*');
+  invalidateCache('settings:*');
+  invalidateCache('logs:*');
+  invalidateCache('render-status');
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('sheet-cache-invalidated'));
+  }
+}
+
+/**
+ * Fetch with TTL cache and in-flight deduplication (parallel callers share one request).
+ */
+export async function fetchWithCache(key, fetcher, ttlMs, { force = false } = {}) {
+  if (!force) {
+    const cached = readCache(key);
+    if (cached?.isFresh) {
+      return cached.data;
+    }
+  }
+
+  if (inflight.has(key)) {
+    return inflight.get(key);
+  }
+
+  const promise = Promise.resolve()
+    .then(() => fetcher(force))
+    .then((data) => {
+      writeCache(key, data, ttlMs);
+      return data;
+    })
+    .finally(() => {
+      inflight.delete(key);
+    });
+
+  inflight.set(key, promise);
+  return promise;
 }
 
 /** Silent background fetch — writes to cache without React state updates. */
 export async function prefetchCache(key, fetcher, ttlMs) {
-  const cached = readCache(key);
-  if (cached?.isFresh) {
-    return cached.data;
-  }
-  const data = await fetcher();
-  writeCache(key, data, ttlMs);
-  return data;
+  return fetchWithCache(key, fetcher, ttlMs, { force: false });
 }

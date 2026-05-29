@@ -2,14 +2,14 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import PageLoader from './components/PageLoader';
-import Logs from './pages/Logs';
-import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { isAuthenticated } from './data/adminAuth';
 import { MobileNavProvider, useMobileNav } from './context/MobileNavContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Jobs = lazy(() => import('./pages/Jobs'));
+const Logs = lazy(() => import('./pages/Logs'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 function LazyPage({ children }) {
   const location = useLocation();
@@ -68,8 +68,22 @@ function AppShell() {
               </LazyPage>
             }
           />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route
+            path="/logs"
+            element={
+              <LazyPage>
+                <Logs />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <LazyPage>
+                <Settings />
+              </LazyPage>
+            }
+          />
         </Routes>
       </div>
     </div>

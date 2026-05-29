@@ -1,13 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Header from '../components/Header';
 import RowRulesTable from '../components/RowRulesTable';
 import GeminiModelSettings from '../components/GeminiModelSettings';
-import { fetchSettings, shutdownServer } from '../data/api';
+import SettingsTabStatus from '../components/SettingsTabStatus';
+import { shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
+import { useLazyVisible } from '../hooks/useLazyVisible';
+import {
+  useCachedGeneralSettings,
+  useCachedGeminiSettings,
+  useCachedRowRulesSettings,
+} from '../hooks/useSettingsData';
 import {
   AlertTriangle,
   Bot,
   Info,
+  Loader2,
   LogOut,
   Server,
   Sparkles,
@@ -46,7 +54,18 @@ function ConfigField({ id, label, fieldKey, cfg }) {
   );
 }
 
-function SettingsNav({ active, onSelect, layout }) {
+function SettingsNav({ active, onSelect, layout, loadingBySection = {} }) {
+  const renderLabel = (id, label, Icon) => (
+    <>
+      {loadingBySection[id] ? (
+        <Loader2 size={14} className="settings-studio-nav-icon settings-tab-status-icon" aria-hidden="true" />
+      ) : Icon ? (
+        <Icon size={15} className="settings-studio-nav-icon" />
+      ) : null}
+      {label}
+    </>
+  );
+
   if (layout === 'pills') {
     return (
       <div className="settings-studio-pills" role="tablist" aria-label="Settings sections">
@@ -56,9 +75,13 @@ function SettingsNav({ active, onSelect, layout }) {
             type="button"
             role="tab"
             aria-selected={active === id}
-            className={`settings-studio-pill${active === id ? ' is-active' : ''}`}
+            aria-busy={Boolean(loadingBySection[id])}
+            className={`settings-studio-pill${active === id ? ' is-active' : ''}${loadingBySection[id] ? ' is-loading' : ''}`}
             onClick={() => onSelect(id)}
           >
+            {loadingBySection[id] ? (
+              <Loader2 size={12} className="settings-tab-status-icon" aria-hidden="true" />
+            ) : null}
             {label}
           </button>
         ))}
@@ -73,22 +96,23 @@ function SettingsNav({ active, onSelect, layout }) {
         <button
           key={id}
           type="button"
-          className={`settings-studio-nav-btn${active === id ? ' is-active' : ''}`}
+          aria-busy={Boolean(loadingBySection[id])}
+          className={`settings-studio-nav-btn${active === id ? ' is-active' : ''}${loadingBySection[id] ? ' is-loading' : ''}`}
           onClick={() => onSelect(id)}
         >
-          <Icon size={15} className="settings-studio-nav-icon" />
-          {label}
+          {renderLabel(id, label, Icon)}
         </button>
       ))}
     </nav>
   );
 }
 
-function GeneralSection({ cfg, meta }) {
+function GeneralSection({ cfg, meta, loading, refreshing }) {
   return (
     <div className="settings-studio-panel">
-      <div className="settings-studio-panel-head">
-        <div>
+      <SettingsTabStatus loading={loading} refreshing={refreshing} label="general settings" />
+      <div className="settings-section-header settings-studio-panel-head">
+        <div className="settings-section-header-main">
           <h2 className="settings-studio-panel-title">General</h2>
           <p className="settings-studio-panel-subtitle">
             Read-only mirror of <code>.env</code> — restart <code>videobot</code> after edits on
@@ -116,10 +140,10 @@ function GeneralSection({ cfg, meta }) {
           <span className="settings-stat-pill-label">Gemini API key</span>
           <span
             className={`settings-stat-pill-value ${
-              meta.geminiConfigured ? 'settings-status-value--green' : 'settings-status-value--yellow'
+              meta?.geminiConfigured ? 'settings-status-value--green' : 'settings-status-value--yellow'
             }`}
           >
-            {meta.geminiConfigured ? 'Configured' : 'Not set'}
+            {cfg ? (meta?.geminiConfigured ? 'Configured' : 'Not set') : '…'}
           </span>
         </div>
       </div>
@@ -199,8 +223,8 @@ function DangerSection({ onKill, setError }) {
 
   return (
     <div className="settings-studio-panel settings-studio-panel--danger">
-      <div className="settings-studio-panel-head">
-        <div>
+      <div className="settings-section-header settings-studio-panel-head">
+        <div className="settings-section-header-main">
           <h2 className="settings-studio-panel-title settings-danger-title">Danger zone</h2>
           <p className="settings-studio-panel-subtitle">
             Stops the Python backend. Restart manually with{' '}
@@ -229,46 +253,87 @@ function DangerSection({ onKill, setError }) {
 
 export default function Settings() {
   const [section, setSection] = useState('general');
-  const [cfg, setCfg] = useState(null);
-  const [meta, setMeta] = useState({ geminiConfigured: false });
   const [error, setError] = useState('');
+  const { ref: pageRef, isVisible } = useLazyVisible();
+
+  const generalQuery = useCachedGeneralSettings({
+    enabled: isVisible && section === 'general',
+  });
+  const geminiQuery = useCachedGeminiSettings({
+    enabled: isVisible && section === 'ai',
+  });
+  const rowRulesQuery = useCachedRowRulesSettings({
+    enabled: isVisible && section === 'rules',
+  });
+
+  const loadingBySection = useMemo(
+    () => ({
+      general: generalQuery.isInitialLoad,
+      ai: geminiQuery.isInitialLoad,
+      rules: rowRulesQuery.isInitialLoad,
+      danger: false,
+    }),
+    [generalQuery.isInitialLoad, geminiQuery.isInitialLoad, rowRulesQuery.isInitialLoad],
+  );
 
   useEffect(() => {
-    fetchSettings()
-      .then((data) => {
-        setCfg({
-          sheetName: data.sheet_name,
-          tmpRoot: data.tmp_root,
-          ffmpegBin: data.ffmpeg_bin,
-          ffprobeBin: data.ffprobe_bin,
-          backgroundVideoFolder: data.background_video_folder,
-          enableAudioEnhance: data.enable_audio_enhance,
-          apiPort: data.api_port,
-        });
-        setMeta({ geminiConfigured: Boolean(data.gemini_api_key_configured) });
-      })
-      .catch((e) => setError(e.message));
-  }, []);
+    if (generalQuery.error) setError(generalQuery.error);
+  }, [generalQuery.error]);
+
+  useEffect(() => {
+    const handleInvalidate = () => {
+      generalQuery.refresh();
+      geminiQuery.refresh();
+      rowRulesQuery.refresh();
+    };
+    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
+    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
+  }, [generalQuery.refresh, geminiQuery.refresh, rowRulesQuery.refresh]);
+
+  useEffect(() => {
+    pageRef.current?.scrollTo({ top: 0 });
+  }, [section]);
 
   return (
     <>
       <Header title="Settings" subtitle="Studio console" />
-      <div className="page-content settings-page settings-studio-page">
+      <div ref={pageRef} className="page-content settings-page settings-studio-page">
         {error && (
           <div className="settings-alert settings-alert--error">
             {error}
           </div>
         )}
 
-        <SettingsNav active={section} onSelect={setSection} layout="pills" />
+        <SettingsNav
+          active={section}
+          onSelect={setSection}
+          layout="pills"
+          loadingBySection={loadingBySection}
+        />
 
         <div className="settings-studio-shell">
-          <SettingsNav active={section} onSelect={setSection} layout="sidebar" />
+          <SettingsNav
+            active={section}
+            onSelect={setSection}
+            layout="sidebar"
+            loadingBySection={loadingBySection}
+          />
 
           <main className="settings-studio-main">
-            {section === 'general' && <GeneralSection cfg={cfg} meta={meta} />}
-            {section === 'ai' && <GeminiModelSettings embedded />}
-            {section === 'rules' && <RowRulesTable embedded />}
+            {section === 'general' && (
+              <GeneralSection
+                cfg={generalQuery.cfg}
+                meta={generalQuery.meta}
+                loading={generalQuery.isInitialLoad}
+                refreshing={generalQuery.refreshing}
+              />
+            )}
+            {section === 'ai' && (
+              <GeminiModelSettings embedded query={geminiQuery} />
+            )}
+            {section === 'rules' && (
+              <RowRulesTable embedded query={rowRulesQuery} />
+            )}
             {section === 'danger' && (
               <DangerSection onKill={shutdownServer} setError={setError} />
             )}
