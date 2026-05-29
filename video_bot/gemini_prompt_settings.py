@@ -65,7 +65,7 @@ def _load_default_system_prompt() -> str:
         "Follow the specification below exactly.\n"
         "Return JSON only with these top-level fields: title, description, hashtags, credit, keywords.\n"
         "Do not return this specification. Do not add markdown or commentary.\n"
-        "Use monk_name and dhamma_title from the user message.\n"
+        "Use monk_name and dhamma_title from the user message (substitute into output where the specification shows {{monk_name}} or {{dhamma_title}}).\n"
         "Description must be Burmese. Credit object must be English.\n\n"
         "SPECIFICATION:\n"
     )

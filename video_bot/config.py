@@ -94,10 +94,6 @@ SCHEDULE_CHECK_INTERVAL_SECONDS = max(
     10,
     int(os.getenv("SCHEDULE_CHECK_INTERVAL_SECONDS", "30")),
 )
-INTERVAL_TRIGGER_CHECK_SECONDS = max(
-    30,
-    int(os.getenv("INTERVAL_TRIGGER_CHECK_SECONDS", "60")),
-)
 ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 ADMIN_API_CORS_ORIGINS = [
     origin.strip()
@@ -115,9 +111,6 @@ GEMINI_SETTINGS_PATH = Path(
 ).resolve()
 GEMINI_PROMPT_PATH = Path(
     os.getenv("GEMINI_PROMPT_PATH", "gemini_youtube_prompt.json"),
-).resolve()
-INTERVAL_TRIGGERS_PATH = Path(
-    os.getenv("INTERVAL_TRIGGERS_PATH", "interval_triggers.json"),
 ).resolve()
 REPEAT_JOBS_PATH = Path(
     os.getenv("REPEAT_JOBS_PATH", "repeat_jobs.json"),

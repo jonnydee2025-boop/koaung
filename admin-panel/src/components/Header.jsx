@@ -24,7 +24,7 @@ export default function Header({
     ? 'Stop Rendering'
     : renderStarting
       ? 'Starting…'
-      : 'Render Next';
+      : 'Render Next (do)';
 
   return (
     <header className="header">
@@ -61,6 +61,7 @@ export default function Header({
             className={`btn btn-sm ${renderRunning ? 'btn-danger' : 'btn-primary'}`}
             onClick={handleRenderClick}
             disabled={renderStarting}
+            title="Process the next row with status do only"
           >
             {renderRunning ? <Square size={14} /> : <Play size={14} />}
             <span className="header-btn-label">{renderLabel}</span>

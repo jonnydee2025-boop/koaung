@@ -38,6 +38,8 @@ Get-Content $EnvFile | ForEach-Object {
 $VpsHost = Get-DeployVar "VPS_HOST"
 $VpsUser = Get-DeployVar "VPS_USER"
 $Domain = Get-DeployVar "DOMAIN"
+$Domain = ($Domain -replace '^https?://', '' -replace '/+$', '').Trim()
+if (-not $Domain) { throw "DOMAIN is empty in $EnvFile (use hostname only, e.g. jexbot.site)" }
 $AppDir = Get-DeployVar "APP_DIR" $false
 if (-not $AppDir) { $AppDir = "/opt/videobot" }
 $SshPort = Get-DeployVar "SSH_PORT" $false

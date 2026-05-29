@@ -10,7 +10,18 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import REPEAT_JOBS_PATH, logger
-from .interval_triggers import KNOWN_TIMEZONES
+
+KNOWN_TIMEZONES = (
+    "UTC",
+    "Asia/Yangon",
+    "Asia/Bangkok",
+    "Asia/Singapore",
+    "Asia/Kolkata",
+    "Asia/Tokyo",
+    "Europe/London",
+    "America/New_York",
+    "America/Los_Angeles",
+)
 
 RepeatType = Literal["daily", "weekly"]
 TIME_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")

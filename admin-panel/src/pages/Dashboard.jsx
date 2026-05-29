@@ -1,29 +1,27 @@
 import { useEffect, useState } from 'react';
 import Header from '../components/Header';
-import LazyJobTable from '../components/LazyJobTable';
+import ContentCalendar from '../components/ContentCalendar';
 import Skeleton from '../components/Skeleton';
 import ErrorBanner from '../components/ErrorBanner';
-import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle, RefreshCw } from 'lucide-react';
+import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle } from 'lucide-react';
 import { cancelRender } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
 import {
   useCachedStats,
-  useCachedJobs,
   useCachedRenderStatus,
   warmJobsCache,
 } from '../hooks/useSheetData';
 
 export default function Dashboard() {
   const statsQuery = useCachedStats({ pollMs: 8000 });
-  const jobsQuery = useCachedJobs(6, { pollMs: 8000 });
   const renderQuery = useCachedRenderStatus();
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
   useEffect(() => {
     warmJobsCache();
   }, []);
 
   const stats = statsQuery.data;
-  const jobs = jobsQuery.data ?? [];
   const renderStatus = renderQuery.data ?? {
     running: false,
     pct: 0,
@@ -33,14 +31,14 @@ export default function Dashboard() {
 
   const [actionError, setActionError] = useState('');
 
-  const errors = [statsQuery.error, jobsQuery.error, renderQuery.error].filter(Boolean);
+  const errors = [statsQuery.error, renderQuery.error].filter(Boolean);
   const error = actionError || errors.join(' | ');
 
   const refreshAll = () => {
     invalidateSheetCaches();
     statsQuery.refresh();
-    jobsQuery.refresh();
     renderQuery.refresh();
+    setCalendarRefreshKey((key) => key + 1);
   };
 
   const handleCancelRender = async () => {
@@ -291,32 +289,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Recent Jobs</div>
-              <div className="card-subtitle">Live from Google Sheet</div>
-            </div>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={refreshAll}>
-              <RefreshCw size={12} />
-              Refresh
-            </button>
-          </div>
-          <div className="table-wrap">
-            {jobs.length === 0 && !jobsQuery.loading ? (
-              <div className="empty-state">
-                <p>No jobs found in the sheet.</p>
-              </div>
-            ) : (
-              <LazyJobTable
-                jobs={jobs}
-                loading={jobsQuery.loading}
-                filtered={jobs}
-                showActions={false}
-              />
-            )}
-          </div>
-        </div>
+        <ContentCalendar refreshKey={calendarRefreshKey} />
       </div>
     </>
   );

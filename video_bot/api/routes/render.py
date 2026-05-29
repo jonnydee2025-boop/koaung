@@ -14,7 +14,7 @@ def get_render_status():
 
 @router.post("/render-next")
 async def trigger_render_next(background_tasks: BackgroundTasks):
-    return await queue_admin_render(background_tasks)
+    return await queue_admin_render(background_tasks, do_only=True)
 
 
 @router.post("/render-cancel")

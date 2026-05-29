@@ -1,5 +1,5 @@
 import { invalidateSheetCaches } from './queryCache';
-import { clearAdminApiKey } from './adminAuth';
+import { clearAdminApiKey, getAdminApiKey } from './adminAuth';
 import { API_BASE, apiHeaders, requestJson } from './httpClient';
 
 export async function fetchJobs(limit = 6) {
@@ -25,6 +25,18 @@ export async function fetchJobsPage({
     params.set('refresh', 'true');
   }
   return requestJson(`${API_BASE}/api/jobs?${params}`, undefined, 'Jobs failed');
+}
+
+export async function fetchCalendarEvents(year, month) {
+  const params = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  });
+  return requestJson(
+    `${API_BASE}/api/jobs/calendar?${params}`,
+    undefined,
+    'Calendar failed',
+  );
 }
 
 export async function fetchJobMonks({ refresh = false } = {}) {
@@ -75,6 +87,17 @@ export async function retryJobRender(rowNumber) {
   );
   invalidateSheetCaches();
   return result;
+}
+
+export function jobAudioStreamUrl(rowNumber) {
+  const params = new URLSearchParams();
+  const key = getAdminApiKey();
+  if (key) {
+    params.set('admin_key', key);
+  }
+  const query = params.toString();
+  const base = `${API_BASE}/api/jobs/${rowNumber}/audio`;
+  return query ? `${base}?${query}` : base;
 }
 
 export async function fetchJobAudioBlob(rowNumber) {

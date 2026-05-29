@@ -410,6 +410,11 @@ def clear_schedule_time(sheets: Any, headers: list[str], row_number: int) -> Non
     update_sheet_cell(sheets, row_number, schedule_col, "")
 
 
+def clear_row_logs(sheets: Any, headers: list[str], row_number: int) -> None:
+    logs_col = ensure_column(sheets, headers, "logs")
+    update_sheet_cell(sheets, row_number, logs_col, "")
+
+
 def update_sheet_row_status(row_number: int, status: str) -> dict[str, str | int]:
     """
     Set a row's status from the admin panel.
@@ -427,7 +432,11 @@ def update_sheet_row_status(row_number: int, status: str) -> dict[str, str | int
     if previous == "processing":
         raise ValueError(f"Row {row_number} is currently processing.")
 
-    if previous in ("scheduled", "repeat"):
+    if normalized == "pending":
+        clear_schedule_time(sheets, headers, row_number)
+        delete_repeat_job(row_number)
+        clear_row_logs(sheets, headers, row_number)
+    elif previous in ("scheduled", "repeat"):
         clear_schedule_time(sheets, headers, row_number)
         delete_repeat_job(row_number)
 

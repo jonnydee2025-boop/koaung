@@ -86,6 +86,7 @@ async def queue_admin_render(
     background_tasks: BackgroundTasks,
     *,
     row_number: int | None = None,
+    do_only: bool = False,
 ) -> dict:
     async with render_start_lock:
         if is_render_busy():
@@ -106,6 +107,6 @@ async def queue_admin_render(
             "youtube_id": "",
             "row_number": row_number or 0,
         })
-        background_tasks.add_task(run_admin_render, row_number)
+        background_tasks.add_task(run_admin_render, row_number, do_only=do_only)
 
     return {"queued": True, "row": row_number} if row_number else {"queued": True}

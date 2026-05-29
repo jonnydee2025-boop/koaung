@@ -70,9 +70,10 @@ async def run_telegram_render(
             result = await asyncio.to_thread(
                 run_render_job,
                 admin_progress_callback,
+                do_only=True,
             )
         except NoPendingRows:
-            reset_current_render_idle("No do or scheduled rows")
+            reset_current_render_idle("No do rows")
             await notify_no_pending_rows()
             return
         except Exception as exc:

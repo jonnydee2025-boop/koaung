@@ -17,8 +17,7 @@
 | `jobs/workdir.py` | Temp file cleanup on VPS |
 | `handlers.py` | Telegram command/callback handlers |
 | `sheets.py` | Google Sheet read/write, queue reserve, schedule, auto-do |
-| `scheduler.py` | Due scheduled poll + interval trigger (do-only) loops |
-| `interval_triggers.py` | Persisted Settings interval triggers |
+| `scheduler.py` | Due scheduled / repeat poll loop |
 | `schedule_time.py` | Parse/compare `Schedule_Time` |
 | `sheet_cache.py` | In-memory cache for Jobs tab sheet reads |
 | `drive.py` | Google Drive backgrounds & thumbnails |

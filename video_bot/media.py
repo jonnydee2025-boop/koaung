@@ -2,7 +2,9 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -25,8 +27,14 @@ def google_drive_direct_url(url: str) -> str:
     return f"https://drive.google.com/uc?export=download&id={file_id}"
 
 
-def _remote_get_response(session: requests.Session, resolved_url: str) -> requests.Response:
-    response = session.get(resolved_url, stream=True, timeout=60)
+def _remote_get_response(
+    session: requests.Session,
+    resolved_url: str,
+    *,
+    request_headers: dict[str, str] | None = None,
+) -> requests.Response:
+    headers = dict(request_headers or {})
+    response = session.get(resolved_url, stream=True, timeout=120, headers=headers)
 
     token = next(
         (
@@ -37,24 +45,61 @@ def _remote_get_response(session: requests.Session, resolved_url: str) -> reques
         None,
     )
     if token:
+        response.close()
         response = session.get(
             resolved_url,
             params={"confirm": token},
             stream=True,
-            timeout=60,
+            timeout=120,
+            headers=headers,
         )
 
     response.raise_for_status()
     return response
 
 
-def iter_remote_file(url: str, chunk_size: int = 1024 * 1024):
+def stream_remote_file(
+    url: str,
+    *,
+    range_header: str | None = None,
+    chunk_size: int = 1024 * 1024,
+) -> tuple[int, dict[str, str], Iterator[bytes]]:
+    """Stream a remote file; optional HTTP Range for partial content (206)."""
     resolved_url = google_drive_direct_url(url)
-    with requests.Session() as session:
-        response = _remote_get_response(session, resolved_url)
-        for chunk in response.iter_content(chunk_size=chunk_size):
-            if chunk:
-                yield chunk
+    session = requests.Session()
+    req_headers: dict[str, str] = {}
+    if range_header:
+        req_headers["Range"] = range_header
+    response = _remote_get_response(
+        session,
+        resolved_url,
+        request_headers=req_headers,
+    )
+
+    def generate() -> Iterator[bytes]:
+        try:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    yield chunk
+        finally:
+            response.close()
+            session.close()
+
+    out_headers: dict[str, str] = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=3600",
+    }
+    for key in ("Content-Length", "Content-Range", "Content-Type"):
+        value = response.headers.get(key)
+        if value:
+            out_headers[key] = value
+
+    return response.status_code, out_headers, generate()
+
+
+def iter_remote_file(url: str, chunk_size: int = 1024 * 1024):
+    _, _, chunks = stream_remote_file(url, chunk_size=chunk_size)
+    yield from chunks
 
 
 def download_file(url: str, destination: Path) -> None:

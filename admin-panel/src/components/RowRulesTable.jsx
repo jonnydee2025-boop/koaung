@@ -60,7 +60,7 @@ function SelectMedia({ id, value, options, disabled, onChange }) {
   );
 }
 
-export default function RowRulesTable() {
+export default function RowRulesTable({ embedded = false }) {
   const [rules, setRules] = useState([emptyRule()]);
   const [backgrounds, setBackgrounds] = useState([]);
   const [thumbnails, setThumbnails] = useState([]);
@@ -173,10 +173,18 @@ export default function RowRulesTable() {
   };
 
   return (
-    <div className="card settings-card row-rules-card">
+    <div className={embedded ? 'settings-studio-panel' : 'card settings-card row-rules-card'}>
       <div className="settings-section-header">
         <div className="settings-section-header-main">
-          <div className="settings-section-title">Row-Based Rules</div>
+          <div className={embedded ? 'settings-studio-panel-title settings-section-title' : 'settings-section-title'}>
+            Row-based rules
+          </div>
+          <p className={embedded ? 'settings-studio-panel-subtitle' : 'settings-section-hint'}>
+            Map sheet rows to background video, thumbnail, and loop count. First row in{' '}
+            <strong>Select Rows</strong> is the anchor.
+          </p>
+          {!embedded && (
+            <>
           <p className="settings-section-hint">
             Map sheet rows to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
             and/or loop count. Use <strong>Select Rows</strong> with comma-separated sheet row
@@ -186,10 +194,11 @@ export default function RowRulesTable() {
           </p>
           <p className="settings-section-hint">
             Saving a background or thumbnail sets those rows to <code>do</code> in the sheet
-            immediately (rows already <code>scheduled</code> are left unchanged). For batch jobs,
-            schedule the <strong>anchor row</strong> (first in Select Rows) — scheduling any batch
-            row from Jobs applies the time to the anchor automatically.
+            immediately (rows already <code>scheduled</code> or <code>repeat</code> are left
+            unchanged). For batch jobs, schedule the <strong>anchor row</strong>.
           </p>
+            </>
+          )}
         </div>
         <div className="settings-section-actions">
           <button

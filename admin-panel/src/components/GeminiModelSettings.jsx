@@ -9,7 +9,7 @@ function parseFallbackText(text) {
     .filter(Boolean);
 }
 
-export default function GeminiModelSettings() {
+export default function GeminiModelSettings({ embedded = false }) {
   const [primaryModel, setPrimaryModel] = useState('');
   const [fallbackText, setFallbackText] = useState('');
   const [knownModels, setKnownModels] = useState([]);
@@ -71,21 +71,40 @@ export default function GeminiModelSettings() {
   ].filter(Boolean);
 
   return (
-    <div className="card settings-card">
+    <div className={embedded ? 'settings-studio-panel' : 'card settings-card'}>
       <div className="settings-section-header">
         <div className="settings-section-header-main">
-          <div className="settings-section-title">
-            Gemini Model Fallback
+          <div className={embedded ? 'settings-studio-panel-title settings-section-title' : 'settings-section-title'}>
+            <Sparkles size={16} className="settings-section-icon" />
+            Gemini model fallback
           </div>
-          <div className="settings-section-subtitle">
-            Primary model first, then fallbacks if the API call fails
+          <div className={embedded ? 'settings-studio-panel-subtitle' : 'settings-section-subtitle'}>
+            Primary model first, then fallbacks if the API call fails. YouTube metadata prompt
+            loads from <code>gemini_youtube_prompt_spec.json</code> on the server.
           </div>
         </div>
-        <Sparkles size={16} className="settings-section-icon" />
+        <div className="settings-section-actions">
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleSave}
+            disabled={loading || saving || !primaryModel.trim()}
+          >
+            <Save size={14} />
+            {saving ? 'Saving…' : saved ? 'Saved' : 'Save models'}
+          </button>
+        </div>
       </div>
 
-      {error && <div className="settings-alert settings-alert--error">⚠ {error}</div>}
+      {error && <div className="settings-alert settings-alert--error">{error}</div>}
+      {saved && (
+        <p className="settings-feedback settings-feedback--success">Model settings saved.</p>
+      )}
 
+      {loading ? (
+        <p className="settings-loading-text">Loading Gemini model settings…</p>
+      ) : (
+        <>
       <div className="settings-gemini-grid">
         <div className="form-group">
           <label className="form-label" htmlFor="gemini-primary-model">
@@ -152,16 +171,8 @@ export default function GeminiModelSettings() {
           </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        className="btn btn-primary btn-sm settings-ack-btn"
-        onClick={handleSave}
-        disabled={loading || saving || !primaryModel.trim()}
-      >
-        <Save size={14} />
-        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save model settings'}
-      </button>
+        </>
+      )}
     </div>
   );
 }

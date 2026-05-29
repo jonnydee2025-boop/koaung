@@ -9,18 +9,17 @@ and control.
 
 ## How jobs are picked
 
-When a render starts (`/render_next`, admin **Render Next**, a **scheduled** or **repeat**
-due-time poll, or an **interval trigger**), the bot reserves **one** row and sets
-`status=processing`. Batch member rows (non-anchor rows in a multi-row **Select Rows**
-rule) are never picked directly — only the anchor row starts a batch job:
+When a render starts (admin **Render Next**, Telegram `/render_next`, or a **scheduled** /
+**repeat** due-time poll), the bot reserves **one** row and sets `status=processing`.
+Batch member rows (non-anchor rows in a multi-row **Select Rows** rule) are never picked
+directly — only the anchor row starts a batch job:
 
 | Source | What it picks |
 |--------|----------------|
 | **Jobs → Schedule** (once) | `scheduled` rows at due `Schedule_Time` |
 | **Jobs → Schedule** (repeat) | `repeat` rows at due `Schedule_Time` (next run) |
 | **30s scheduled poll** | Due `scheduled` and `repeat` rows |
-| **Interval triggers** (Settings) | **`do` rows only** |
-| **Render Next** / `/render_next` | Due `scheduled` / `repeat` first, then `do` |
+| **Render Next** / `/render_next` | **`do` rows only** |
 
 The scheduled poll runs every `SCHEDULE_CHECK_INTERVAL_SECONDS` (default 30s) for
 due **Scheduled** and **Repeat** rows. **`do`** rows are **not** auto-picked by that poll.
@@ -29,13 +28,8 @@ due **Scheduled** and **Repeat** rows. **`do`** rows are **not** auto-picked by 
 **`repeat`** jobs run on a daily or weekly pattern; after a successful upload the
 anchor stays **`repeat`** with an updated **`Schedule_Time`** for the next run.
 
-**Interval triggers** (Settings → Interval Triggers) run on your schedule (weekly,
-daily time, or one custom date). Each firing processes **`do`** rows only.
-**`scheduled`** and **`repeat`** jobs are unchanged — they still run at their due
-`Schedule_Time`.
-
-**`pending`** rows are never picked automatically. Set a row to **`do`**, configure
-an interval trigger, or **Schedule** it when you want it rendered.
+**`pending`** rows are never picked automatically. Set a row to **`do`** and use
+**Render Next**, or **Schedule** it when you want it rendered on a timer.
 
 ### Scheduling with batch rules
 
@@ -81,25 +75,6 @@ Per-job repeat is configured from the Jobs tab **Schedule** modal:
   with the next `Schedule_Time`.
 - On failed render: anchor → **`failed`**; repeat config is kept for manual retry.
 - One time slot per job — schedule-once and repeat cannot overlap the same local slot.
-
-**Repeat vs interval triggers:** **Repeat** is per job (anchor row, `repeat` status).
-**Interval triggers** (Settings) fire global schedules that process **`do`** rows only.
-Use repeat when one track/batch should run on its own cadence; use interval triggers
-when many **`do`** rows should render at shared times.
-
-### Interval triggers (Settings)
-
-Configure in **Settings → Interval Triggers**:
-
-| Type | Example |
-|------|---------|
-| **Weekly** | Mon/Wed/Fri at 09:00 |
-| **Daily time** | Every day at 18:30 |
-| **Custom date (once)** | 2026-06-01 10:00 (fires once) |
-
-- Only **`do`** rows are processed; **`scheduled`** and **`repeat`** rows are not affected.
-- Persisted in `interval_triggers.json` on the server.
-- Poll interval: `INTERVAL_TRIGGER_CHECK_SECONDS` (default 60s).
 
 When you **Schedule** any row in a batch from the Jobs tab, the schedule is applied
 to the **anchor row** (first row in Select Rows). Member rows stay **`pending`**.
@@ -309,10 +284,9 @@ Example row-rules file: `row_range_rules.example.json`.
 | `video_bot/sheets.py` | Sheet read/write, queue reserve, schedule, auto-do |
 | `video_bot/drive.py` | Drive listing, downloads, row-rule media |
 | `video_bot/row_rules.py` | Load/save/validate row-range rules |
-| `video_bot/interval_triggers.py` | Settings interval triggers (do-only render times) |
 | `video_bot/repeat_jobs.py` | Per-anchor repeat config (`repeat_jobs.json`) |
 | `video_bot/schedule_time.py` | Parse/compare `Schedule_Time` |
-| `video_bot/scheduler.py` | Scheduled poll + interval trigger loops |
+| `video_bot/scheduler.py` | Scheduled / repeat due-time poll loop |
 | `video_bot/jobs/` | Render pipeline (`runner.py`, `pipeline.py`, …) |
 | `video_bot/media.py` | FFmpeg render and audio enhance |
 | `video_bot/thumbnails.py` | Template or Drive thumbnail for a row |
@@ -324,7 +298,7 @@ Example row-rules file: `row_range_rules.example.json`.
 
 ## Security notes
 
-- Do not commit `.env`, `token.json`, `client_secret.json`, `row_range_rules.json`, `interval_triggers.json`, `repeat_jobs.json`, `gemini_models.json`, or `gemini_youtube_prompt.json`.
+- Do not commit `.env`, `token.json`, `client_secret.json`, `row_range_rules.json`, `repeat_jobs.json`, `gemini_models.json`, or `gemini_youtube_prompt.json`.
 - Do not set `VITE_ADMIN_API_KEY` in production builds (users sign in with the API key).
 - Run a single bot instance per sheet to avoid Telegram `getUpdates` conflicts.
 

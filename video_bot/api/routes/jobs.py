@@ -1,6 +1,7 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
+from ..calendar import build_calendar_events
 from ..http_errors import http_error_from_value
 from ..job_listing import (
     all_jobs_sorted,
@@ -18,7 +19,7 @@ from ...sheets import (
     schedule_job_row,
     update_sheet_row_status,
 )
-from ...media import iter_remote_file
+from ...media import stream_remote_file
 
 router = APIRouter(tags=["jobs"])
 
@@ -82,8 +83,19 @@ def list_jobs(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.get("/jobs/calendar")
+def calendar_jobs(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+):
+    try:
+        return {"events": build_calendar_events(year, month)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.get("/jobs/{row_number}/audio")
-def stream_job_audio(row_number: int):
+def stream_job_audio(row_number: int, request: Request):
     try:
         row = find_sheet_row(row_number)
         if row is None:
@@ -92,9 +104,17 @@ def stream_job_audio(row_number: int):
         if not mp3_url:
             raise HTTPException(status_code=404, detail=f"Row {row_number} has no mp3_url.")
 
+        range_header = request.headers.get("range")
+        status_code, headers, body = stream_remote_file(
+            mp3_url,
+            range_header=range_header,
+        )
+        media_type = headers.pop("Content-Type", "audio/mpeg")
         return StreamingResponse(
-            iter_remote_file(mp3_url),
-            media_type="audio/mpeg",
+            body,
+            status_code=status_code,
+            media_type=media_type,
+            headers=headers,
         )
     except HTTPException:
         raise

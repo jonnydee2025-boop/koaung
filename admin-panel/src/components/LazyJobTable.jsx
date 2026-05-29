@@ -5,7 +5,7 @@ import Mp3PlayerModal from './Mp3PlayerModal';
 import JobStatusSelect from './JobStatusSelect';
 import Skeleton from './Skeleton';
 import { RotateCcw, ExternalLink, CalendarClock, NotebookText } from 'lucide-react';
-import { isDoneStatus } from '../data/statusTheme';
+import { isDoneStatus, isPendingStatus } from '../data/statusTheme';
 
 const PAGE_SIZE = 25;
 
@@ -128,7 +128,7 @@ export default function LazyJobTable({
                 ) : (
                   <StatusBadge status={job.status} />
                 )}
-                {job.schedule_time && (
+                {job.schedule_time && !isPendingStatus(job.status) && (
                   <div className="text-muted" style={{ fontSize: 10, marginTop: 4 }}>
                     {new Date(job.schedule_time).toLocaleString()}
                   </div>
@@ -149,7 +149,7 @@ export default function LazyJobTable({
                 )}
               </td>
               <td>
-                {(job.logs || '').trim() ? (
+                {(job.logs || '').trim() && !isPendingStatus(job.status) ? (
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm job-log-btn"

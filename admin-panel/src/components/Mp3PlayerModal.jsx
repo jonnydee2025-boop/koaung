@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { fetchJobAudioBlob } from '../data/api';
+import { jobAudioStreamUrl } from '../data/api';
 
 function formatAudioDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -23,7 +23,6 @@ function sheetDurationLabel(duration) {
 
 export default function Mp3PlayerModal({ job, open, onClose }) {
   const audioRef = useRef(null);
-  const objectUrlRef = useRef('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [audioSrc, setAudioSrc] = useState('');
@@ -37,42 +36,14 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
     const sheetDuration = sheetDurationLabel(job.duration);
     setDisplayDuration(sheetDuration);
     setError('');
-    setAudioSrc('');
     setLoading(true);
+    setAudioSrc(jobAudioStreamUrl(job.row));
 
-    let cancelled = false;
-
-    fetchJobAudioBlob(job.row)
-      .then((blob) => {
-        if (cancelled) {
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        objectUrlRef.current = url;
-        setAudioSrc(url);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e.message || 'Failed to load audio.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    return undefined;
   }, [open, job]);
 
   useEffect(() => {
     if (!open) {
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = '';
-      }
       if (audioRef.current) {
         audioRef.current.pause();
       }
@@ -99,11 +70,21 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
   }, [open, onClose]);
 
   const handleLoadedMetadata = () => {
+    setLoading(false);
     if (sheetDurationLabel(job?.duration)) {
       return;
     }
     const seconds = audioRef.current?.duration;
     setDisplayDuration(formatAudioDuration(seconds));
+  };
+
+  const handleCanPlay = () => {
+    setLoading(false);
+  };
+
+  const handleAudioError = () => {
+    setLoading(false);
+    setError('Failed to load audio. Check your connection or sign in again.');
   };
 
   if (!open || !job) {
@@ -142,7 +123,7 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
         {error && <p className="login-error mp3-player-error">{error}</p>}
 
         {loading && !error && (
-          <p className="text-muted mp3-player-loading">Loading audio…</p>
+          <p className="text-muted mp3-player-loading">Buffering audio…</p>
         )}
 
         {audioSrc && !error && (
@@ -151,8 +132,11 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
             className="mp3-player-audio"
             controls
             autoPlay
+            preload="auto"
             src={audioSrc}
             onLoadedMetadata={handleLoadedMetadata}
+            onCanPlay={handleCanPlay}
+            onError={handleAudioError}
           />
         )}
 
