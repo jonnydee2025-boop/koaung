@@ -27,11 +27,14 @@ export async function fetchJobsPage({
   return requestJson(`${API_BASE}/api/jobs?${params}`, undefined, 'Jobs failed');
 }
 
-export async function fetchCalendarEvents(year, month) {
+export async function fetchCalendarEvents(year, month, { refresh = false } = {}) {
   const params = new URLSearchParams({
     year: String(year),
     month: String(month),
   });
+  if (refresh) {
+    params.set('refresh', 'true');
+  }
   return requestJson(
     `${API_BASE}/api/jobs/calendar?${params}`,
     undefined,

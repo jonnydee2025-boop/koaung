@@ -16,8 +16,10 @@ class MonthRangeTests(unittest.TestCase):
 
 
 class BuildCalendarEventsTests(unittest.TestCase):
+    @patch("video_bot.api.calendar.load_repeat_jobs")
     @patch("video_bot.api.calendar.all_jobs_sorted")
-    def test_scheduled_job_in_month(self, mock_jobs) -> None:
+    def test_scheduled_job_in_month(self, mock_jobs, mock_load_repeat) -> None:
+        mock_load_repeat.return_value = {}
         mock_jobs.return_value = [
             {
                 "row": 10,
@@ -32,15 +34,15 @@ class BuildCalendarEventsTests(unittest.TestCase):
         self.assertEqual(events[0]["kind"], "scheduled")
         self.assertEqual(events[0]["row"], 10)
 
-    @patch("video_bot.api.calendar.get_repeat_job")
+    @patch("video_bot.api.calendar.load_repeat_jobs")
     @patch("video_bot.api.calendar.all_jobs_sorted")
     def test_repeat_job_expanded_in_month(
         self,
         mock_jobs,
-        mock_get_repeat,
+        mock_load_repeat,
     ) -> None:
         job = RepeatJob(anchor_row=20, repeat_type="daily", time="07:00", timezone="UTC")
-        mock_get_repeat.return_value = job
+        mock_load_repeat.return_value = {20: job}
         mock_jobs.return_value = [
             {
                 "row": 20,
@@ -55,13 +57,60 @@ class BuildCalendarEventsTests(unittest.TestCase):
         self.assertTrue(all(event["kind"] == "repeat" for event in events))
         self.assertEqual(events[0]["row"], 20)
 
+    @patch("video_bot.api.calendar.load_repeat_jobs")
+    @patch("video_bot.api.calendar.all_jobs_sorted")
+    def test_repeat_from_json_even_when_sheet_status_pending(
+        self,
+        mock_jobs,
+        mock_load_repeat,
+    ) -> None:
+        job = RepeatJob(anchor_row=20, repeat_type="daily", time="07:00", timezone="UTC")
+        mock_load_repeat.return_value = {20: job}
+        mock_jobs.return_value = [
+            {
+                "row": 20,
+                "title": "Daily talk",
+                "status": "pending",
+                "monk": "U Pandita",
+                "schedule_time": "",
+            }
+        ]
+        events = build_calendar_events(2026, 6)
+        self.assertGreaterEqual(len(events), 28)
+        self.assertTrue(all(event["kind"] == "repeat" for event in events))
+
+    @patch("video_bot.api.calendar.load_repeat_jobs")
+    @patch("video_bot.api.calendar.all_jobs_sorted")
+    def test_repeat_fallback_from_schedule_time_without_json(
+        self,
+        mock_jobs,
+        mock_load_repeat,
+    ) -> None:
+        mock_load_repeat.return_value = {}
+        mock_jobs.return_value = [
+            {
+                "row": 30,
+                "title": "Orphan repeat",
+                "status": "repeat",
+                "monk": "",
+                "schedule_time": "2026-06-12T07:00:00+00:00",
+            }
+        ]
+        events = build_calendar_events(2026, 6)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["kind"], "repeat")
+        self.assertEqual(events[0]["row"], 30)
+
     @patch("video_bot.api.calendar.datetime")
+    @patch("video_bot.api.calendar.load_repeat_jobs")
     @patch("video_bot.api.calendar.all_jobs_sorted")
     def test_do_job_on_today_when_month_includes_today(
         self,
         mock_jobs,
+        mock_load_repeat,
         mock_datetime,
     ) -> None:
+        mock_load_repeat.return_value = {}
         fixed_today = datetime(2026, 6, 15, tzinfo=timezone.utc)
         mock_datetime.now.return_value = fixed_today
         mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
@@ -86,12 +135,15 @@ class BuildCalendarEventsTests(unittest.TestCase):
         self.assertEqual(at.minute, 5)
 
     @patch("video_bot.api.calendar.datetime")
+    @patch("video_bot.api.calendar.load_repeat_jobs")
     @patch("video_bot.api.calendar.all_jobs_sorted")
     def test_do_job_not_in_other_month(
         self,
         mock_jobs,
+        mock_load_repeat,
         mock_datetime,
     ) -> None:
+        mock_load_repeat.return_value = {}
         fixed_today = datetime(2026, 6, 15, tzinfo=timezone.utc)
         mock_datetime.now.return_value = fixed_today
         mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
@@ -130,7 +182,7 @@ class RepeatExpansionConsistencyTests(unittest.TestCase):
             expected.append(nxt)
             cursor = nxt
 
-        with patch("video_bot.api.calendar.get_repeat_job", return_value=job):
+        with patch("video_bot.api.calendar.load_repeat_jobs", return_value={1: job}):
             with patch(
                 "video_bot.api.calendar.all_jobs_sorted",
                 return_value=[

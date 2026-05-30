@@ -108,7 +108,7 @@ export function useCalendarEvents(year, month, options = {}) {
   const enabled = options.enabled ?? true;
   const cacheKey = calendarCacheKey(year, month);
   const fetcher = useCallback(
-    () => fetchCalendarEvents(year, month),
+    (force) => fetchCalendarEvents(year, month, { refresh: Boolean(force) }),
     [year, month],
   );
   const query = useCachedQuery(cacheKey, fetcher, {

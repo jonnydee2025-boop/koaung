@@ -87,8 +87,11 @@ def list_jobs(
 def calendar_jobs(
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
+    refresh: bool = Query(default=False),
 ):
     try:
+        if refresh:
+            invalidate_sheet_cache()
         return {"events": build_calendar_events(year, month)}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
