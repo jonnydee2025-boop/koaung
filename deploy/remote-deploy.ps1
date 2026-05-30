@@ -195,8 +195,16 @@ $corsOrigin = if ($Domain -match '^\d+\.\d+\.\d+\.\d+$') { "http://${Domain}" } 
 Invoke-Ssh ('sed -i ''s|YOUR_DOMAIN.com|{0}|g'' {1}/.env 2>/dev/null; true' -f $Domain, $AppDir)
 Invoke-Ssh ('sed -i ''s|^ADMIN_API_CORS_ORIGINS=.*|ADMIN_API_CORS_ORIGINS={0}|'' {1}/.env 2>/dev/null; true' -f $corsOrigin, $AppDir)
 
-# nginx + systemd
-Invoke-Ssh "sed 's/YOUR_DOMAIN.com/$Domain/g' ${AppDir}/deploy/nginx/videobot.conf > /etc/nginx/sites-available/videobot"
+# nginx — preserve SSL when certs exist, otherwise HTTP only
+$nginxCmd = ('CERT="/etc/letsencrypt/live/{0}/fullchain.pem"; ' +
+  'if [ -f "$CERT" ]; then ' +
+    'sed "s/YOUR_DOMAIN.com/{0}/g" {1}/deploy/nginx/videobot.ssl.conf > /etc/nginx/sites-available/videobot; ' +
+    'echo "==> nginx SSL config ({0})"; ' +
+  'else ' +
+    'sed "s/YOUR_DOMAIN.com/{0}/g" {1}/deploy/nginx/videobot.conf > /etc/nginx/sites-available/videobot; ' +
+    'echo "==> nginx HTTP config — run certbot to enable HTTPS"; ' +
+  'fi') -f $Domain, $AppDir
+Invoke-Ssh $nginxCmd
 Invoke-Ssh 'ln -sf /etc/nginx/sites-available/videobot /etc/nginx/sites-enabled/videobot; nginx -t; systemctl reload nginx'
 
 Invoke-Ssh 'systemctl restart videobot; systemctl start videobot'
