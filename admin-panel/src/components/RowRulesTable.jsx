@@ -18,6 +18,16 @@ function emptyRule() {
   };
 }
 
+function ruleAnchorRow(batchRows) {
+  const first = String(batchRows ?? '')
+    .trim()
+    .split(/[\s,]+/)
+    .filter(Boolean)[0];
+  if (!first) return 0;
+  const value = Number(first);
+  return Number.isFinite(value) ? value : 0;
+}
+
 function parseBatchRowCount(raw) {
   if (!raw || !String(raw).trim()) return 0;
   return String(raw)
@@ -61,7 +71,7 @@ function mapRulesFromApi(rulesData) {
     : [emptyRule()];
 }
 
-function SelectMedia({ id, value, options, disabled, onChange }) {
+function SelectMedia({ id, value, options, disabled, onChange, title }) {
   return (
     <select
       id={id}
@@ -69,7 +79,9 @@ function SelectMedia({ id, value, options, disabled, onChange }) {
       value={value}
       disabled={disabled}
       onChange={onChange}
-      title={options.find((o) => o.id === value)?.name ?? 'Default'}
+      title={
+        title ?? options.find((o) => o.id === value)?.name ?? 'Default'
+      }
     >
       <option value="">— Default —</option>
       {options.map((opt) => (
@@ -93,6 +105,8 @@ export default function RowRulesTable({ embedded = false, query }) {
   const loading = query.isInitialLoad;
   const refreshing = query.refreshing;
   const rowDisabled = loading || refreshing || refreshingDrive || saving;
+
+  const repeatAnchors = new Set(query.data?.rulesData?.repeat_anchors ?? []);
 
   useEffect(() => {
     const bundle = query.data;
@@ -152,6 +166,8 @@ export default function RowRulesTable({ embedded = false, query }) {
         .map((r) => {
           const batchRows = String(r.batch_rows).trim();
           const firstRow = batchRows.split(/[\s,]+/).filter(Boolean)[0];
+          const anchorRow = ruleAnchorRow(batchRows);
+          const isRepeatAnchor = repeatAnchors.has(anchorRow);
           return {
             from_row: Number(firstRow),
             to_row: null,
@@ -161,11 +177,12 @@ export default function RowRulesTable({ embedded = false, query }) {
               r.background_video_name ||
               backgrounds.find((b) => b.id === r.background_video_id)?.name ||
               '',
-            thumbnail_file_id: r.thumbnail_file_id || '',
-            thumbnail_name:
-              r.thumbnail_name ||
-              thumbnails.find((t) => t.id === r.thumbnail_file_id)?.name ||
-              '',
+            thumbnail_file_id: isRepeatAnchor ? '' : r.thumbnail_file_id || '',
+            thumbnail_name: isRepeatAnchor
+              ? ''
+              : r.thumbnail_name ||
+                thumbnails.find((t) => t.id === r.thumbnail_file_id)?.name ||
+                '',
             background_loop_count:
               parseBatchRowCount(batchRows) > 1 ||
               r.background_loop_count === '' ||
@@ -204,7 +221,8 @@ export default function RowRulesTable({ embedded = false, query }) {
           </div>
           <p className={embedded ? 'settings-studio-panel-subtitle' : 'settings-section-hint'}>
             Map sheet rows to background video, thumbnail, and loop count. First row in{' '}
-            <strong>Select Rows</strong> is the anchor.
+            <strong>Select Rows</strong> is the anchor. Thumbnails for <code>repeat</code> rows are
+            set under Jobs → Schedule → Repeat.
           </p>
           {!embedded && (
             <>
@@ -272,6 +290,8 @@ export default function RowRulesTable({ embedded = false, query }) {
             {rules.map((rule, index) => {
               const batchCount = parseBatchRowCount(rule.batch_rows);
               const isMultiBatch = batchCount > 1;
+              const anchorRow = ruleAnchorRow(rule.batch_rows);
+              const isRepeatAnchor = repeatAnchors.has(anchorRow);
               return (
                 <div key={index} className="row-rules-row">
                   <input
@@ -303,9 +323,14 @@ export default function RowRulesTable({ embedded = false, query }) {
                   />
                   <SelectMedia
                     id={`thumb-${index}`}
-                    value={rule.thumbnail_file_id}
+                    value={isRepeatAnchor ? '' : rule.thumbnail_file_id}
                     options={thumbnails}
-                    disabled={rowDisabled}
+                    disabled={rowDisabled || isRepeatAnchor}
+                    title={
+                      isRepeatAnchor
+                        ? 'Repeat row — set thumbnails in Jobs → Schedule → Repeat'
+                        : undefined
+                    }
                     onChange={(e) => {
                       const opt = thumbnails.find((t) => t.id === e.target.value);
                       updateRule(index, {

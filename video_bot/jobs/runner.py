@@ -9,6 +9,7 @@ from ..sheets import (
     reserve_next_pending_row,
     update_task_status,
 )
+from ..repeat_jobs import get_repeat_job
 from ..row_rules import resolve_batch_anchor_row, row_has_thumbnail
 from ..state import current_render, retry_jobs
 from ..youtube import (
@@ -130,7 +131,7 @@ def _retry_sheet_update(
             log_message,
         )
         retry_jobs.pop(retry_id, None)
-        if job.workdir is not None:
+        if job.workdir is not None and get_repeat_job(job.row.row_number) is None:
             purge_workdir(job.workdir)
         if job_progress is not None:
             job_progress("Finished", None)
@@ -179,10 +180,12 @@ def _retry_youtube_upload(
             job_progress,
             tags=job.tags or [],
         )
-        unlink_if_exists(job.video_path)
-        if job.workdir is not None:
-            for name in ("background.mp4", "audio.mp3", "audio_enhanced.wav"):
-                unlink_if_exists(job.workdir / name)
+        is_repeat = get_repeat_job(job.row.row_number) is not None
+        if not is_repeat:
+            unlink_if_exists(job.video_path)
+            if job.workdir is not None:
+                for name in ("background.mp4", "audio.mp3", "audio_enhanced.wav"):
+                    unlink_if_exists(job.workdir / name)
 
         thumbnail_warning = ""
         if job.thumbnail_path is not None:
@@ -220,9 +223,16 @@ def _retry_youtube_upload(
         )
 
         retry_jobs.pop(retry_id, None)
-        unlink_if_exists(job.thumbnail_path)
-        if job.workdir is not None:
-            purge_workdir(job.workdir)
+        if not is_repeat:
+            unlink_if_exists(job.thumbnail_path)
+            if job.workdir is not None:
+                purge_workdir(job.workdir)
+        elif job.workdir is not None:
+            logger.info(
+                "Repeat row %s: keeping render workdir %s after retry upload",
+                job.row.row_number,
+                job.workdir,
+            )
 
         if job_progress is not None:
             job_progress("Finished", None)

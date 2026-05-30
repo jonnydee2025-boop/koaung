@@ -43,6 +43,11 @@ def row_to_job_dict(row: Any, headers: list[str]) -> dict:
             "repeat_time": repeat_job.time,
             "timezone": repeat_job.timezone,
             "days_of_week": repeat_job.days_of_week,
+            "thumbnails": [
+                {"file_id": thumb.file_id, "name": thumb.name}
+                for thumb in repeat_job.thumbnails
+            ],
+            "run_count": repeat_job.run_count,
         }
 
     return {

@@ -13,6 +13,8 @@ from .row_rules import (
 )
 from .repeat_jobs import (
     RepeatJob,
+    RepeatThumbnail,
+    bump_repeat_run_count,
     compute_next_run,
     delete_repeat_job,
     get_repeat_job,
@@ -21,6 +23,7 @@ from .repeat_jobs import (
     resolve_repeat_job,
     save_repeat_job,
 )
+from .row_rules import clear_row_rule_thumbnail_for_anchor
 from .schedule_time import (
     normalize_schedule_time,
     read_row_schedule_time,
@@ -573,6 +576,7 @@ def reschedule_repeat_anchor_after_upload(
         f"{log_message} Next repeat: {schedule_time_storage_value(next_run)}. "
         f"{repeat_job_description(job)}.",
     )
+    bump_repeat_run_count(anchor_row)
 
 
 def schedule_job_row(
@@ -584,6 +588,7 @@ def schedule_job_row(
     repeat_time: str = "07:00",
     days_of_week: list[int] | None = None,
     timezone: str = "UTC",
+    repeat_thumbnails: list[dict[str, str]] | None = None,
 ) -> dict[str, str | int | bool]:
     if mode == "repeat":
         return schedule_sheet_row_repeat(
@@ -592,6 +597,7 @@ def schedule_job_row(
             repeat_time=repeat_time,
             days_of_week=days_of_week or [],
             job_timezone=timezone,
+            repeat_thumbnails=repeat_thumbnails or [],
         )
     if not schedule_time_raw:
         raise ValueError("Schedule time is required for one-time schedule.")
@@ -678,6 +684,7 @@ def schedule_sheet_row_repeat(
     repeat_time: str,
     days_of_week: list[int],
     job_timezone: str,
+    repeat_thumbnails: list[dict[str, str]] | None = None,
 ) -> dict[str, str | int | bool]:
     """Set anchor to repeat status with next Schedule_Time from repeat config."""
     sheets, _ = build_google_services()
@@ -708,12 +715,27 @@ def schedule_sheet_row_repeat(
     if anchor.values.get("status", "").strip().lower() == "processing":
         raise ValueError(f"Row {anchor_number} is currently processing.")
 
+    thumbnails: list[RepeatThumbnail] = []
+    for item in repeat_thumbnails or []:
+        file_id = str(item.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        thumbnails.append(
+            RepeatThumbnail(
+                file_id=file_id,
+                name=str(item.get("name") or "").strip(),
+            )
+        )
+
+    existing = get_repeat_job(anchor_number)
     repeat_job = RepeatJob(
         anchor_row=anchor_number,
         repeat_type=repeat_type,  # type: ignore[arg-type]
         time=repeat_time,
         days_of_week=list(days_of_week),
         timezone=job_timezone,
+        thumbnails=thumbnails,
+        run_count=existing.run_count if existing is not None else 0,
     )
 
     conflict_message = find_time_slot_conflict_repeat(
@@ -731,6 +753,7 @@ def schedule_sheet_row_repeat(
 
     next_run = compute_next_run(repeat_job, after=datetime.now(timezone.utc))
     save_repeat_job(repeat_job)
+    clear_row_rule_thumbnail_for_anchor(anchor_number)
     previous = anchor.values.get("status", "").strip().lower()
     update_schedule_time(sheets, headers, anchor_number, next_run)
     update_task_status(

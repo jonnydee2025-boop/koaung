@@ -35,7 +35,14 @@ from ...gemini_settings import (
     save_gemini_model_settings,
     validate_gemini_model_settings,
 )
-from ...row_rules import load_row_rules, save_row_rules, validate_row_rules
+from ...repeat_jobs import load_repeat_jobs
+from ...row_rules import (
+    load_row_rules,
+    save_row_rules,
+    validate_row_rules,
+    validate_row_rules_for_repeat_anchors,
+)
+from ...sheet_cache import get_cached_sheet_rows
 from ...sheets import auto_trigger_do_for_row_rules
 
 router = APIRouter(tags=["settings"])
@@ -120,7 +127,15 @@ def put_gemini_prompt(body: GeminiPromptSettingsPayload):
 
 @router.get("/settings/row-rules")
 def get_row_rules():
-    return {"rules": [row_rule_to_dict(rule) for rule in load_row_rules()]}
+    _, rows = get_cached_sheet_rows()
+    repeat_anchors: set[int] = set(load_repeat_jobs().keys())
+    for row in rows:
+        if row.values.get("status", "").strip().lower() == "repeat":
+            repeat_anchors.add(row.row_number)
+    return {
+        "rules": [row_rule_to_dict(rule) for rule in load_row_rules()],
+        "repeat_anchors": sorted(repeat_anchors),
+    }
 
 
 @router.put("/settings/row-rules")
@@ -128,6 +143,12 @@ def put_row_rules(body: RowRulesUpdateRequest):
     try:
         rules = [payload_to_row_rule(item) for item in body.rules]
         validate_row_rules(rules)
+        _, rows = get_cached_sheet_rows()
+        repeat_anchors: set[int] = set(load_repeat_jobs().keys())
+        for row in rows:
+            if row.values.get("status", "").strip().lower() == "repeat":
+                repeat_anchors.add(row.row_number)
+        validate_row_rules_for_repeat_anchors(rules, repeat_anchors)
         save_row_rules(rules)
         trigger_result = auto_trigger_do_for_row_rules(rules)
         return {

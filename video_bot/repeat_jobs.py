@@ -39,12 +39,22 @@ DEFAULT_REPEAT_TIMEZONE = "Asia/Yangon"
 
 
 @dataclass
+class RepeatThumbnail:
+    file_id: str
+    name: str = ""
+
+
+@dataclass
 class RepeatJob:
     anchor_row: int
     repeat_type: RepeatType
     time: str = "07:00"
     days_of_week: list[int] = field(default_factory=list)
     timezone: str = "UTC"
+    """Ordered thumbnails: run N uses thumbnails[N] (0-based). Empty slots after the list."""
+    thumbnails: list[RepeatThumbnail] = field(default_factory=list)
+    """Successful uploads completed; next render uses thumbnails[run_count]."""
+    run_count: int = 0
 
 
 def _parse_time(text: str) -> tuple[int, int]:
@@ -59,6 +69,50 @@ def _zoneinfo(name: str) -> ZoneInfo:
         return ZoneInfo(name)
     except ZoneInfoNotFoundError as exc:
         raise ValueError(f"Unknown timezone: {name!r}") from exc
+
+
+def _parse_repeat_thumbnails(raw: Any) -> list[RepeatThumbnail]:
+    if not isinstance(raw, list):
+        return []
+    items: list[RepeatThumbnail] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        file_id = str(entry.get("file_id") or entry.get("thumbnail_file_id") or "").strip()
+        if not file_id:
+            continue
+        items.append(
+            RepeatThumbnail(
+                file_id=file_id,
+                name=str(entry.get("name") or entry.get("thumbnail_name") or "").strip(),
+            )
+        )
+    return items
+
+
+def repeat_run_has_thumbnail(job: RepeatJob) -> bool:
+    index = max(job.run_count, 0)
+    if index >= len(job.thumbnails):
+        return False
+    return bool(job.thumbnails[index].file_id.strip())
+
+
+def repeat_thumbnail_for_run(job: RepeatJob) -> RepeatThumbnail | None:
+    index = max(job.run_count, 0)
+    if index >= len(job.thumbnails):
+        return None
+    thumb = job.thumbnails[index]
+    if not thumb.file_id.strip():
+        return None
+    return thumb
+
+
+def bump_repeat_run_count(anchor_row: int) -> None:
+    job = load_repeat_jobs().get(anchor_row)
+    if job is None:
+        return
+    job.run_count += 1
+    save_repeat_job(job)
 
 
 def _repeat_from_dict(data: dict[str, Any]) -> RepeatJob:
@@ -77,12 +131,20 @@ def _repeat_from_dict(data: dict[str, Any]) -> RepeatJob:
     anchor_row = int(data.get("anchor_row", 0))
     if anchor_row < 1:
         raise ValueError("anchor_row is required.")
+    run_count_raw = data.get("run_count", 0)
+    try:
+        run_count = max(0, int(run_count_raw))
+    except (TypeError, ValueError):
+        run_count = 0
+
     return RepeatJob(
         anchor_row=anchor_row,
         repeat_type=repeat_type,  # type: ignore[arg-type]
         time=str(data.get("time") or "07:00").strip(),
         days_of_week=days,
         timezone=str(data.get("timezone") or "UTC").strip() or "UTC",
+        thumbnails=_parse_repeat_thumbnails(data.get("thumbnails")),
+        run_count=run_count,
     )
 
 

@@ -10,11 +10,21 @@ from ..gemini_youtube_metadata import generate_youtube_metadata
 from ..drive import prepare_background_video
 from ..media import download_file, enhance_audio, render_video
 from ..models import RenderTaskFailed, RetryJob, SheetRow
-from ..repeat_jobs import get_repeat_job
-from ..row_rules import get_background_loop_count_for_row, get_batch_rule_for_anchor, row_has_thumbnail
+from ..repeat_jobs import (
+    bump_repeat_run_count,
+    get_repeat_job,
+    load_repeat_jobs,
+    repeat_run_has_thumbnail,
+    repeat_thumbnail_for_run,
+)
+from ..row_rules import (
+    get_background_loop_count_for_row,
+    get_batch_rule_for_anchor,
+    row_has_thumbnail,
+)
 from ..sheets import get_sheet_rows, get_sheet_rows_by_numbers, reschedule_repeat_anchor_after_upload, update_task_status
 from ..state import current_render, register_retry_job
-from ..thumbnails import prepare_row_thumbnail
+from ..thumbnails import prepare_drive_thumbnail, prepare_row_thumbnail
 from ..youtube import (
     finalize_video_privacy,
     resolve_final_privacy,
@@ -28,6 +38,8 @@ from .upload_log import build_upload_log_message
 from .workdir import (
     cleanup_stale_workdirs,
     delete_render_files_after_youtube_upload,
+    find_render_workdir,
+    find_rendered_video,
     purge_workdir,
     unlink_if_exists,
 )
@@ -65,29 +77,70 @@ def process_reserved_row(
     logger.info("Task started: row %s%s", row.row_number, " (batch)" if is_batch else "")
     logger.info("Title: %s", title)
 
-    cleanup_stale_workdirs()
+    repeat_job = get_repeat_job(row.row_number)
+    is_repeat = repeat_job is not None and not is_batch
+
+    existing_workdir = find_render_workdir(row.row_number) if is_repeat else None
+    existing_video = find_rendered_video(existing_workdir) if existing_workdir else None
+    reuse_render = bool(existing_video)
+
+    cleanup_stale_workdirs(protected_row_numbers=set(load_repeat_jobs().keys()))
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
-    workdir = Path(tempfile.mkdtemp(prefix=f"render_{row.row_number}_", dir=TMP_ROOT))
+
+    if reuse_render and existing_workdir is not None and existing_video is not None:
+        workdir = existing_workdir
+        video_path = existing_video
+        logger.info(
+            "Repeat row %s: reusing cached render %s (thumbnail-only refresh when rule set)",
+            row.row_number,
+            video_path,
+        )
+    else:
+        workdir = Path(tempfile.mkdtemp(prefix=f"render_{row.row_number}_", dir=TMP_ROOT))
+        video_path = workdir / f"{uuid.uuid4().hex}.mp4"
 
     mp3_path = workdir / "audio.mp3"
     enhanced_audio_path = workdir / "audio_enhanced.wav"
     render_audio_path = mp3_path
     background_path = workdir / "background.mp4"
-    video_path = workdir / f"{uuid.uuid4().hex}.mp4"
     thumbnail_path: Path | None = None
-    cleanup_workdir = True
+    cleanup_workdir = not is_repeat
     uploaded_video_id = None
     thumbnail_warning = ""
     upload_description = description
     upload_tags: list[str] = []
 
     try:
-        if is_batch:
+        if reuse_render:
+            if job_progress is not None:
+                job_progress("Reusing cached render (repeat)", None)
+        elif is_batch:
             render_audio_path = prepare_batch_audio(
                 all_rows=all_rows,
                 batch_row_numbers=batch_row_numbers,
                 workdir=workdir,
                 job_progress=job_progress,
+            )
+            if job_progress is not None:
+                job_progress("Preparing background video", None)
+            background_source = prepare_background_video(
+                background_path, row_number=row.row_number
+            )
+            logger.info("Background video: %s", background_source)
+            if job_progress is not None:
+                job_progress("Finished background video", None)
+            logger.info(
+                "Batch render for rows %s: auto background loop over combined audio",
+                ", ".join(str(number) for number in batch_row_numbers),
+            )
+            if job_progress is not None:
+                job_progress("Rendering video", None)
+            render_video(
+                render_audio_path,
+                background_path,
+                video_path,
+                job_progress,
+                background_loop_count=None,
             )
         else:
             mp3_url = get_required(row, "mp3_url")
@@ -107,41 +160,54 @@ def process_reserved_row(
             elif job_progress is not None:
                 job_progress("Audio enhancement disabled", None)
 
-        if job_progress is not None:
-            job_progress("Preparing background video", None)
-        background_source = prepare_background_video(
-            background_path, row_number=row.row_number
-        )
-        logger.info("Background video: %s", background_source)
-        if job_progress is not None:
-            job_progress("Finished background video", None)
+            if job_progress is not None:
+                job_progress("Preparing background video", None)
+            background_source = prepare_background_video(
+                background_path, row_number=row.row_number
+            )
+            logger.info("Background video: %s", background_source)
+            if job_progress is not None:
+                job_progress("Finished background video", None)
 
-        loop_count = None if is_batch else get_background_loop_count_for_row(row.row_number)
-        if loop_count is not None:
-            logger.info(
-                "Track + background loop count for row %s: %sx",
-                row.row_number,
-                loop_count,
+            loop_count = get_background_loop_count_for_row(row.row_number)
+            if loop_count is not None:
+                logger.info(
+                    "Track + background loop count for row %s: %sx",
+                    row.row_number,
+                    loop_count,
+                )
+            if job_progress is not None:
+                job_progress("Rendering video", None)
+            render_video(
+                render_audio_path,
+                background_path,
+                video_path,
+                job_progress,
+                background_loop_count=loop_count,
             )
-        elif is_batch:
-            logger.info(
-                "Batch render for rows %s: auto background loop over combined audio",
-                ", ".join(str(number) for number in batch_row_numbers),
-            )
-        if job_progress is not None:
-            job_progress("Rendering video", None)
-        render_video(
-            render_audio_path,
-            background_path,
-            video_path,
-            job_progress,
-            background_loop_count=loop_count,
-        )
 
         thumb_file = workdir / "thumbnail.jpg"
         if job_progress is not None:
             job_progress("Preparing thumbnail", None)
-        thumbnail_source = prepare_row_thumbnail(row.row_number, thumb_file)
+        if is_repeat and repeat_job is not None:
+            repeat_thumb = repeat_thumbnail_for_run(repeat_job)
+            if repeat_thumb is not None:
+                thumbnail_source = prepare_drive_thumbnail(
+                    thumb_file,
+                    row_number=row.row_number,
+                    file_id=repeat_thumb.file_id,
+                    file_name=repeat_thumb.name,
+                )
+            else:
+                thumbnail_source = None
+                logger.info(
+                    "Repeat row %s: no thumbnail for run %s (%s configured)",
+                    row.row_number,
+                    repeat_job.run_count + 1,
+                    len(repeat_job.thumbnails),
+                )
+        else:
+            thumbnail_source = prepare_row_thumbnail(row.row_number, thumb_file)
         if thumbnail_source:
             thumbnail_path = thumb_file
             logger.info("Thumbnail: %s", thumbnail_source)
@@ -179,13 +245,14 @@ def process_reserved_row(
             tags=upload_tags,
         )
         uploaded_video_id = video_id
-        delete_render_files_after_youtube_upload(
-            video_path=video_path,
-            background_path=background_path,
-            mp3_path=mp3_path,
-            enhanced_audio_path=enhanced_audio_path,
-            render_audio_path=render_audio_path,
-        )
+        if not is_repeat:
+            delete_render_files_after_youtube_upload(
+                video_path=video_path,
+                background_path=background_path,
+                mp3_path=mp3_path,
+                enhanced_audio_path=enhanced_audio_path,
+                render_audio_path=render_audio_path,
+            )
 
         if thumbnail_path is not None:
             thumbnail_warning = (
@@ -195,7 +262,10 @@ def process_reserved_row(
 
         if job_progress is not None:
             job_progress("Updating Google Sheet", None)
-        has_row_thumb = row_has_thumbnail(row.row_number)
+        if is_repeat and repeat_job is not None:
+            has_row_thumb = repeat_run_has_thumbnail(repeat_job)
+        else:
+            has_row_thumb = row_has_thumbnail(row.row_number)
         intended_privacy, private_reason = resolve_final_privacy(
             has_row_thumbnail=has_row_thumb,
             thumbnail_warning=thumbnail_warning or None,
@@ -214,7 +284,6 @@ def process_reserved_row(
             thumbnail_warning=thumbnail_warning,
         )
         rows_to_update = batch_row_numbers if is_batch else [row.row_number]
-        repeat_job = get_repeat_job(row.row_number)
         if repeat_job is not None:
             for sheet_row_number in rows_to_update:
                 if sheet_row_number == row.row_number:
@@ -245,9 +314,17 @@ def process_reserved_row(
         if job_progress is not None:
             job_progress("Finished", None)
 
-        unlink_if_exists(thumbnail_path)
-        purge_workdir(workdir)
-        cleanup_workdir = False
+        if is_repeat:
+            cleanup_workdir = False
+            logger.info(
+                "Repeat row %s: keeping render workdir %s for next run",
+                row.row_number,
+                workdir,
+            )
+        else:
+            unlink_if_exists(thumbnail_path)
+            purge_workdir(workdir)
+            cleanup_workdir = False
         return {
             "title": title,
             "monk_name": monk_name,

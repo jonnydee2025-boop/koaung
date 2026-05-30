@@ -123,6 +123,41 @@ def _batch_rows_overlap(rows_a: list[int], rows_b: list[int]) -> bool:
     return bool(set(rows_a) & set(rows_b))
 
 
+def validate_row_rules_for_repeat_anchors(
+    rules: list[RowRangeRule],
+    repeat_anchors: set[int],
+) -> None:
+    """Repeat jobs use Schedule → Repeat thumbnails; row rules must not set a thumbnail."""
+    if not repeat_anchors:
+        return
+    for index, rule in enumerate(rules):
+        if not rule.thumbnail_file_id:
+            continue
+        anchor = batch_anchor_row(rule)
+        if anchor in repeat_anchors:
+            raise ValueError(
+                f"Rule {index + 1}: row #{anchor} is repeat — set thumbnails in "
+                "Jobs → Schedule → Repeat, not in row rules."
+            )
+
+
+def clear_row_rule_thumbnail_for_anchor(anchor_number: int) -> bool:
+    """Remove row-rule thumbnail for a repeat anchor (repeat uses its own thumb list)."""
+    rules = load_row_rules()
+    changed = False
+    for rule in rules:
+        if batch_anchor_row(rule) != anchor_number:
+            continue
+        if rule.thumbnail_file_id:
+            rule.thumbnail_file_id = ""
+            rule.thumbnail_name = ""
+            changed = True
+    if changed:
+        save_row_rules(rules)
+        logger.info("Cleared row-rule thumbnail for repeat anchor row %s", anchor_number)
+    return changed
+
+
 def validate_row_rules(rules: list[RowRangeRule]) -> None:
     if not rules:
         return

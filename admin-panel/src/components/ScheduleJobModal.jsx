@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, X } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, X } from 'lucide-react';
+import { fetchDriveMediaOptions } from '../data/api';
 
 const WEEKDAYS = [
   { value: 0, label: 'Mon' },
@@ -39,6 +40,21 @@ export function localInputToIso(localValue) {
   return parsed.toISOString();
 }
 
+function emptyRepeatThumb() {
+  return { file_id: '', name: '' };
+}
+
+function mapRepeatThumbnailsFromJob(job) {
+  const items = job?.repeat?.thumbnails;
+  if (!Array.isArray(items) || items.length === 0) {
+    return [emptyRepeatThumb()];
+  }
+  return items.map((item) => ({
+    file_id: item.file_id ?? '',
+    name: item.name ?? '',
+  }));
+}
+
 export default function ScheduleJobModal({
   job,
   open,
@@ -63,6 +79,9 @@ export default function ScheduleJobModal({
   const [daysOfWeek, setDaysOfWeek] = useState(
     () => new Set(job?.repeat?.days_of_week?.length ? job.repeat.days_of_week : [0, 1, 2, 3, 4]),
   );
+  const [repeatThumbnails, setRepeatThumbnails] = useState(() => mapRepeatThumbnailsFromJob(job));
+  const [driveThumbnails, setDriveThumbnails] = useState([]);
+  const [loadingThumbs, setLoadingThumbs] = useState(false);
   const [localError, setLocalError] = useState('');
 
   useEffect(() => {
@@ -79,15 +98,42 @@ export default function ScheduleJobModal({
       setDaysOfWeek(
         new Set(job?.repeat?.days_of_week?.length ? job.repeat.days_of_week : [0, 1, 2, 3, 4]),
       );
+      setRepeatThumbnails(mapRepeatThumbnailsFromJob(job));
       setLocalError('');
     }
   }, [open, defaultOnceValue, job]);
+
+  useEffect(() => {
+    if (!open || mode !== 'repeat') return;
+    let cancelled = false;
+    setLoadingThumbs(true);
+    fetchDriveMediaOptions()
+      .then((media) => {
+        if (!cancelled) {
+          setDriveThumbnails(media.thumbnail_images ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDriveThumbnails([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingThumbs(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, mode]);
 
   if (!open || !job) {
     return null;
   }
 
   const minValue = toLocalInputValue(new Date(Date.now() + 60 * 1000));
+  const runCount = job?.repeat?.run_count ?? 0;
 
   const toggleWeekday = (day) => {
     setDaysOfWeek((prev) => {
@@ -99,6 +145,22 @@ export default function ScheduleJobModal({
       }
       return next;
     });
+  };
+
+  const updateRepeatThumb = (index, patch) => {
+    setRepeatThumbnails((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  };
+
+  const addRepeatThumb = () => {
+    setRepeatThumbnails((prev) => [...prev, emptyRepeatThumb()]);
+  };
+
+  const removeRepeatThumb = (index) => {
+    setRepeatThumbnails((prev) =>
+      prev.length <= 1 ? [emptyRepeatThumb()] : prev.filter((_, i) => i !== index),
+    );
   };
 
   const handleSubmit = (e) => {
@@ -114,12 +176,22 @@ export default function ScheduleJobModal({
         if (repeatType === 'weekly' && daysOfWeek.size === 0) {
           throw new Error('Select at least one weekday.');
         }
+        const thumbs = repeatThumbnails
+          .filter((item) => item.file_id)
+          .map((item) => {
+            const opt = driveThumbnails.find((t) => t.id === item.file_id);
+            return {
+              file_id: item.file_id,
+              name: item.name || opt?.name || '',
+            };
+          });
         onSave({
           mode: 'repeat',
           repeat_type: repeatType,
           repeat_time: repeatTime,
           days_of_week: [...daysOfWeek].sort((a, b) => a - b),
           timezone,
+          repeat_thumbnails: thumbs,
         });
       }
     } catch (err) {
@@ -251,7 +323,61 @@ export default function ScheduleJobModal({
                   </option>
                 ))}
               </select>
-              <p className="modal-hint">
+
+              <div className="schedule-repeat-thumbs" style={{ marginTop: 16 }}>
+                <div className="login-label">Repeat thumbnails (in order)</div>
+                <p className="modal-hint" style={{ marginTop: 4, marginBottom: 10 }}>
+                  One thumbnail per repeat run. Run {runCount + 1} uses slot {runCount + 1}.
+                  After the list ends, uploads continue without a thumbnail (private).
+                  Row-based rule thumbnails are disabled for repeat rows.
+                </p>
+                {repeatThumbnails.map((thumb, index) => (
+                  <div key={index} className="schedule-repeat-thumb-row">
+                    <span className="schedule-repeat-thumb-index" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <select
+                      className="login-input schedule-repeat-thumb-select"
+                      value={thumb.file_id}
+                      disabled={saving || loadingThumbs}
+                      onChange={(e) => {
+                        const opt = driveThumbnails.find((t) => t.id === e.target.value);
+                        updateRepeatThumb(index, {
+                          file_id: e.target.value,
+                          name: opt?.name ?? '',
+                        });
+                      }}
+                    >
+                      <option value="">— None —</option>
+                      {driveThumbnails.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm job-action-btn"
+                      onClick={() => removeRepeatThumb(index)}
+                      disabled={saving}
+                      aria-label={`Remove thumbnail ${index + 1}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={addRepeatThumb}
+                  disabled={saving || loadingThumbs}
+                  style={{ marginTop: 8 }}
+                >
+                  <Plus size={14} /> Add thumbnail
+                </button>
+              </div>
+
+              <p className="modal-hint" style={{ marginTop: 12 }}>
                 Re-uploads the same track on each run. Batch jobs apply to the anchor row only.
                 Cannot share a time slot with another job.
               </p>

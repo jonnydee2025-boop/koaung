@@ -115,6 +115,11 @@ def stream_job_audio(row_number: int, request: Request):
 @router.post("/jobs/{row_number}/schedule")
 def schedule_job(row_number: int, body: ScheduleJobRequest):
     try:
+        repeat_thumbnails = [
+            {"file_id": item.file_id.strip(), "name": item.name.strip()}
+            for item in body.repeat_thumbnails
+            if item.file_id.strip()
+        ]
         result = schedule_job_row(
             row_number,
             mode=body.mode,
@@ -123,6 +128,7 @@ def schedule_job(row_number: int, body: ScheduleJobRequest):
             repeat_time=body.repeat_time,
             days_of_week=body.days_of_week,
             timezone=body.timezone,
+            repeat_thumbnails=repeat_thumbnails,
         )
         invalidate_sheet_cache()
         return result

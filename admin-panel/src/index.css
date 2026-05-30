@@ -135,6 +135,20 @@ body {
 .modal-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 .modal-hint { font-size: 11px; color: var(--text-muted); margin: 8px 0 16px; line-height: 1.4; }
 .schedule-mode-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+.schedule-repeat-thumb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.schedule-repeat-thumb-index {
+  flex: 0 0 22px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+}
+.schedule-repeat-thumb-select { flex: 1; min-width: 0; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
 .modal-log-body {
   margin: 4px 0 0;
@@ -2057,6 +2071,12 @@ tbody td:first-child { color: var(--text-primary); font-weight: 500; }
   min-height: 92px;
   background: transparent;
   border-color: transparent;
+}
+.content-calendar-day-past {
+  opacity: 0.45;
+}
+.content-calendar-day-past .content-calendar-day-number {
+  color: var(--text-muted);
 }
 .content-calendar-day-today {
   border-color: var(--accent);

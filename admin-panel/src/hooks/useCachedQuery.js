@@ -1,6 +1,15 @@
 import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { readCache, fetchWithCache } from '../data/queryCache';
 
+function snapshotForKey(cacheKey) {
+  const cached = readCache(cacheKey);
+  return {
+    data: cached?.data ?? null,
+    loading: cached?.data == null,
+    updatedAt: cached?.at ? new Date(cached.at) : null,
+  };
+}
+
 /**
  * Stale-while-revalidate hook: show cached data immediately, refresh in background.
  */
@@ -14,52 +23,72 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  const initial = readCache(cacheKey);
-  const [data, setData] = useState(() => initial?.data ?? null);
-  const [loading, setLoading] = useState(enabled && initial?.data == null);
+  const cacheKeyRef = useRef(cacheKey);
+  cacheKeyRef.current = cacheKey;
+
+  const initial = snapshotForKey(cacheKey);
+  const [trackedKey, setTrackedKey] = useState(cacheKey);
+  const [data, setData] = useState(initial.data);
+  const [loading, setLoading] = useState(enabled && initial.loading);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [updatedAt, setUpdatedAt] = useState(
-    initial?.at ? new Date(initial.at) : null,
-  );
+  const [updatedAt, setUpdatedAt] = useState(initial.updatedAt);
   const mounted = useRef(true);
+
+  // Reset immediately when the cache key changes so we never show another query's data.
+  if (trackedKey !== cacheKey) {
+    const next = snapshotForKey(cacheKey);
+    setTrackedKey(cacheKey);
+    setData(next.data);
+    setLoading(enabled && next.loading);
+    setRefreshing(false);
+    setError('');
+    setUpdatedAt(next.updatedAt);
+  }
 
   const load = useCallback(
     async (force = false) => {
       if (!enabled) return;
 
-      const cached = readCache(cacheKey);
+      const requestKey = cacheKey;
+      const cached = readCache(requestKey);
       const hasData = cached?.data != null;
 
       if (hasData) {
-        setData(cached.data);
-        if (cached.isFresh && !force) {
-          setLoading(false);
-          setRefreshing(false);
+        if (cacheKeyRef.current === requestKey) {
+          setData(cached.data);
           setUpdatedAt(new Date(cached.at));
+        }
+        if (cached.isFresh && !force) {
+          if (cacheKeyRef.current === requestKey) {
+            setLoading(false);
+            setRefreshing(false);
+          }
           return;
         }
-        setRefreshing(true);
-      } else {
+        if (cacheKeyRef.current === requestKey) {
+          setRefreshing(true);
+        }
+      } else if (cacheKeyRef.current === requestKey) {
         setLoading(true);
       }
 
       try {
         const result = await fetchWithCache(
-          cacheKey,
+          requestKey,
           (forced) => fetcherRef.current(forced),
           ttlMs,
           { force },
         );
-        if (!mounted.current) return;
+        if (!mounted.current || cacheKeyRef.current !== requestKey) return;
         setData(result);
         setError('');
         setUpdatedAt(new Date());
       } catch (err) {
-        if (!mounted.current) return;
+        if (!mounted.current || cacheKeyRef.current !== requestKey) return;
         if (!hasData) setError(err.message || String(err));
       } finally {
-        if (mounted.current) {
+        if (mounted.current && cacheKeyRef.current === requestKey) {
           setLoading(false);
           setRefreshing(false);
         }
@@ -107,6 +136,7 @@ export function useCachedQuery(cacheKey, fetcher, options = {}) {
   const cachedNow = readCache(cacheKey);
 
   return {
+    cacheKey,
     data,
     loading,
     refreshing,

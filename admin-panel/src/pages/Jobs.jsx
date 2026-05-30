@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
@@ -10,6 +10,7 @@ import ScheduleJobModal from '../components/ScheduleJobModal';
 import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
 import { EMPTY_COUNTS, JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
+import { jobsPageCacheKey } from '../data/jobsCacheKeys';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
@@ -67,7 +68,7 @@ export default function Jobs() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPage(1);
   }, [filter, monkFilter, debouncedSearch]);
 
@@ -115,11 +116,21 @@ export default function Jobs() {
   }, [pageData, page, filter, debouncedSearch, monkFilter, isVisible]);
 
   const filterCount = counts[filter] ?? 0;
-  const items = pageData?.items ?? [];
-  const total = pageData?.total ?? filterCount;
-  const totalPages = pageData?.total_pages
-    ?? Math.max(1, Math.ceil(filterCount / PAGE_SIZE) || 1);
-  const loading = !isVisible || (jobsQuery.loading && items.length === 0 && sheetTotal == null);
+  const activeQueryKey = jobsPageCacheKey({
+    page,
+    pageSize: PAGE_SIZE,
+    status: filter,
+    search: debouncedSearch,
+    monk: monkFilter,
+  });
+  const queryMatchesTab = jobsQuery.cacheKey === activeQueryKey;
+  const items = queryMatchesTab ? (pageData?.items ?? []) : [];
+  const total = queryMatchesTab ? (pageData?.total ?? filterCount) : filterCount;
+  const totalPages = queryMatchesTab
+    ? (pageData?.total_pages ?? Math.max(1, Math.ceil(filterCount / PAGE_SIZE) || 1))
+    : Math.max(1, Math.ceil(filterCount / PAGE_SIZE) || 1);
+  const loading = !isVisible || !queryMatchesTab || jobsQuery.isInitialLoad
+    || (jobsQuery.loading && items.length === 0);
   const error = jobsQuery.error;
 
   const refreshSheet = () => {
@@ -129,6 +140,7 @@ export default function Jobs() {
   };
 
   const handleFilterChange = (value) => {
+    setPage(1);
     setFilter(value);
     requestAnimationFrame(() => {
       document.getElementById(`filter-${value}`)?.scrollIntoView({

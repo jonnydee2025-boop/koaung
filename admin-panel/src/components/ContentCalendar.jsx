@@ -162,10 +162,15 @@ export default function ContentCalendar() {
 
   useSheetCacheInvalidation(refresh);
 
-  const events = useMemo(
-    () => (Array.isArray(data?.events) ? data.events : []),
-    [data],
-  );
+  const todayKey = dateKey(today.getFullYear(), today.getMonth() + 1, today.getDate());
+
+  const events = useMemo(() => {
+    const raw = Array.isArray(data?.events) ? data.events : [];
+    return raw.filter((event) => {
+      const key = isoDateKey(event.at);
+      return key && key >= todayKey;
+    });
+  }, [data, todayKey]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map();
@@ -179,7 +184,6 @@ export default function ContentCalendar() {
   }, [events]);
 
   const cells = useMemo(() => buildMonthCells(year, month), [year, month]);
-  const todayKey = dateKey(today.getFullYear(), today.getMonth() + 1, today.getDate());
 
   const shiftMonth = (delta) => {
     const date = new Date(year, month - 1 + delta, 1);
@@ -264,7 +268,8 @@ export default function ContentCalendar() {
             }
 
             const key = dateKey(year, month, cell.day);
-            const dayEvents = eventsByDay.get(key) || [];
+            const isPast = key < todayKey;
+            const dayEvents = isPast ? [] : (eventsByDay.get(key) || []);
             const isToday = key === todayKey;
             const isSelected = selectedDay === key;
 
@@ -272,7 +277,7 @@ export default function ContentCalendar() {
               <button
                 key={key}
                 type="button"
-                className={`content-calendar-day${isToday ? ' content-calendar-day-today' : ''}${isSelected ? ' content-calendar-day-selected' : ''}`}
+                className={`content-calendar-day${isPast ? ' content-calendar-day-past' : ''}${isToday ? ' content-calendar-day-today' : ''}${isSelected ? ' content-calendar-day-selected' : ''}`}
                 onClick={() => {
                   setSelectedDay(key);
                   setSelectedEvent(null);

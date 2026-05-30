@@ -7,6 +7,11 @@ from pydantic import BaseModel, Field
 from ..row_rules import RowRangeRule, parse_batch_rows_string
 
 
+class RepeatThumbnailPayload(BaseModel):
+    file_id: str = Field(..., min_length=1)
+    name: str = ""
+
+
 class ScheduleJobRequest(BaseModel):
     mode: Literal["once", "repeat"] = "once"
     schedule_time: str | None = Field(
@@ -17,6 +22,7 @@ class ScheduleJobRequest(BaseModel):
     repeat_time: str = "07:00"
     days_of_week: list[int] = Field(default_factory=list)
     timezone: str = "UTC"
+    repeat_thumbnails: list[RepeatThumbnailPayload] = Field(default_factory=list)
 
 
 class UpdateJobStatusRequest(BaseModel):
