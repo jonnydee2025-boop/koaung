@@ -294,81 +294,105 @@ export default function RowRulesTable({ embedded = false, query }) {
               const isRepeatAnchor = repeatAnchors.has(anchorRow);
               return (
                 <div key={index} className="row-rules-row">
-                  <input
-                    className="form-input row-rules-rows"
-                    type="text"
-                    placeholder="70, 601, 805"
-                    aria-label={`Rule ${index + 1} select rows`}
-                    title="Comma-separated sheet row numbers; first row is the anchor"
-                    value={rule.batch_rows}
-                    disabled={rowDisabled}
-                    onChange={(e) =>
-                      updateRule(index, {
-                        batch_rows: e.target.value.replace(/[^\d,\s]/g, ''),
-                      })
-                    }
-                  />
-                  <SelectMedia
-                    id={`bg-${index}`}
-                    value={rule.background_video_id}
-                    options={backgrounds}
-                    disabled={rowDisabled}
-                    onChange={(e) => {
-                      const opt = backgrounds.find((b) => b.id === e.target.value);
-                      updateRule(index, {
-                        background_video_id: e.target.value,
-                        background_video_name: opt?.name ?? '',
-                      });
-                    }}
-                  />
-                  <SelectMedia
-                    id={`thumb-${index}`}
-                    value={isRepeatAnchor ? '' : rule.thumbnail_file_id}
-                    options={thumbnails}
-                    disabled={rowDisabled || isRepeatAnchor}
-                    title={
-                      isRepeatAnchor
-                        ? 'Repeat row — set thumbnails in Jobs → Schedule → Repeat'
-                        : undefined
-                    }
-                    onChange={(e) => {
-                      const opt = thumbnails.find((t) => t.id === e.target.value);
-                      updateRule(index, {
-                        thumbnail_file_id: e.target.value,
-                        thumbnail_name: opt?.name ?? '',
-                      });
-                    }}
-                  />
-                  <input
-                    className="form-input row-rules-num"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="Auto"
-                    aria-label={`Rule ${index + 1} background loops`}
-                    title={
-                      isMultiBatch
-                        ? 'Batch mode uses auto background loop over combined audio'
-                        : 'Repeat audio and background N times (empty = auto)'
-                    }
-                    value={isMultiBatch ? '' : rule.background_loop_count}
-                    disabled={rowDisabled || isMultiBatch}
-                    onChange={(e) =>
-                      updateRule(index, {
-                        background_loop_count: e.target.value.replace(/\D/g, ''),
-                      })
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm job-action-btn row-rules-delete"
-                    onClick={() => removeRule(index)}
-                    title="Remove rule"
-                    aria-label="Remove rule"
-                    disabled={rowDisabled}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="row-rules-field">
+                    <label className="row-rules-field-label" htmlFor={`rows-${index}`}>
+                      Select Rows
+                    </label>
+                    <input
+                      id={`rows-${index}`}
+                      className="form-input row-rules-rows"
+                      type="text"
+                      placeholder="70, 601, 805"
+                      aria-label={`Rule ${index + 1} select rows`}
+                      title="Comma-separated sheet row numbers; first row is the anchor"
+                      value={rule.batch_rows}
+                      disabled={rowDisabled}
+                      onChange={(e) =>
+                        updateRule(index, {
+                          batch_rows: e.target.value.replace(/[^\d,\s]/g, ''),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="row-rules-field">
+                    <label className="row-rules-field-label" htmlFor={`bg-${index}`}>
+                      Background
+                    </label>
+                    <SelectMedia
+                      id={`bg-${index}`}
+                      value={rule.background_video_id}
+                      options={backgrounds}
+                      disabled={rowDisabled}
+                      onChange={(e) => {
+                        const opt = backgrounds.find((b) => b.id === e.target.value);
+                        updateRule(index, {
+                          background_video_id: e.target.value,
+                          background_video_name: opt?.name ?? '',
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="row-rules-field">
+                    <label className="row-rules-field-label" htmlFor={`thumb-${index}`}>
+                      Thumbnail
+                    </label>
+                    <SelectMedia
+                      id={`thumb-${index}`}
+                      value={isRepeatAnchor ? '' : rule.thumbnail_file_id}
+                      options={thumbnails}
+                      disabled={rowDisabled || isRepeatAnchor}
+                      title={
+                        isRepeatAnchor
+                          ? 'Repeat row — set thumbnails in Jobs → Schedule → Repeat'
+                          : undefined
+                      }
+                      onChange={(e) => {
+                        const opt = thumbnails.find((t) => t.id === e.target.value);
+                        updateRule(index, {
+                          thumbnail_file_id: e.target.value,
+                          thumbnail_name: opt?.name ?? '',
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="row-rules-field">
+                    <label className="row-rules-field-label" htmlFor={`loops-${index}`}>
+                      Loops
+                    </label>
+                    <input
+                      id={`loops-${index}`}
+                      className="form-input row-rules-num"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="Auto"
+                      aria-label={`Rule ${index + 1} background loops`}
+                      title={
+                        isMultiBatch
+                          ? 'Batch mode uses auto background loop over combined audio'
+                          : 'Repeat audio and background N times (empty = auto)'
+                      }
+                      value={isMultiBatch ? '' : rule.background_loop_count}
+                      disabled={rowDisabled || isMultiBatch}
+                      onChange={(e) =>
+                        updateRule(index, {
+                          background_loop_count: e.target.value.replace(/\D/g, ''),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="row-rules-row-actions">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm job-action-btn row-rules-delete"
+                      onClick={() => removeRule(index)}
+                      title="Remove rule"
+                      aria-label="Remove rule"
+                      disabled={rowDisabled}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               );
             })}

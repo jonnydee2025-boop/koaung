@@ -13,11 +13,16 @@ from ...config import (
     ENABLE_AUDIO_ENHANCE,
     FFMPEG_BIN,
     FFPROBE_BIN,
-    GEMINI_API_KEY,
     ROW_RULES_PATH,
     SHEET_NAME,
     TMP_ROOT,
     missing_media_binaries,
+)
+from ...gemini_api_keys import (
+    get_api_key_chain,
+    load_api_keys,
+    merge_api_key_updates,
+    save_api_keys,
 )
 from ...drive import fetch_drive_media_catalog
 from ...gemini_prompt_settings import (
@@ -63,7 +68,7 @@ def get_settings():
         "enable_audio_enhance": ENABLE_AUDIO_ENHANCE,
         "api_port": API_PORT,
         "row_rules_path": str(ROW_RULES_PATH),
-        "gemini_api_key_configured": bool(GEMINI_API_KEY),
+        "gemini_api_key_configured": bool(get_api_key_chain()),
         "gemini_models": gemini_settings_to_dict(gemini),
     }
 
@@ -89,6 +94,9 @@ def put_gemini_models(body: GeminiModelSettingsPayload):
         )
         validate_gemini_model_settings(settings)
         save_gemini_model_settings(settings)
+        if body.api_keys is not None:
+            merged_keys = merge_api_key_updates(load_api_keys(), body.api_keys)
+            save_api_keys(merged_keys)
         return {"saved": True, **gemini_settings_to_dict(settings)}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

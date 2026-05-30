@@ -36,7 +36,10 @@ export function useCachedGeneralSettings(options = {}) {
 
   const cfg = useMemo(() => transformSettings(query.data), [query.data]);
   const meta = useMemo(
-    () => ({ geminiConfigured: Boolean(query.data?.gemini_api_key_configured) }),
+    () => ({
+      geminiConfigured: Boolean(query.data?.gemini_api_key_configured),
+      geminiKeyCount: query.data?.gemini_models?.api_key_count ?? 0,
+    }),
     [query.data],
   );
 

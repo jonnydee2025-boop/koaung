@@ -46,6 +46,7 @@ row_range_rules.json
 interval_triggers.json
 repeat_jobs.json
 gemini_models.json
+gemini_api_keys.json
 gemini_youtube_prompt.json
 
 # ── OS & editors ─────────────────────────────────────────────────────────────

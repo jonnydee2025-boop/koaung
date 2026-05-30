@@ -109,6 +109,9 @@ GEMINI_MODEL_FALLBACKS = os.getenv("GEMINI_MODEL_FALLBACKS", "gemini-2.0-flash")
 GEMINI_SETTINGS_PATH = Path(
     os.getenv("GEMINI_SETTINGS_PATH", "gemini_models.json"),
 ).resolve()
+GEMINI_API_KEYS_PATH = Path(
+    os.getenv("GEMINI_API_KEYS_PATH", "gemini_api_keys.json"),
+).resolve()
 GEMINI_PROMPT_PATH = Path(
     os.getenv("GEMINI_PROMPT_PATH", "gemini_youtube_prompt.json"),
 ).resolve()

@@ -8,12 +8,12 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .config import (
-    GEMINI_API_KEY,
     GEMINI_MODEL,
     GEMINI_MODEL_FALLBACKS,
     GEMINI_SETTINGS_PATH,
     logger,
 )
+from .gemini_api_keys import api_keys_to_dict
 
 MODEL_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
 
@@ -147,5 +147,5 @@ def gemini_settings_to_dict(settings: GeminiModelSettings) -> dict[str, Any]:
         "settings_path": str(GEMINI_SETTINGS_PATH),
         "known_models": list(KNOWN_GEMINI_MODELS),
         "persisted": GEMINI_SETTINGS_PATH.is_file(),
-        "api_key_configured": bool(GEMINI_API_KEY),
+        **api_keys_to_dict(),
     }

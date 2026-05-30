@@ -144,7 +144,13 @@ function GeneralSection({ cfg, meta, loading, refreshing }) {
               meta?.geminiConfigured ? 'settings-status-value--green' : 'settings-status-value--yellow'
             }`}
           >
-            {cfg ? (meta?.geminiConfigured ? 'Configured' : 'Not set') : '…'}
+            {cfg
+              ? meta?.geminiConfigured
+                ? (meta?.geminiKeyCount ?? 0) > 1
+                  ? `${meta.geminiKeyCount} keys`
+                  : 'Configured'
+                : 'Not set'
+              : '…'}
           </span>
         </div>
       </div>

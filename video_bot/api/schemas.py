@@ -47,6 +47,7 @@ class RowRulesUpdateRequest(BaseModel):
 class GeminiModelSettingsPayload(BaseModel):
     primary_model: str = Field(..., min_length=1, max_length=64)
     fallback_models: list[str] = Field(default_factory=list)
+    api_keys: list[str] | None = None
 
 
 class GeminiPromptSettingsPayload(BaseModel):

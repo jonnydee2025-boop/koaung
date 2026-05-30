@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { saveGeminiModels } from '../data/api';
 import { invalidateCache } from '../data/queryCache';
 import { SETTINGS_GEMINI_CACHE_KEY } from '../data/settingsCacheKeys';
-import { Save, Sparkles } from 'lucide-react';
+import { Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import SettingsTabStatus from './SettingsTabStatus';
 
 function parseFallbackText(text) {
@@ -12,12 +12,27 @@ function parseFallbackText(text) {
     .filter(Boolean);
 }
 
+function buildInitialKeyRows(data) {
+  const previews = data?.api_key_previews ?? [];
+  if (previews.length > 0) {
+    return previews.map(() => '');
+  }
+  if (data?.api_key_configured && data?.api_key_from_env) {
+    return [''];
+  }
+  return [];
+}
+
 export default function GeminiModelSettings({ embedded = false, query }) {
   const [primaryModel, setPrimaryModel] = useState('');
   const [fallbackText, setFallbackText] = useState('');
   const [knownModels, setKnownModels] = useState([]);
   const [modelChain, setModelChain] = useState([]);
-  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [apiKeyInputs, setApiKeyInputs] = useState([]);
+  const [apiKeyPreviews, setApiKeyPreviews] = useState([]);
+  const [apiKeyCount, setApiKeyCount] = useState(0);
+  const [apiKeyFromEnv, setApiKeyFromEnv] = useState(false);
+  const [apiKeysPersisted, setApiKeysPersisted] = useState(false);
   const [persisted, setPersisted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -35,7 +50,11 @@ export default function GeminiModelSettings({ embedded = false, query }) {
     setKnownModels(data.known_models ?? []);
     setModelChain(data.model_chain ?? []);
     setPersisted(Boolean(data.persisted));
-    setApiKeyConfigured(Boolean(data.api_key_configured));
+    setApiKeyPreviews(data.api_key_previews ?? []);
+    setApiKeyCount(data.api_key_count ?? 0);
+    setApiKeyFromEnv(Boolean(data.api_key_from_env));
+    setApiKeysPersisted(Boolean(data.api_keys_persisted));
+    setApiKeyInputs(buildInitialKeyRows(data));
     setError('');
   }, [query.data]);
 
@@ -45,19 +64,38 @@ export default function GeminiModelSettings({ embedded = false, query }) {
     }
   }, [query.error]);
 
+  const updateApiKeyInput = (index, value) => {
+    setApiKeyInputs((rows) => rows.map((row, i) => (i === index ? value : row)));
+  };
+
+  const addApiKeyRow = () => {
+    setApiKeyInputs((rows) => [...rows, '']);
+  };
+
+  const removeApiKeyRow = (index) => {
+    setApiKeyInputs((rows) => rows.filter((_, i) => i !== index));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
     setError('');
     try {
-      const result = await saveGeminiModels({
+      const payload = {
         primary_model: primaryModel.trim(),
         fallback_models: parseFallbackText(fallbackText),
-      });
+        api_keys: apiKeyInputs,
+      };
+      const result = await saveGeminiModels(payload);
       setPrimaryModel(result.primary_model ?? primaryModel);
       setFallbackText((result.fallback_models ?? []).join('\n'));
       setModelChain(result.model_chain ?? []);
       setPersisted(true);
+      setApiKeyPreviews(result.api_key_previews ?? []);
+      setApiKeyCount(result.api_key_count ?? 0);
+      setApiKeyFromEnv(Boolean(result.api_key_from_env));
+      setApiKeysPersisted(Boolean(result.api_keys_persisted));
+      setApiKeyInputs(buildInitialKeyRows(result));
       setSaved(true);
       invalidateCache(SETTINGS_GEMINI_CACHE_KEY);
       await query.refresh();
@@ -77,6 +115,10 @@ export default function GeminiModelSettings({ embedded = false, query }) {
   ].filter(Boolean);
 
   const showForm = !loading;
+  const apiKeyStatus =
+    apiKeyCount > 0
+      ? `${apiKeyCount} configured${apiKeyFromEnv && !apiKeysPersisted ? ' (1 from .env)' : ''}`
+      : 'Not set';
 
   return (
     <div className={embedded ? 'settings-studio-panel' : 'card settings-card'}>
@@ -101,14 +143,14 @@ export default function GeminiModelSettings({ embedded = false, query }) {
             disabled={formDisabled || !primaryModel.trim()}
           >
             <Save size={14} />
-            {saving ? 'Saving…' : saved ? 'Saved' : 'Save models'}
+            {saving ? 'Saving…' : saved ? 'Saved' : 'Save settings'}
           </button>
         </div>
       </div>
 
       {error && <div className="settings-alert settings-alert--error">{error}</div>}
       {saved && (
-        <p className="settings-feedback settings-feedback--success">Model settings saved.</p>
+        <p className="settings-feedback settings-feedback--success">Gemini settings saved.</p>
       )}
 
       <div
@@ -117,6 +159,61 @@ export default function GeminiModelSettings({ embedded = false, query }) {
       >
         {showForm ? (
           <>
+            <div className="settings-gemini-keys">
+              <div className="form-group">
+                <label className="form-label">API keys (failover order)</label>
+                <p className="settings-gemini-hint">
+                  Key 1 is tried first. If quota is exceeded, key 2 is used automatically.
+                  Leave a field blank to keep the existing key at that slot.
+                </p>
+                {apiKeyFromEnv && !apiKeysPersisted && apiKeyInputs.length === 1 && (
+                  <p className="settings-gemini-hint">
+                    1 key from <code>.env</code> — add more below and Save to store on server.
+                  </p>
+                )}
+                {apiKeyInputs.map((value, index) => (
+                  <div key={index} className="settings-gemini-key-row">
+                    <span className="settings-gemini-key-index" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <div className="settings-gemini-key-field">
+                      <input
+                        type="password"
+                        className="form-input"
+                        value={value}
+                        onChange={(e) => updateApiKeyInput(index, e.target.value)}
+                        placeholder={
+                          apiKeyPreviews[index]
+                            ? `Current: ${apiKeyPreviews[index]}`
+                            : 'Paste Gemini API key'
+                        }
+                        autoComplete="off"
+                        disabled={formDisabled}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm job-action-btn"
+                      onClick={() => removeApiKeyRow(index)}
+                      disabled={formDisabled}
+                      aria-label={`Remove API key ${index + 1}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={addApiKeyRow}
+                  disabled={formDisabled}
+                >
+                  <Plus size={14} />
+                  Add API key
+                </button>
+              </div>
+            </div>
+
             <div className="settings-gemini-grid">
               <div className="form-group">
                 <label className="form-label" htmlFor="gemini-primary-model">
@@ -157,19 +254,19 @@ export default function GeminiModelSettings({ embedded = false, query }) {
 
             <div className="settings-gemini-meta">
               <div className="settings-status-row">
-                <span className="settings-status-label">API key</span>
+                <span className="settings-status-label">API keys</span>
                 <span
                   className={`settings-status-value ${
-                    apiKeyConfigured
+                    apiKeyCount > 0
                       ? 'settings-status-value--green'
                       : 'settings-status-value--yellow'
                   }`}
                 >
-                  {apiKeyConfigured ? 'Configured' : 'Not set in .env'}
+                  {apiKeyStatus}
                 </span>
               </div>
               <div className="settings-status-row">
-                <span className="settings-status-label">Saved on server</span>
+                <span className="settings-status-label">Models saved on server</span>
                 <span className="settings-status-value">
                   {persisted ? 'Yes' : 'Using .env defaults'}
                 </span>

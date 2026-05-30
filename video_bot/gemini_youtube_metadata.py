@@ -7,7 +7,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .config import GEMINI_API_KEY, logger
+from .config import logger
+from .gemini_api_keys import get_api_key_chain, is_quota_or_rate_limit_error
 from .gemini_prompt_settings import GeminiPromptSettings, load_gemini_prompt_settings
 from .gemini_settings import get_gemini_model_chain
 
@@ -155,7 +156,7 @@ def generate_youtube_metadata(
     Generate Burmese YouTube description and tags.
     Returns None when Gemini is not configured or generation fails.
     """
-    if not GEMINI_API_KEY:
+    if not get_api_key_chain():
         return None
 
     monk = (monk_name or "").strip() or "Unknown monk"
@@ -175,39 +176,53 @@ def generate_youtube_metadata(
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        api_keys = get_api_key_chain()
         models = get_gemini_model_chain()
         last_error: Exception | None = None
 
-        for model in models:
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        response_mime_type="application/json",
-                        response_schema=prompt_settings.response_schema,
-                        temperature=prompt_settings.temperature,
-                    ),
-                )
-                text = (response.text or "").strip()
-                if not text:
-                    raise ValueError("Empty Gemini response.")
-                payload = json.loads(text)
-                if not isinstance(payload, dict):
-                    raise ValueError("Gemini response was not a JSON object.")
-                metadata = _parse_gemini_payload(payload, prompt_settings)
-                logger.info(
-                    "Gemini YouTube metadata ready with %s (%s tags, %s chars description).",
-                    model,
-                    len(metadata.tags),
-                    len(metadata.description),
-                )
-                return metadata
-            except Exception as exc:
-                last_error = exc
-                logger.warning("Gemini model %s failed: %s", model, exc)
+        for key_index, api_key in enumerate(api_keys):
+            client = genai.Client(api_key=api_key)
+            for model in models:
+                try:
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            response_mime_type="application/json",
+                            response_schema=prompt_settings.response_schema,
+                            temperature=prompt_settings.temperature,
+                        ),
+                    )
+                    text = (response.text or "").strip()
+                    if not text:
+                        raise ValueError("Empty Gemini response.")
+                    payload = json.loads(text)
+                    if not isinstance(payload, dict):
+                        raise ValueError("Gemini response was not a JSON object.")
+                    metadata = _parse_gemini_payload(payload, prompt_settings)
+                    logger.info(
+                        "Gemini YouTube metadata ready with key %s, model %s (%s tags, %s chars description).",
+                        key_index + 1,
+                        model,
+                        len(metadata.tags),
+                        len(metadata.description),
+                    )
+                    return metadata
+                except Exception as exc:
+                    last_error = exc
+                    if is_quota_or_rate_limit_error(exc):
+                        logger.warning(
+                            "Gemini API key %s quota/rate limit hit; trying next key.",
+                            key_index + 1,
+                        )
+                        break
+                    logger.warning(
+                        "Gemini model %s failed on key %s: %s",
+                        model,
+                        key_index + 1,
+                        exc,
+                    )
 
         if last_error is not None:
             raise last_error

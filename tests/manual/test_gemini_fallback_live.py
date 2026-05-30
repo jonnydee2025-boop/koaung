@@ -29,15 +29,18 @@ def main() -> int:
     from google import genai
 
     from video_bot.config import GEMINI_API_KEY
+    from video_bot.gemini_api_keys import get_api_key_chain
     from video_bot.gemini_settings import load_gemini_model_settings
     from video_bot.gemini_youtube_metadata import generate_youtube_metadata
 
-    if not GEMINI_API_KEY:
-        print("RESULT: FAILED — GEMINI_API_KEY is empty")
+    key_chain = get_api_key_chain()
+    if not key_chain:
+        print("RESULT: FAILED — no Gemini API keys configured")
         return 1
 
     settings = load_gemini_model_settings()
     chain = settings.model_chain()
+    print(f"API_KEY_COUNT: {len(key_chain)}")
     print("MODEL_CHAIN:")
     for index, model in enumerate(chain, start=1):
         print(f"  {index}. {model}")
@@ -65,7 +68,7 @@ def main() -> int:
     print("TEST 2: Simulated fallback (force primary to fail)")
     primary, fallback = chain[0], chain[1]
     calls: list[str] = []
-    real_client = genai.Client(api_key=GEMINI_API_KEY)
+    real_client = genai.Client(api_key=key_chain[0])
     real_generate = real_client.models.generate_content
 
     def tracked_generate(*, model, **kwargs):
