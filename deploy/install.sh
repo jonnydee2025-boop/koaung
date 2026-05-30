@@ -74,16 +74,23 @@ else
 fi
 
 if [[ -n "$DOMAIN" ]]; then
-  sed "s/YOUR_DOMAIN.com/$DOMAIN/g" "$APP_DIR/deploy/nginx/videobot.conf" \
-    > /etc/nginx/sites-available/videobot
-  ln -sf /etc/nginx/sites-available/videobot /etc/nginx/sites-enabled/videobot
-  nginx -t
-  systemctl reload nginx
-  echo "==> nginx configured for $DOMAIN. Run: certbot --nginx -d $DOMAIN"
+  CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+  if [[ -f "$CERT" ]]; then
+    sed "s/YOUR_DOMAIN.com/$DOMAIN/g" "$APP_DIR/deploy/nginx/videobot.ssl.conf" \
+      > /etc/nginx/sites-available/videobot
+    echo "==> nginx SSL config for $DOMAIN (existing cert)."
+  else
+    sed "s/YOUR_DOMAIN.com/$DOMAIN/g" "$APP_DIR/deploy/nginx/videobot.conf" \
+      > /etc/nginx/sites-available/videobot
+    echo "==> nginx HTTP config for $DOMAIN. Run: certbot --nginx -d $DOMAIN"
+  fi
 else
   cp "$APP_DIR/deploy/nginx/videobot.conf" /etc/nginx/sites-available/videobot
   echo "==> nginx config copied. Edit /etc/nginx/sites-available/videobot (set server_name)."
 fi
+ln -sf /etc/nginx/sites-available/videobot /etc/nginx/sites-enabled/videobot
+nginx -t
+systemctl reload nginx
 
 echo ""
 echo "Next steps:"

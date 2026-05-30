@@ -35,44 +35,31 @@ def list_job_monks(refresh: bool = Query(default=False)):
 
 @router.get("/jobs")
 def list_jobs(
-    page: int | None = Query(default=None, ge=1),
+    page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     status: str = Query(default="all"),
     search: str = Query(default=""),
     monk: str = Query(default=""),
-    limit: int | None = Query(default=None, ge=1, le=500),
     refresh: bool = Query(default=False),
-    full: bool = Query(default=False),
 ):
     try:
         jobs = all_jobs_sorted(force_refresh=refresh)
         counts = job_status_counts(jobs)
 
-        if full:
-            return {
-                "jobs": jobs,
-                "counts": counts,
-                "sheet_total": len(jobs),
-            }
-
-        if page is None and limit is not None:
-            return filter_jobs(jobs, status, search, monk)[:limit]
-
-        current_page = page or 1
         filtered = filter_jobs(jobs, status, search, monk)
         total = len(filtered)
-        start = (current_page - 1) * page_size
+        start = (page - 1) * page_size
         items = filtered[start : start + page_size]
         total_pages = max(1, (total + page_size - 1) // page_size)
 
-        if current_page > total_pages and total > 0:
-            current_page = total_pages
-            start = (current_page - 1) * page_size
+        if page > total_pages and total > 0:
+            page = total_pages
+            start = (page - 1) * page_size
             items = filtered[start : start + page_size]
 
         return {
             "items": items,
-            "page": current_page,
+            "page": page,
             "page_size": page_size,
             "total": total,
             "total_pages": total_pages,

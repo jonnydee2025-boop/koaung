@@ -2,10 +2,6 @@ import { invalidateSheetCaches } from './queryCache';
 import { clearAdminApiKey, getAdminApiKey } from './adminAuth';
 import { API_BASE, apiHeaders, requestJson } from './httpClient';
 
-export async function fetchJobs(limit = 6) {
-  return requestJson(`${API_BASE}/api/jobs?limit=${limit}`, undefined, 'Jobs failed');
-}
-
 export async function fetchJobsPage({
   page = 1,
   pageSize = 50,

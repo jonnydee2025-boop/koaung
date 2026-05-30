@@ -18,6 +18,7 @@ from .repeat_jobs import (
     get_repeat_job,
     load_repeat_jobs,
     repeat_job_description,
+    resolve_repeat_job,
     save_repeat_job,
 )
 from .schedule_time import (
@@ -548,6 +549,19 @@ def reschedule_repeat_anchor_after_upload(
     """After a successful repeat render, set anchor to repeat with next Schedule_Time."""
     job = get_repeat_job(anchor_row)
     if job is None:
+        row = next((item for item in get_sheet_rows(sheets)[1] if item.row_number == anchor_row), None)
+        logs = row.values.get("logs", "") if row is not None else ""
+        schedule_time = ""
+        if row is not None:
+            existing = read_row_schedule_time(row.values)
+            schedule_time = existing.isoformat() if existing else ""
+        job = resolve_repeat_job(
+            anchor_row,
+            logs=logs,
+            schedule_time=schedule_time,
+            repair=True,
+        )
+    if job is None:
         raise RuntimeError(f"No repeat config for anchor row {anchor_row}.")
     next_run = compute_next_run(job, after=datetime.now(timezone.utc))
     update_schedule_time(sheets, headers, anchor_row, next_run)
@@ -556,7 +570,8 @@ def reschedule_repeat_anchor_after_upload(
         headers,
         anchor_row,
         "repeat",
-        f"{log_message} Next repeat: {schedule_time_storage_value(next_run)}.",
+        f"{log_message} Next repeat: {schedule_time_storage_value(next_run)}. "
+        f"{repeat_job_description(job)}.",
     )
 
 

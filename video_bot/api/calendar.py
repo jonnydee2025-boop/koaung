@@ -7,8 +7,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ..config import logger
-from ..repeat_jobs import RepeatJob, compute_next_run, load_repeat_jobs
-from .job_listing import all_jobs_sorted
+from ..repeat_jobs import RepeatJob, load_repeat_jobs, repeat_job_for_row
+from ..schedule_time import parse_optional_utc_iso
+from .job_listing import all_jobs_sorted, find_sheet_row
 
 
 def month_range(year: int, month: int) -> tuple[datetime, datetime]:
@@ -19,16 +20,7 @@ def month_range(year: int, month: int) -> tuple[datetime, datetime]:
 
 
 def _parse_schedule_time(raw: str) -> datetime | None:
-    text = (raw or "").strip()
-    if not text:
-        return None
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+    return parse_optional_utc_iso(raw)
 
 
 def _expand_repeat_occurrences(
@@ -38,6 +30,8 @@ def _expand_repeat_occurrences(
     *,
     max_iterations: int = 400,
 ) -> list[datetime]:
+    from ..repeat_jobs import compute_next_run
+
     occurrences: list[datetime] = []
     cursor = start - timedelta(seconds=1)
     for _ in range(max_iterations):
@@ -78,6 +72,13 @@ def _append_repeat_events(
                 "status": "repeat",
             }
         )
+
+
+def _sheet_logs_for_row(row: int, job: dict[str, Any]) -> str:
+    sheet_row = find_sheet_row(row)
+    if sheet_row is not None:
+        return sheet_row.values.get("logs", "") or ""
+    return job.get("logs", "") or ""
 
 
 def build_calendar_events(year: int, month: int) -> list[dict[str, Any]]:
@@ -137,7 +138,6 @@ def build_calendar_events(year: int, month: int) -> list[dict[str, Any]]:
                     }
                 )
 
-    # Repeat schedules come from repeat_jobs.json (same source as the scheduler).
     covered_anchors: set[int] = set()
     for anchor_row, repeat_job in load_repeat_jobs().items():
         covered_anchors.add(anchor_row)
@@ -152,31 +152,52 @@ def build_calendar_events(year: int, month: int) -> list[dict[str, Any]]:
             month_end=month_end,
         )
 
-    # Fallback when the sheet says repeat but repeat_jobs.json is missing that anchor.
     for row, job in jobs_by_row.items():
         if row in covered_anchors:
             continue
         status = (job.get("status") or "").strip().lower()
         if status != "repeat":
             continue
-        schedule_dt = _parse_schedule_time(job.get("schedule_time", ""))
-        if schedule_dt is None or not (month_start <= schedule_dt <= month_end):
-            logger.warning(
-                "Calendar: row %s is repeat but has no repeat_jobs.json entry "
-                "and no Schedule_Time in this month",
-                row,
+
+        logs = _sheet_logs_for_row(row, job)
+        repeat_job = repeat_job_for_row(
+            row,
+            status=status,
+            logs=logs,
+            schedule_time=job.get("schedule_time", ""),
+        )
+        if repeat_job is not None:
+            covered_anchors.add(row)
+            title, monk = _job_meta(jobs_by_row, row)
+            _append_repeat_events(
+                events,
+                repeat_job,
+                row=row,
+                title=title,
+                monk=monk,
+                month_start=month_start,
+                month_end=month_end,
             )
             continue
-        title, monk = _job_meta(jobs_by_row, row)
-        events.append(
-            {
-                "at": schedule_dt.isoformat(),
-                "kind": "repeat",
-                "row": row,
-                "title": title,
-                "monk": monk,
-                "status": "repeat",
-            }
+
+        schedule_dt = _parse_schedule_time(job.get("schedule_time", ""))
+        if schedule_dt is not None and month_start <= schedule_dt <= month_end:
+            title, monk = _job_meta(jobs_by_row, row)
+            events.append(
+                {
+                    "at": schedule_dt.isoformat(),
+                    "kind": "repeat",
+                    "row": row,
+                    "title": title,
+                    "monk": monk,
+                    "status": "repeat",
+                }
+            )
+            continue
+
+        logger.debug(
+            "Calendar: row %s is repeat but has no recoverable repeat config",
+            row,
         )
 
     events.sort(key=lambda item: item["at"])

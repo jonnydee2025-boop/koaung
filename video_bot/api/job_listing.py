@@ -8,7 +8,7 @@ from ..job_status import (
     is_pending_status,
 )
 from ..jobs.row_helpers import get_duration_min, get_monk_name
-from ..repeat_jobs import get_repeat_job
+from ..repeat_jobs import get_repeat_job, repeat_job_for_row
 from ..schedule_time import read_row_schedule_time
 from ..sheet_cache import get_cached_sheet_rows
 
@@ -29,6 +29,13 @@ def row_to_job_dict(row: Any, headers: list[str]) -> dict:
     schedule_time = schedule_dt.isoformat() if schedule_dt else ""
 
     repeat_job = get_repeat_job(row.row_number)
+    if repeat_job is None and status == "repeat":
+        repeat_job = repeat_job_for_row(
+            row.row_number,
+            status=status,
+            logs=logs_col,
+            schedule_time=schedule_time,
+        )
     repeat_info = None
     if repeat_job is not None:
         repeat_info = {

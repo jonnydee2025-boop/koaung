@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { useLazyVisible } from '../hooks/useLazyVisible';
+import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
   prefetchAdjacentCalendarMonths,
   useCalendarEvents,
@@ -143,7 +144,7 @@ export default function ContentCalendar() {
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const { ref: rootRef, isVisible } = useLazyVisible({ rootMargin: '160px' });
+  const { ref: rootRef, isVisible } = useLazyVisible({ rootMargin: '160px', initialVisible: true });
 
   const calendarQuery = useCalendarEvents(year, month, { enabled: isVisible });
   const {
@@ -159,13 +160,7 @@ export default function ContentCalendar() {
     prefetchAdjacentCalendarMonths(year, month);
   }, [year, month, isVisible]);
 
-  useEffect(() => {
-    const handleInvalidate = () => {
-      refresh();
-    };
-    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
-    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
-  }, [refresh]);
+  useSheetCacheInvalidation(refresh);
 
   const events = useMemo(
     () => (Array.isArray(data?.events) ? data.events : []),

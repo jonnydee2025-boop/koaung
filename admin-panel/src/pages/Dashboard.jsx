@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Header from '../components/Header';
 import ContentCalendar from '../components/ContentCalendar';
 import Skeleton from '../components/Skeleton';
@@ -10,17 +10,12 @@ import { useLazyVisible } from '../hooks/useLazyVisible';
 import {
   useCachedStats,
   useCachedRenderStatus,
-  warmAppCache,
 } from '../hooks/useSheetData';
 
 export default function Dashboard() {
   const { ref: pageRef, isVisible } = useLazyVisible({ initialVisible: true });
   const statsQuery = useCachedStats({ pollMs: 8000, enabled: isVisible });
   const renderQuery = useCachedRenderStatus({ enabled: isVisible });
-
-  useEffect(() => {
-    warmAppCache();
-  }, []);
 
   const stats = statsQuery.data;
   const renderStatus = renderQuery.data ?? {

@@ -10,6 +10,7 @@ Group=videobot
 WorkingDirectory=/opt/videobot
 EnvironmentFile=/opt/videobot/.env
 ExecStartPre=/bin/mkdir -p /opt/videobot/tmp_video_jobs
+ExecStartPre=/bin/sh -c 'test -f /opt/videobot/repeat_jobs.json || echo "{\"jobs\": {}}" > /opt/videobot/repeat_jobs.json'
 ExecStart=/opt/videobot/.venv/bin/python /opt/videobot/video_automation_bot.py
 Restart=on-failure
 RestartSec=10
@@ -21,7 +22,7 @@ MemoryMax=4G
 # Hardening (adjust if you add writable paths outside these)
 NoNewPrivileges=true
 PrivateTmp=true
-ReadWritePaths=/opt/videobot/tmp_video_jobs /opt/videobot/token.json
+ReadWritePaths=/opt/videobot/tmp_video_jobs /opt/videobot/token.json /opt/videobot/repeat_jobs.json /opt/videobot/row_range_rules.json
 
 [Install]
 WantedBy=multi-user.target

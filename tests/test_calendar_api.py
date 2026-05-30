@@ -94,12 +94,46 @@ class BuildCalendarEventsTests(unittest.TestCase):
                 "status": "repeat",
                 "monk": "",
                 "schedule_time": "2026-06-12T07:00:00+00:00",
+                "logs": "",
+            }
+        ]
+        with patch("video_bot.api.calendar.find_sheet_row", return_value=None):
+            events = build_calendar_events(2026, 6)
+        self.assertGreaterEqual(len(events), 28)
+        self.assertTrue(all(event["kind"] == "repeat" for event in events))
+        self.assertEqual(events[0]["row"], 30)
+
+    @patch("video_bot.api.calendar.repeat_job_for_row")
+    @patch("video_bot.api.calendar.load_repeat_jobs")
+    @patch("video_bot.api.calendar.all_jobs_sorted")
+    def test_repeat_recovered_from_logs_when_json_missing(
+        self,
+        mock_jobs,
+        mock_load_repeat,
+        mock_resolve,
+    ) -> None:
+        repeat_job = RepeatJob(
+            anchor_row=4409,
+            repeat_type="daily",
+            time="07:00",
+            timezone="Asia/Yangon",
+        )
+        mock_load_repeat.return_value = {}
+        mock_resolve.return_value = repeat_job
+        mock_jobs.return_value = [
+            {
+                "row": 4409,
+                "title": "Daily Dhamma",
+                "status": "repeat",
+                "monk": "",
+                "schedule_time": "2026-07-01T00:30:00+00:00",
+                "logs": "Repeat daily at 07:00 Asia/Yangon. Next: 2026-07-01T00:30:00+00:00.",
             }
         ]
         events = build_calendar_events(2026, 6)
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["kind"], "repeat")
-        self.assertEqual(events[0]["row"], 30)
+        self.assertGreaterEqual(len(events), 28)
+        self.assertTrue(all(event["kind"] == "repeat" for event in events))
+        mock_resolve.assert_called_once()
 
     @patch("video_bot.api.calendar.datetime")
     @patch("video_bot.api.calendar.load_repeat_jobs")

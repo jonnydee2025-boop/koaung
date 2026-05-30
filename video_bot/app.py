@@ -64,6 +64,12 @@ def main() -> None:
     validate_startup()
     _install_shutdown_handlers()
 
+    from .repeat_jobs import repair_missing_repeat_jobs_from_sheet
+
+    repaired = repair_missing_repeat_jobs_from_sheet()
+    if repaired:
+        logger.info("Repaired %s missing repeat job(s) from sheet.", repaired)
+
     application = Application.builder().token(BOT_TOKEN).build()
     _state.telegram_app = application  # expose to API bot-control endpoints
     application.add_handler(CommandHandler("start", start))

@@ -5,7 +5,6 @@ import {
   fetchLogs,
   fetchRenderStatus,
   fetchStats,
-  fetchJobs,
 } from '../data/api';
 import { fetchCalendarEvents } from '../data/jobsApi';
 import {
@@ -20,7 +19,6 @@ import { prefetchCache } from '../data/queryCache';
 import { useCachedQuery } from './useCachedQuery';
 
 const STATS_TTL = 8000;
-const JOBS_TTL = 10000;
 const JOBS_PAGE_TTL = 45000;
 const JOBS_MONKS_TTL = 45000;
 const CALENDAR_TTL = 45000;
@@ -34,18 +32,6 @@ export function useCachedStats(options = {}) {
   return useCachedQuery('stats', fetchStats, {
     ttlMs: STATS_TTL,
     pollMs: enabled ? pollMs : 0,
-    enabled,
-  });
-}
-
-export function useCachedJobs(limit, options = {}) {
-  const key = `jobs:${limit}`;
-  const pollMs = options.pollMs ?? 0;
-  const enabled = options.enabled ?? true;
-  const fetcher = useCallback(() => fetchJobs(limit), [limit]);
-  return useCachedQuery(key, fetcher, {
-    ttlMs: JOBS_TTL,
-    pollMs,
     enabled,
   });
 }
@@ -104,7 +90,7 @@ export function useJobMonks(options = {}) {
 }
 
 export function useCalendarEvents(year, month, options = {}) {
-  const pollMs = options.pollMs ?? CALENDAR_TTL;
+  const pollMs = options.pollMs ?? 0;
   const enabled = options.enabled ?? true;
   const cacheKey = calendarCacheKey(year, month);
   const fetcher = useCallback(

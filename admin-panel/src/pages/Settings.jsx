@@ -6,6 +6,7 @@ import SettingsTabStatus from '../components/SettingsTabStatus';
 import { shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
 import { useLazyVisible } from '../hooks/useLazyVisible';
+import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
   useCachedGeneralSettings,
   useCachedGeminiSettings,
@@ -280,15 +281,11 @@ export default function Settings() {
     if (generalQuery.error) setError(generalQuery.error);
   }, [generalQuery.error]);
 
-  useEffect(() => {
-    const handleInvalidate = () => {
-      generalQuery.refresh();
-      geminiQuery.refresh();
-      rowRulesQuery.refresh();
-    };
-    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
-    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
-  }, [generalQuery.refresh, geminiQuery.refresh, rowRulesQuery.refresh]);
+  useSheetCacheInvalidation(
+    generalQuery.refresh,
+    geminiQuery.refresh,
+    rowRulesQuery.refresh,
+  );
 
   useEffect(() => {
     pageRef.current?.scrollTo({ top: 0 });

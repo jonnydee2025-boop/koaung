@@ -9,6 +9,7 @@ from video_bot.repeat_jobs import (
     RepeatJob,
     compute_next_run,
     local_time_matches_repeat,
+    parse_repeat_job_from_logs,
     repeat_jobs_overlap,
     validate_repeat_job,
 )
@@ -220,6 +221,42 @@ class RescheduleAfterUploadTests(unittest.TestCase):
         mock_set_schedule.assert_called_once_with(sheets, headers, 70, next_run)
         mock_update.assert_called_once()
         self.assertEqual(mock_update.call_args[0][3], "repeat")
+
+
+class ParseRepeatJobFromLogsTests(unittest.TestCase):
+    def test_parses_daily_repeat_log_line(self) -> None:
+        logs = (
+            "Some older message\n"
+            "Repeat daily at 07:00 Asia/Yangon. Next: 2026-06-01T00:30:00+00:00."
+        )
+        job = parse_repeat_job_from_logs(logs, 4409)
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job.anchor_row, 4409)
+        self.assertEqual(job.repeat_type, "daily")
+        self.assertEqual(job.time, "07:00")
+        self.assertEqual(job.timezone, "Asia/Yangon")
+
+    def test_parses_weekly_repeat_log_line(self) -> None:
+        logs = "Repeat weekly at 08:30 UTC. Next: 2026-06-02T08:30:00+00:00."
+        job = parse_repeat_job_from_logs(logs, 12)
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job.repeat_type, "weekly")
+        self.assertEqual(job.days_of_week, [0, 1, 2, 3, 4])
+
+    def test_parses_post_upload_next_repeat_log(self) -> None:
+        logs = (
+            "Uploaded publicly to YouTube. video_id=YNJkHbpbB3k\n"
+            "Thumbnail uploaded. Next repeat: 2026-05-30T22:30:00+00:00."
+        )
+        job = parse_repeat_job_from_logs(logs, 4409)
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job.anchor_row, 4409)
+        self.assertEqual(job.repeat_type, "daily")
+        self.assertEqual(job.time, "05:00")
+        self.assertEqual(job.timezone, "Asia/Yangon")
 
 
 if __name__ == "__main__":

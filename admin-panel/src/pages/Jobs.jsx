@@ -11,6 +11,7 @@ import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
 import { EMPTY_COUNTS, JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
 import { useLazyVisible } from '../hooks/useLazyVisible';
+import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
   prefetchAdjacentJobsPages,
   prefetchJobsFilterTabs,
@@ -70,14 +71,7 @@ export default function Jobs() {
     setPage(1);
   }, [filter, monkFilter, debouncedSearch]);
 
-  useEffect(() => {
-    const handleInvalidate = () => {
-      jobsQuery.refresh();
-      monksQuery.refresh();
-    };
-    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
-    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
-  }, [jobsQuery.refresh, monksQuery.refresh]);
+  useSheetCacheInvalidation(jobsQuery.refresh, monksQuery.refresh);
 
   const monkOptions = monksQuery.data?.monks ?? [];
 

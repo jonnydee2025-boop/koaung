@@ -4,7 +4,6 @@
 export { verifyAdminApiKey } from './authApi';
 export { fetchStats } from './statsApi';
 export {
-  fetchJobs,
   fetchJobsPage,
   fetchJobMonks,
   scheduleJob,

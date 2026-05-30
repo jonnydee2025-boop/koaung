@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import { triggerRenderNext, cancelRender } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
 import { useLazyVisible } from '../hooks/useLazyVisible';
+import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import { useCachedLogs, useCachedRenderStatus } from '../hooks/useSheetData';
 import { Download, RefreshCw } from 'lucide-react';
 
@@ -24,14 +25,7 @@ export default function Logs() {
   const loading = !isVisible || logsQuery.isInitialLoad;
   const error = logsQuery.error;
 
-  useEffect(() => {
-    const handleInvalidate = () => {
-      logsQuery.refresh();
-      renderQuery.refresh();
-    };
-    window.addEventListener('sheet-cache-invalidated', handleInvalidate);
-    return () => window.removeEventListener('sheet-cache-invalidated', handleInvalidate);
-  }, [logsQuery.refresh, renderQuery.refresh]);
+  useSheetCacheInvalidation(logsQuery.refresh, renderQuery.refresh);
 
   useEffect(() => {
     if (autoScroll && bottomRef.current) {
