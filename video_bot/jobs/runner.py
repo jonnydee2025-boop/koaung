@@ -9,7 +9,7 @@ from ..sheets import (
     reserve_next_pending_row,
     update_task_status,
 )
-from ..repeat_jobs import get_repeat_job
+from ..repeat_jobs import get_repeat_job, repeat_run_has_thumbnail
 from ..row_rules import resolve_batch_anchor_row, row_has_thumbnail
 from ..state import current_render, retry_jobs
 from ..youtube import (
@@ -105,7 +105,12 @@ def _retry_sheet_update(
     try:
         if job_progress is not None:
             job_progress("Retrying Google Sheet update", None)
-        has_row_thumb = row_has_thumbnail(job.row.row_number)
+        repeat_job = get_repeat_job(job.row.row_number)
+        has_row_thumb = (
+            repeat_run_has_thumbnail(repeat_job)
+            if repeat_job is not None
+            else row_has_thumbnail(job.row.row_number)
+        )
         intended_privacy, private_reason = resolve_final_privacy(
             has_row_thumbnail=has_row_thumb,
             thumbnail_warning=job.thumbnail_warning or None,
@@ -196,7 +201,12 @@ def _retry_youtube_upload(
                 or ""
             )
 
-        has_row_thumb = row_has_thumbnail(job.row.row_number)
+        repeat_job = get_repeat_job(job.row.row_number)
+        has_row_thumb = (
+            repeat_run_has_thumbnail(repeat_job)
+            if repeat_job is not None
+            else row_has_thumbnail(job.row.row_number)
+        )
         intended_privacy, private_reason = resolve_final_privacy(
             has_row_thumbnail=has_row_thumb,
             thumbnail_warning=thumbnail_warning or None,
@@ -229,7 +239,7 @@ def _retry_youtube_upload(
                 purge_workdir(job.workdir)
         elif job.workdir is not None:
             logger.info(
-                "Repeat row %s: keeping render workdir %s after retry upload",
+                "Repeat row %s: render workdir kept on VPS for next run: %s",
                 job.row.row_number,
                 job.workdir,
             )

@@ -29,7 +29,21 @@ class _InMemoryLogHandler(logging.Handler):
         }
         level_name = level_map.get(record.levelno, "INFO")
         msg = record.getMessage()
-        if any(kw in msg for kw in ("uploaded", "complete", "Done", "Upload complete")):
+        lower = msg.lower()
+        if any(
+            kw in lower
+            for kw in (
+                "upload complete",
+                "removed render workdir",
+                "deleted rendered video",
+            )
+        ):
+            level_name = "SUCCESS"
+        elif "kept on vps for retry" in lower or "files kept on vps for retry" in lower:
+            level_name = "WARNING"
+        elif "render workdir kept on vps for next run" in lower:
+            level_name = "INFO"
+        elif any(kw in msg for kw in ("uploaded", "complete", "Done")):
             level_name = "SUCCESS"
         self.buffer.append({
             "time": self._formatter.formatTime(record, datefmt="%H:%M:%S"),

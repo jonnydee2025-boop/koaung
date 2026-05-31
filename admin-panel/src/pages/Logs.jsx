@@ -9,6 +9,18 @@ import { Download, RefreshCw } from 'lucide-react';
 
 const LEVELS = ['ALL', 'INFO', 'SUCCESS', 'WARNING', 'ERROR'];
 
+/** Highlight only repeat-cache vs retry-hold lines (the confusing cases). */
+function logLineAccent(msg) {
+  const m = (msg || '').toLowerCase();
+  if (m.includes('kept on vps for retry') || m.includes('files kept on vps for retry')) {
+    return 'retry';
+  }
+  if (m.includes('render workdir kept on vps for next run') || m.includes('reusing cached render')) {
+    return 'repeat';
+  }
+  return null;
+}
+
 export default function Logs() {
   const { ref: pageRef, isVisible } = useLazyVisible();
   const logsQuery = useCachedLogs({ enabled: isVisible });
@@ -155,18 +167,19 @@ export default function Logs() {
                   padding: 40,
                 }}
               >
-                {error
-                  ? 'Could not load logs.'
-                  : 'No log entries yet. Start the bot to see activity here.'}
+                {error ? 'Could not load logs.' : 'No log entries match the current filter.'}
               </div>
             ) : (
-              filtered.map((line, i) => (
-                <div key={i} className="log-line">
-                  <span className="log-time">{line.time}</span>
-                  <span className={`log-level ${line.level}`}>{line.level}</span>
-                  <span className="log-msg">{line.msg}</span>
-                </div>
-              ))
+              filtered.map((line, i) => {
+                const accent = logLineAccent(line.msg);
+                return (
+                  <div key={i} className={`log-line${accent ? ` log-line--${accent}` : ''}`}>
+                    <span className="log-time">{line.time}</span>
+                    <span className={`log-level ${line.level}`}>{line.level}</span>
+                    <span className="log-msg">{line.msg}</span>
+                  </div>
+                );
+              })
             )}
             <div ref={bottomRef} />
           </div>

@@ -1719,6 +1719,9 @@ tbody td:first-child { color: var(--text-primary); font-weight: 500; }
 .log-msg { color: #c8d0d8; }
 .log-msg .hl { color: var(--accent); }
 
+.log-line--repeat { border-left: 2px solid rgba(126, 200, 227, 0.45); padding-left: 8px; }
+.log-line--retry { border-left: 2px solid rgba(234, 179, 8, 0.5); padding-left: 8px; }
+
 .logs-toolbar {
   display: flex;
   flex-wrap: wrap;

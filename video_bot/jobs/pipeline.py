@@ -14,6 +14,7 @@ from ..repeat_jobs import (
     bump_repeat_run_count,
     get_repeat_job,
     load_repeat_jobs,
+    repeat_job_for_row,
     repeat_run_has_thumbnail,
     repeat_thumbnail_for_run,
 )
@@ -22,6 +23,7 @@ from ..row_rules import (
     get_batch_rule_for_anchor,
     row_has_thumbnail,
 )
+from ..schedule_time import read_row_schedule_time
 from ..sheets import get_sheet_rows, get_sheet_rows_by_numbers, reschedule_repeat_anchor_after_upload, update_task_status
 from ..state import current_render, register_retry_job
 from ..thumbnails import prepare_drive_thumbnail, prepare_row_thumbnail
@@ -78,7 +80,16 @@ def process_reserved_row(
     logger.info("Title: %s", title)
 
     repeat_job = get_repeat_job(row.row_number)
-    is_repeat = repeat_job is not None and not is_batch
+    if repeat_job is None and row.values.get("status", "").strip().lower() == "repeat":
+        schedule_dt = read_row_schedule_time(row.values)
+        schedule_time = schedule_dt.isoformat() if schedule_dt else ""
+        repeat_job = repeat_job_for_row(
+            row.row_number,
+            status="repeat",
+            logs=row.values.get("logs", "") or "",
+            schedule_time=schedule_time,
+        )
+    is_repeat = repeat_job is not None
 
     existing_workdir = find_render_workdir(row.row_number) if is_repeat else None
     existing_video = find_rendered_video(existing_workdir) if existing_workdir else None
@@ -105,6 +116,7 @@ def process_reserved_row(
     background_path = workdir / "background.mp4"
     thumbnail_path: Path | None = None
     cleanup_workdir = not is_repeat
+    workdir_kept_reason: str | None = "repeat" if is_repeat else None
     uploaded_video_id = None
     thumbnail_warning = ""
     upload_description = description
@@ -316,8 +328,9 @@ def process_reserved_row(
 
         if is_repeat:
             cleanup_workdir = False
+            workdir_kept_reason = "repeat"
             logger.info(
-                "Repeat row %s: keeping render workdir %s for next run",
+                "Repeat row %s: render workdir kept on VPS for next run (thumbnail refresh): %s",
                 row.row_number,
                 workdir,
             )
@@ -325,6 +338,7 @@ def process_reserved_row(
             unlink_if_exists(thumbnail_path)
             purge_workdir(workdir)
             cleanup_workdir = False
+            workdir_kept_reason = None
         return {
             "title": title,
             "monk_name": monk_name,
@@ -346,8 +360,10 @@ def process_reserved_row(
 
         if uploaded_video_id:
             cleanup_workdir = False
+            workdir_kept_reason = "retry"
         elif video_path.exists():
             cleanup_workdir = False
+            workdir_kept_reason = "retry"
         retry_id = _register_failure_retry(
             uploaded_video_id=uploaded_video_id,
             video_path=video_path,
@@ -363,8 +379,12 @@ def process_reserved_row(
     finally:
         if cleanup_workdir:
             purge_workdir(workdir)
-        else:
-            logger.info("Temporary files kept for retry: %s", workdir)
+        elif workdir_kept_reason == "retry":
+            logger.warning(
+                "Render files kept on VPS for retry (row %s): %s",
+                row.row_number,
+                workdir,
+            )
 
 
 def _register_failure_retry(

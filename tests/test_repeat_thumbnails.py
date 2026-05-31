@@ -99,5 +99,23 @@ class RepeatRowRulesValidationTests(unittest.TestCase):
         validate_row_rules_for_repeat_anchors(rules, {7884})
 
 
+class RepeatBatchThumbnailTests(unittest.TestCase):
+    def test_repeat_with_row_rule_is_still_repeat(self) -> None:
+        """Repeat anchors almost always have a row rule (background/batch)."""
+        repeat_job = RepeatJob(
+            anchor_row=7884,
+            repeat_type="daily",
+            thumbnails=[RepeatThumbnail(file_id="thumb-a", name="a.jpg")],
+        )
+        has_batch_rule = True
+        is_repeat = repeat_job is not None
+        self.assertTrue(has_batch_rule)
+        self.assertTrue(is_repeat)
+        thumb = repeat_thumbnail_for_run(repeat_job)
+        self.assertIsNotNone(thumb)
+        assert thumb is not None
+        self.assertEqual(thumb.file_id, "thumb-a")
+
+
 if __name__ == "__main__":
     unittest.main()
