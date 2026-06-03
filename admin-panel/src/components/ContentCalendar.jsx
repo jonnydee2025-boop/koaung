@@ -39,10 +39,14 @@ function dateKey(year, month, day) {
   return `${year}-${pad(month)}-${pad(day)}`;
 }
 
-function isoDateKey(iso) {
+function eventDateKey(event) {
+  if (event?.date) return event.date;
+  const iso = String(event?.at || '');
+  const match = iso.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
 function buildMonthCells(year, month) {
@@ -149,7 +153,7 @@ export default function ContentCalendar() {
   const events = useMemo(() => {
     const raw = Array.isArray(data?.events) ? data.events : [];
     return raw.filter((event) => {
-      const key = isoDateKey(event.at);
+      const key = eventDateKey(event);
       return key && key >= todayKey;
     });
   }, [data, todayKey]);
@@ -157,7 +161,7 @@ export default function ContentCalendar() {
   const eventsByDay = useMemo(() => {
     const map = new Map();
     for (const event of events) {
-      const key = isoDateKey(event.at);
+      const key = eventDateKey(event);
       if (!key) continue;
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(event);

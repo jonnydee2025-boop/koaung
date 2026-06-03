@@ -197,6 +197,38 @@ class BuildCalendarEventsTests(unittest.TestCase):
 
 
 class RepeatExpansionConsistencyTests(unittest.TestCase):
+    def test_repeat_includes_first_day_of_month_yangon(self) -> None:
+        job = RepeatJob(
+            anchor_row=1,
+            repeat_type="daily",
+            time="07:38",
+            timezone="Asia/Yangon",
+        )
+        with patch("video_bot.api.calendar.load_repeat_jobs", return_value={1: job}):
+            with patch(
+                "video_bot.api.calendar.all_jobs_sorted",
+                return_value=[
+                    {
+                        "row": 1,
+                        "title": "Metta",
+                        "status": "repeat",
+                        "monk": "",
+                        "schedule_time": "",
+                    }
+                ],
+            ):
+                events = build_calendar_events(2026, 7)
+        days = {
+            datetime.fromisoformat(event["at"]).astimezone(
+                __import__("zoneinfo").ZoneInfo("Asia/Yangon")
+            ).day
+            for event in events
+            if event["kind"] == "repeat"
+        }
+        self.assertIn(1, days)
+        self.assertEqual(events[0]["date"], "2026-07-01")
+        self.assertGreaterEqual(len(days), 31)
+
     def test_repeat_expansion_matches_compute_next_run(self) -> None:
         job = RepeatJob(
             anchor_row=1,

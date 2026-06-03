@@ -60,6 +60,7 @@ async def run_render_chain(
                     "status": "Done",
                     "title": result.get("title", ""),
                     "youtube_id": result.get("video_id", ""),
+                    "row_number": 0,
                 })
                 return
 
@@ -70,6 +71,7 @@ async def run_render_chain(
                     "status": "Done",
                     "title": result.get("title", ""),
                     "youtube_id": result.get("video_id", ""),
+                    "row_number": 0,
                 })
                 logger.info("Auto-queue finished — no more eligible rows.")
                 return

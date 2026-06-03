@@ -16,12 +16,17 @@ def cleanup_active_render(reason: str = "Cancelled by user") -> bool:
     Returns True if an in-flight render was cleaned up.
     """
     row_number = int(current_render.get("row_number") or 0)
-    if not is_render_busy() and row_number <= 0:
+    proc = _state.active_ffmpeg_process
+    busy = is_render_busy()
+
+    if not busy and proc is None:
+        if row_number > 0:
+            # Stale row_number after a completed render — do not touch the sheet.
+            reset_current_render_idle()
         return False
 
     _state.render_cancel_requested = True
 
-    proc = _state.active_ffmpeg_process
     if proc is not None:
         try:
             proc.terminate()

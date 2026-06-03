@@ -30,18 +30,36 @@ def _expand_repeat_occurrences(
     *,
     max_iterations: int = 400,
 ) -> list[datetime]:
-    from ..repeat_jobs import compute_next_run
+    from ..repeat_jobs import compute_next_run, _zoneinfo
 
+    tz = _zoneinfo(job.timezone)
+    month_start_date = start.astimezone(tz).date()
+    month_end_date = end.astimezone(tz).date()
     occurrences: list[datetime] = []
-    cursor = start - timedelta(seconds=1)
+    cursor = start - timedelta(days=1)
     for _ in range(max_iterations):
         next_run = compute_next_run(job, after=cursor)
         if next_run > end:
             break
-        if next_run >= start:
+        local_date = next_run.astimezone(tz).date()
+        if month_start_date <= local_date <= month_end_date:
             occurrences.append(next_run)
         cursor = next_run
     return occurrences
+
+
+def _calendar_date_label(at: datetime, timezone_name: str | None = None) -> str:
+    """YYYY-MM-DD for calendar cells (schedule timezone when provided)."""
+    moment = at
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    if timezone_name:
+        from ..repeat_jobs import _zoneinfo
+
+        moment = moment.astimezone(_zoneinfo(timezone_name))
+    else:
+        moment = moment.astimezone(timezone.utc)
+    return moment.strftime("%Y-%m-%d")
 
 
 def _job_meta(jobs_by_row: dict[int, dict[str, Any]], row: int) -> tuple[str, str]:
@@ -65,6 +83,7 @@ def _append_repeat_events(
         events.append(
             {
                 "at": at.isoformat(),
+                "date": _calendar_date_label(at, repeat_job.timezone),
                 "kind": "repeat",
                 "row": row,
                 "title": title,
@@ -115,6 +134,7 @@ def build_calendar_events(year: int, month: int) -> list[dict[str, Any]]:
                 events.append(
                     {
                         "at": display_at.isoformat(),
+                        "date": _calendar_date_label(display_at),
                         "kind": "do",
                         "row": row,
                         "title": title,
@@ -130,6 +150,7 @@ def build_calendar_events(year: int, month: int) -> list[dict[str, Any]]:
                 events.append(
                     {
                         "at": schedule_dt.isoformat(),
+                        "date": _calendar_date_label(schedule_dt),
                         "kind": "scheduled",
                         "row": row,
                         "title": title,
@@ -186,6 +207,7 @@ def build_calendar_events(year: int, month: int) -> list[dict[str, Any]]:
             events.append(
                 {
                     "at": schedule_dt.isoformat(),
+                    "date": _calendar_date_label(schedule_dt),
                     "kind": "repeat",
                     "row": row,
                     "title": title,
