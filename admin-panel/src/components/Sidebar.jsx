@@ -1,23 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, ListVideo, ScrollText, Settings,
+  LayoutDashboard, ListVideo, ScrollText,
   Bot, Play, Square, Loader, X,
 } from 'lucide-react';
 import { fetchBotStatus, startBot, stopBot } from '../data/api';
+import { SETTINGS_SECTIONS } from '../data/settingsSections';
 import { prefetchRouteData } from '../hooks/routePrefetch';
 
-const navItems = [
+const primaryNavItems = [
   { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
-  { icon: ListVideo,       label: 'Jobs',      to: '/jobs', badge: null },
-  { icon: ScrollText,      label: 'Logs',      to: '/logs' },
-  { icon: Settings,        label: 'Settings',  to: '/settings' },
+  { icon: ListVideo, label: 'Jobs', to: '/jobs', badge: null },
+  { icon: ScrollText, label: 'Logs', to: '/logs' },
 ];
 
+const settingsNavItems = SETTINGS_SECTIONS.map(({ icon, label, path }) => ({
+  icon,
+  label,
+  to: path,
+}));
+
+const navItems = [...primaryNavItems, ...settingsNavItems];
+
 export default function Sidebar({ open = false, onClose }) {
-  const [online, setOnline]         = useState(null); // null = unknown
-  const [toggling, setToggling]     = useState(false);
-  const [error, setError]           = useState('');
+  const [online, setOnline] = useState(null);
+  const [toggling, setToggling] = useState(false);
+  const [error, setError] = useState('');
 
   const poll = useCallback(async () => {
     try {
@@ -25,11 +33,10 @@ export default function Sidebar({ open = false, onClose }) {
       setOnline(o);
       setError('');
     } catch {
-      setOnline(null); // API unreachable
+      setOnline(null);
     }
   }, []);
 
-  // Poll bot status every 5 seconds
   useEffect(() => {
     poll();
     const iv = setInterval(poll, 5000);
@@ -45,7 +52,6 @@ export default function Sidebar({ open = false, onClose }) {
       } else {
         await startBot();
       }
-      // Re-poll after a short delay to let polling state settle
       setTimeout(poll, 800);
     } catch (e) {
       setError(e.message);
@@ -54,16 +60,14 @@ export default function Sidebar({ open = false, onClose }) {
     }
   };
 
-  // Status derived values
-  const statusColor   = online === null ? '#4a5568' : online ? '#22c55e' : '#ef4444';
-  const statusLabel   = online === null ? 'Connecting…' : online ? 'Bot Online' : 'Bot Offline';
-  const statusSub     = online === null ? 'API unreachable' : online ? 'Telegram polling' : 'Polling stopped';
-  const btnLabel      = toggling ? '…' : online ? 'Stop' : 'Start';
-  const BtnIcon       = toggling ? Loader : online ? Square : Play;
+  const statusColor = online === null ? '#4a5568' : online ? '#22c55e' : '#ef4444';
+  const statusLabel = online === null ? 'Connecting…' : online ? 'Bot Online' : 'Bot Offline';
+  const statusSub = online === null ? 'API unreachable' : online ? 'Telegram polling' : 'Polling stopped';
+  const btnLabel = toggling ? '…' : online ? 'Stop' : 'Start';
+  const BtnIcon = toggling ? Loader : online ? Square : Play;
 
   return (
     <aside className={`sidebar${open ? ' is-open' : ''}`}>
-      {/* Logo */}
       <div className="sidebar-logo">
         <div className="logo-mark">
           <img src="/logo.jpg" alt="Dhamma Channel logo" className="logo-image" />
@@ -82,7 +86,6 @@ export default function Sidebar({ open = false, onClose }) {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="sidebar-nav">
         <div className="nav-section-title">Navigation</div>
         {navItems.map(({ icon: Icon, label, to, badge }) => (
@@ -104,9 +107,7 @@ export default function Sidebar({ open = false, onClose }) {
         ))}
       </nav>
 
-      {/* Bot control footer */}
       <div className="sidebar-footer">
-        {/* Status indicator */}
         <div className="bot-status" style={{ marginBottom: 10 }}>
           <div className="status-dot" style={{
             background: statusColor,
@@ -120,7 +121,6 @@ export default function Sidebar({ open = false, onClose }) {
           <Bot size={14} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
         </div>
 
-        {/* Start / Stop button */}
         <button
           id="btn-bot-toggle"
           onClick={handleToggle}
@@ -150,7 +150,6 @@ export default function Sidebar({ open = false, onClose }) {
           {btnLabel} Bot
         </button>
 
-        {/* Inline error */}
         {error && (
           <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6, textAlign: 'center' }}>
             {error}

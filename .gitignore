@@ -48,6 +48,7 @@ repeat_jobs.json
 gemini_models.json
 gemini_api_keys.json
 gemini_youtube_prompt.json
+job_player_prefs.json
 
 # ── OS & editors ─────────────────────────────────────────────────────────────
 .DS_Store

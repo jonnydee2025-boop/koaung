@@ -8,6 +8,14 @@ export async function fetchRowRules() {
   return requestJson(`${API_BASE}/api/settings/row-rules`, undefined, 'Row rules failed');
 }
 
+export async function fetchRowRulesBundle() {
+  const [rulesData, media] = await Promise.all([
+    fetchRowRules(),
+    fetchDriveMediaOptions(),
+  ]);
+  return { rulesData, media };
+}
+
 export async function saveRowRules(rules) {
   return requestJson(
     `${API_BASE}/api/settings/row-rules`,

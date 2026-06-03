@@ -88,6 +88,22 @@ export async function retryJobRender(rowNumber) {
   return result;
 }
 
+export async function fetchJobPlayerPrefs() {
+  return requestJson(`${API_BASE}/api/jobs/player-prefs`, undefined, 'Player prefs failed');
+}
+
+export async function saveJobPlayerPref(rowNumber, { favorite = false, remark = '' } = {}) {
+  return requestJson(
+    `${API_BASE}/api/jobs/${rowNumber}/player-pref`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ favorite, remark }),
+    },
+    'Save player pref failed',
+  );
+}
+
 export function jobAudioStreamUrl(rowNumber) {
   const params = new URLSearchParams();
   const key = getAdminApiKey();

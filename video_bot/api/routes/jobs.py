@@ -12,7 +12,7 @@ from ..job_listing import (
     unique_monk_names,
 )
 from ..render_runner import queue_admin_render
-from ..schemas import ScheduleJobRequest, UpdateJobStatusRequest
+from ..schemas import ScheduleJobRequest, UpdateJobStatusRequest, JobPlayerPrefPayload
 from ...row_rules import resolve_batch_anchor_row
 from ...sheet_cache import invalidate_sheet_cache
 from ...sheets import (
@@ -21,6 +21,11 @@ from ...sheets import (
     update_sheet_row_status,
 )
 from ...media import stream_remote_file
+from ...job_player_prefs import (
+    job_player_pref_to_dict,
+    load_job_player_prefs,
+    set_job_player_pref,
+)
 
 router = APIRouter(tags=["jobs"])
 
@@ -86,6 +91,29 @@ def calendar_jobs(
         if refresh:
             invalidate_sheet_cache()
         return {"events": build_calendar_events(year, month)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/jobs/player-prefs")
+def get_job_player_prefs():
+    try:
+        return {"prefs": load_job_player_prefs()}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.put("/jobs/{row_number}/player-pref")
+def put_job_player_pref(row_number: int, body: JobPlayerPrefPayload):
+    try:
+        pref = set_job_player_pref(
+            row_number,
+            favorite=body.favorite,
+            remark=body.remark,
+        )
+        return {"row": row_number, "pref": job_player_pref_to_dict(pref)}
+    except ValueError as exc:
+        raise http_error_from_value(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

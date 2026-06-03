@@ -1,11 +1,15 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import Header from '../components/Header';
 import RowRulesTable from '../components/RowRulesTable';
 import GeminiModelSettings from '../components/GeminiModelSettings';
 import SettingsTabStatus from '../components/SettingsTabStatus';
-import Spinner from '../components/Spinner';
 import { shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
+import {
+  settingsSectionForPath,
+  settingsSectionMeta,
+} from '../data/settingsSections';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
@@ -18,17 +22,7 @@ import {
   Bot,
   Info,
   LogOut,
-  Server,
-  Sparkles,
-  Table2,
 } from 'lucide-react';
-
-const SECTIONS = [
-  { id: 'general', label: 'General', icon: Server },
-  { id: 'ai', label: 'AI', icon: Sparkles },
-  { id: 'rules', label: 'Row rules', icon: Table2 },
-  { id: 'danger', label: 'Danger', icon: AlertTriangle },
-];
 
 const ENV_FIELDS = [
   ['cfg-sheet-name', 'Sheet name', 'sheetName'],
@@ -52,59 +46,6 @@ function ConfigField({ id, label, fieldKey, cfg }) {
         readOnly
       />
     </div>
-  );
-}
-
-function SettingsNav({ active, onSelect, layout, loadingBySection = {} }) {
-  const renderLabel = (id, label, Icon) => (
-    <>
-      {loadingBySection[id] ? (
-        <Spinner size="sm" className="settings-studio-nav-icon" />
-      ) : Icon ? (
-        <Icon size={15} className="settings-studio-nav-icon" />
-      ) : null}
-      {label}
-    </>
-  );
-
-  if (layout === 'pills') {
-    return (
-      <div className="settings-studio-pills" role="tablist" aria-label="Settings sections">
-        {SECTIONS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={active === id}
-            aria-busy={Boolean(loadingBySection[id])}
-            className={`settings-studio-pill${active === id ? ' is-active' : ''}${loadingBySection[id] ? ' is-loading' : ''}`}
-            onClick={() => onSelect(id)}
-          >
-            {loadingBySection[id] ? (
-              <Spinner size="sm" />
-            ) : null}
-            {label}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <nav className="settings-studio-nav" aria-label="Settings sections">
-      <div className="settings-studio-nav-label">Sections</div>
-      {SECTIONS.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          type="button"
-          aria-busy={Boolean(loadingBySection[id])}
-          className={`settings-studio-nav-btn${active === id ? ' is-active' : ''}${loadingBySection[id] ? ' is-loading' : ''}`}
-          onClick={() => onSelect(id)}
-        >
-          {renderLabel(id, label, Icon)}
-        </button>
-      ))}
-    </nav>
   );
 }
 
@@ -259,9 +200,10 @@ function DangerSection({ onKill, setError }) {
 }
 
 export default function Settings() {
-  const [section, setSection] = useState('general');
+  const location = useLocation();
+  const section = settingsSectionForPath(location.pathname);
   const [error, setError] = useState('');
-  const { ref: pageRef, isVisible } = useLazyVisible();
+  const { ref: pageRef, isVisible } = useLazyVisible({ initialVisible: true });
 
   const generalQuery = useCachedGeneralSettings({
     enabled: isVisible && section === 'general',
@@ -272,16 +214,6 @@ export default function Settings() {
   const rowRulesQuery = useCachedRowRulesSettings({
     enabled: isVisible && section === 'rules',
   });
-
-  const loadingBySection = useMemo(
-    () => ({
-      general: generalQuery.isInitialLoad,
-      ai: geminiQuery.isInitialLoad,
-      rules: rowRulesQuery.isInitialLoad,
-      danger: false,
-    }),
-    [generalQuery.isInitialLoad, geminiQuery.isInitialLoad, rowRulesQuery.isInitialLoad],
-  );
 
   useEffect(() => {
     if (generalQuery.error) setError(generalQuery.error);
@@ -294,12 +226,18 @@ export default function Settings() {
   );
 
   useEffect(() => {
-    pageRef.current?.scrollTo({ top: 0 });
-  }, [section]);
+    pageRef.current?.scrollTo?.({ top: 0 });
+  }, [section, pageRef]);
+
+  if (!section) {
+    return <Navigate to="/general" replace />;
+  }
+
+  const meta = settingsSectionMeta(section);
 
   return (
     <>
-      <Header title="Settings" subtitle="Studio console" />
+      <Header title={meta.title} subtitle={meta.subtitle} />
       <div ref={pageRef} className="page-content settings-page settings-studio-page">
         {error && (
           <div className="settings-alert settings-alert--error">
@@ -307,41 +245,25 @@ export default function Settings() {
           </div>
         )}
 
-        <SettingsNav
-          active={section}
-          onSelect={setSection}
-          layout="pills"
-          loadingBySection={loadingBySection}
-        />
-
-        <div className="settings-studio-shell">
-          <SettingsNav
-            active={section}
-            onSelect={setSection}
-            layout="sidebar"
-            loadingBySection={loadingBySection}
-          />
-
-          <main className="settings-studio-main">
-            {section === 'general' && (
-              <GeneralSection
-                cfg={generalQuery.cfg}
-                meta={generalQuery.meta}
-                loading={generalQuery.isInitialLoad}
-                refreshing={generalQuery.refreshing}
-              />
-            )}
-            {section === 'ai' && (
-              <GeminiModelSettings embedded query={geminiQuery} />
-            )}
-            {section === 'rules' && (
-              <RowRulesTable embedded query={rowRulesQuery} />
-            )}
-            {section === 'danger' && (
-              <DangerSection onKill={shutdownServer} setError={setError} />
-            )}
-          </main>
-        </div>
+        <main className="settings-studio-main settings-studio-main--solo">
+          {section === 'general' && (
+            <GeneralSection
+              cfg={generalQuery.cfg}
+              meta={generalQuery.meta}
+              loading={generalQuery.isInitialLoad}
+              refreshing={generalQuery.refreshing}
+            />
+          )}
+          {section === 'ai' && (
+            <GeminiModelSettings embedded query={geminiQuery} />
+          )}
+          {section === 'rules' && (
+            <RowRulesTable embedded query={rowRulesQuery} />
+          )}
+          {section === 'danger' && (
+            <DangerSection onKill={shutdownServer} setError={setError} />
+          )}
+        </main>
       </div>
     </>
   );

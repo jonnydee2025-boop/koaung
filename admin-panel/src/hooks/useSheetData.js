@@ -16,6 +16,7 @@ import {
 } from '../data/jobsCacheKeys';
 import { JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
 import { prefetchCache } from '../data/queryCache';
+import { ensureJobPlayerPrefsLoaded } from '../data/jobPlayerPrefs';
 import { useCachedQuery } from './useCachedQuery';
 
 const STATS_TTL = 8000;
@@ -241,6 +242,7 @@ export async function warmAppCache({ jobs = true } = {}) {
       CALENDAR_TTL,
     ),
     prefetchAdjacentCalendarMonths(now.getFullYear(), now.getMonth() + 1),
+    ensureJobPlayerPrefsLoaded(),
   ];
   if (jobs) {
     tasks.push(warmJobsCache());

@@ -1,8 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import {
-  fetchDriveMediaOptions,
   fetchGeminiModels,
-  fetchRowRules,
+  fetchRowRulesBundle,
   fetchSettings,
 } from '../data/api';
 import {
@@ -13,6 +12,23 @@ import {
 import { useCachedQuery } from './useCachedQuery';
 
 const SETTINGS_TTL = 60000;
+
+function normalizeRowRulesBundle(data) {
+  if (!data) return null;
+  if (data.rulesData != null) {
+    return {
+      rulesData: data.rulesData,
+      media: data.media ?? { background_videos: [], thumbnail_images: [] },
+    };
+  }
+  return {
+    rulesData: {
+      rules: data.rules ?? [],
+      repeat_anchors: data.repeat_anchors ?? [],
+    },
+    media: data.media ?? { background_videos: [], thumbnail_images: [] },
+  };
+}
 
 function transformSettings(data) {
   if (!data) return null;
@@ -65,24 +81,23 @@ export function useCachedGeminiSettings(options = {}) {
   };
 }
 
-async function fetchRowRulesBundle() {
-  const [rulesData, media] = await Promise.all([
-    fetchRowRules(),
-    fetchDriveMediaOptions(),
-  ]);
-  return { rulesData, media };
+async function fetchRowRulesBundleCached() {
+  return fetchRowRulesBundle();
 }
 
 export function useCachedRowRulesSettings(options = {}) {
   const enabled = options.enabled ?? true;
-  const fetcher = useCallback(() => fetchRowRulesBundle(), []);
+  const fetcher = useCallback(() => fetchRowRulesBundleCached(), []);
   const query = useCachedQuery(SETTINGS_ROW_RULES_CACHE_KEY, fetcher, {
     ttlMs: SETTINGS_TTL,
     enabled,
   });
 
+  const data = useMemo(() => normalizeRowRulesBundle(query.data), [query.data]);
+
   return {
     ...query,
-    isInitialLoad: enabled && query.loading && query.data == null,
+    data,
+    isInitialLoad: enabled && query.loading && data == null,
   };
 }

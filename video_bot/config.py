@@ -138,6 +138,9 @@ GEMINI_PROMPT_PATH = Path(
 REPEAT_JOBS_PATH = Path(
     os.getenv("REPEAT_JOBS_PATH", "repeat_jobs.json"),
 ).resolve()
+JOB_PLAYER_PREFS_PATH = Path(
+    os.getenv("JOB_PLAYER_PREFS_PATH", "job_player_prefs.json"),
+).resolve()
 
 MENU_RENDER_NEXT = "menu:render_next"
 MENU_VIEW_STATS = "menu:view_stats"

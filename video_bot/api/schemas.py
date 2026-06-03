@@ -29,6 +29,11 @@ class UpdateJobStatusRequest(BaseModel):
     status: Literal["pending", "do", "failed", "done"]
 
 
+class JobPlayerPrefPayload(BaseModel):
+    favorite: bool = False
+    remark: str = ""
+
+
 class RowRangeRulePayload(BaseModel):
     from_row: int = Field(..., ge=1)
     to_row: int | None = Field(default=None, ge=1)

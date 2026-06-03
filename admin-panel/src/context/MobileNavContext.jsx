@@ -16,6 +16,17 @@ export function MobileNavProvider({ children }) {
     };
   }, [sidebarOpen]);
 
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1025px)');
+    const onChange = () => {
+      if (mq.matches) {
+        setSidebarOpen(false);
+      }
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   const value = useMemo(
     () => ({
       sidebarOpen,

@@ -5,8 +5,9 @@ import Mp3PlayerModal from './Mp3PlayerModal';
 import JobStatusSelect from './JobStatusSelect';
 import Skeleton from './Skeleton';
 import LoadingOverlay from './LoadingOverlay';
-import { RotateCcw, ExternalLink, CalendarClock, NotebookText } from 'lucide-react';
+import { RotateCcw, ExternalLink, CalendarClock, NotebookText, Star } from 'lucide-react';
 import { isDoneStatus, isPendingStatus } from '../data/statusTheme';
+import { useJobPlayerPrefsMap } from '../hooks/useJobPlayerPrefs';
 
 const PAGE_SIZE = 25;
 const SKELETON_ROWS = 6;
@@ -62,6 +63,7 @@ export default function LazyJobTable({
   const [logJob, setLogJob] = useState(null);
   const [playerJob, setPlayerJob] = useState(null);
   const sentinelRef = useRef(null);
+  const playerPrefsMap = useJobPlayerPrefsMap().map;
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -134,7 +136,7 @@ export default function LazyJobTable({
         <tbody>
           {visible.map((job) => (
             <tr key={job.row}>
-              <td>
+              <td data-label="Title">
                 {enableTitlePlayer && job.mp3_url ? (
                   <button
                     type="button"
@@ -142,14 +144,22 @@ export default function LazyJobTable({
                     onClick={() => setPlayerJob(job)}
                     title="Play audio"
                   >
+                    {playerPrefsMap[String(job.row)]?.favorite && (
+                      <Star size={12} className="job-title-favorite" aria-hidden />
+                    )}
                     {job.title || '(no title)'}
                   </button>
                 ) : (
-                  <div className="truncate">{job.title || '(no title)'}</div>
+                  <div className="truncate job-title-text">
+                    {playerPrefsMap[String(job.row)]?.favorite && (
+                      <Star size={12} className="job-title-favorite" aria-hidden />
+                    )}
+                    {job.title || '(no title)'}
+                  </div>
                 )}
               </td>
-              <td className="text-mono">#{job.row}</td>
-              <td>
+              <td className="text-mono" data-label="Row">#{job.row}</td>
+              <td data-label="Status">
                 {showActions && onStatusChange ? (
                   <JobStatusSelect
                     status={job.status}
@@ -165,7 +175,7 @@ export default function LazyJobTable({
                   </div>
                 )}
               </td>
-              <td>
+              <td data-label="YouTube">
                 {job.youtube_id ? (
                   <a
                     href={`https://youtu.be/${job.youtube_id}`}
@@ -179,7 +189,7 @@ export default function LazyJobTable({
                   '—'
                 )}
               </td>
-              <td>
+              <td data-label="Log">
                 {(job.logs || '').trim() && !isPendingStatus(job.status) ? (
                   <button
                     type="button"
@@ -196,7 +206,7 @@ export default function LazyJobTable({
                 )}
               </td>
               {showActions && (
-                <td>
+                <td data-label="Actions">
                   <div className="job-actions">
                     {job.youtube_id && (
                       <a

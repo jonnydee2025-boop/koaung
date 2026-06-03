@@ -11,6 +11,8 @@ export {
   retryJobRender,
   fetchJobAudioBlob,
   jobAudioStreamUrl,
+  fetchJobPlayerPrefs,
+  saveJobPlayerPref,
 } from './jobsApi';
 export {
   fetchLogs,
@@ -22,6 +24,7 @@ export {
 export {
   fetchSettings,
   fetchRowRules,
+  fetchRowRulesBundle,
   saveRowRules,
   fetchDriveMediaOptions,
   fetchGeminiModels,

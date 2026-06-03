@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Star, X } from 'lucide-react';
 import { jobAudioStreamUrl } from '../data/api';
+import { getJobPlayerPref } from '../data/jobPlayerPrefs';
+import { useJobPlayerPref } from '../hooks/useJobPlayerPrefs';
 
 function formatAudioDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -27,6 +29,10 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
   const [error, setError] = useState('');
   const [audioSrc, setAudioSrc] = useState('');
   const [displayDuration, setDisplayDuration] = useState('');
+  const [remarkDraft, setRemarkDraft] = useState('');
+  const remarkSaveTimer = useRef(null);
+
+  const { favorite, toggleFavorite, updateRemark, ready } = useJobPlayerPref(job?.row);
 
   useEffect(() => {
     if (!open || !job) {
@@ -43,6 +49,20 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
   }, [open, job]);
 
   useEffect(() => {
+    if (open && job && ready) {
+      setRemarkDraft(getJobPlayerPref(job.row).remark);
+    }
+  }, [open, job, ready]);
+
+  useEffect(() => {
+    return () => {
+      if (remarkSaveTimer.current) {
+        clearTimeout(remarkSaveTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!open) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -51,6 +71,7 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
       setError('');
       setLoading(false);
       setDisplayDuration('');
+      setRemarkDraft('');
     }
   }, [open]);
 
@@ -87,6 +108,28 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
     setError('Failed to load audio. Check your connection or sign in again.');
   };
 
+  const handleRemarkChange = (event) => {
+    const value = event.target.value;
+    setRemarkDraft(value);
+    if (remarkSaveTimer.current) {
+      clearTimeout(remarkSaveTimer.current);
+    }
+    remarkSaveTimer.current = window.setTimeout(() => {
+      updateRemark(value).catch(() => {});
+    }, 400);
+  };
+
+  const handleRemarkBlur = () => {
+    if (remarkSaveTimer.current) {
+      clearTimeout(remarkSaveTimer.current);
+    }
+    updateRemark(remarkDraft).catch(() => {});
+  };
+
+  const handleToggleFavorite = () => {
+    toggleFavorite().catch(() => {});
+  };
+
   if (!open || !job) {
     return null;
   }
@@ -108,9 +151,21 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
               {job.monk || 'Unknown monk'} · Row #{job.row}
             </p>
           </div>
-          <button type="button" className="btn-icon" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
+          <div className="mp3-player-header-actions">
+            <button
+              type="button"
+              className={`btn-icon mp3-player-favorite${favorite ? ' is-active' : ''}`}
+              onClick={handleToggleFavorite}
+              aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
+              aria-pressed={favorite}
+              title={favorite ? 'Remove favorite' : 'Add favorite'}
+            >
+              <Star size={16} fill={favorite ? 'currentColor' : 'none'} />
+            </button>
+            <button type="button" className="btn-icon" onClick={onClose} aria-label="Close">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="mp3-player-meta">
@@ -118,6 +173,21 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
           <span className="mp3-player-meta-value">
             {displayDuration || (loading ? 'Loading…' : '—')}
           </span>
+        </div>
+
+        <div className="mp3-player-remark">
+          <label className="mp3-player-remark-label" htmlFor="mp3-player-remark">
+            Remark
+          </label>
+          <textarea
+            id="mp3-player-remark"
+            className="form-input mp3-player-remark-input"
+            rows={3}
+            placeholder="Private note for this track…"
+            value={remarkDraft}
+            onChange={handleRemarkChange}
+            onBlur={handleRemarkBlur}
+          />
         </div>
 
         {error && <p className="login-error mp3-player-error">{error}</p>}

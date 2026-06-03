@@ -55,8 +55,9 @@ function batchRowsFromLegacyRule(r) {
 }
 
 function mapRulesFromApi(rulesData) {
-  return rulesData.rules?.length
-    ? rulesData.rules.map((r) => ({
+  const rules = rulesData?.rules;
+  return rules?.length
+    ? rules.map((r) => ({
         batch_rows: batchRowsFromLegacyRule(r),
         from_row: r.from_row ?? '',
         to_row: r.to_row ?? '',
@@ -94,7 +95,7 @@ function SelectMedia({ id, value, options, disabled, onChange, title }) {
   );
 }
 
-export default function RowRulesTable({ embedded = false, query }) {
+export default function RowRulesTable({ embedded = false, query: queryProp }) {
   const [rules, setRules] = useState([emptyRule()]);
   const [backgrounds, setBackgrounds] = useState([]);
   const [thumbnails, setThumbnails] = useState([]);
@@ -103,7 +104,16 @@ export default function RowRulesTable({ embedded = false, query }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const loading = query.isInitialLoad;
+  const query = queryProp ?? {
+    data: null,
+    error: '',
+    loading: false,
+    refreshing: false,
+    isInitialLoad: true,
+    refresh: () => {},
+  };
+
+  const loading = Boolean(query.isInitialLoad);
   const refreshing = query.refreshing;
   const rowDisabled = loading || refreshing || refreshingDrive || saving;
 
@@ -113,8 +123,8 @@ export default function RowRulesTable({ embedded = false, query }) {
     const bundle = query.data;
     if (!bundle) return;
     setRules(mapRulesFromApi(bundle.rulesData));
-    setBackgrounds(bundle.media.background_videos ?? []);
-    setThumbnails(bundle.media.thumbnail_images ?? []);
+    setBackgrounds(bundle.media?.background_videos ?? []);
+    setThumbnails(bundle.media?.thumbnail_images ?? []);
     setError('');
   }, [query.data]);
 

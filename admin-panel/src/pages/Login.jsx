@@ -30,30 +30,32 @@ export default function Login({ onSuccess }) {
 
   return (
     <div className="login-page">
-      <form className="login-card" onSubmit={handleSubmit}>
-        <img src="/logo.jpg" alt="Dhamma Channel logo" className="logo-image" style={{ margin: '0 auto 16px' }} />
-        <h1 className="login-title">မုဒြာ Dhamma Channel</h1>
-        <p className="login-subtitle">
-          Sign in with your <code>ADMIN_API_KEY</code> from the server <code>.env</code>.
-        </p>
-        <label className="login-label" htmlFor="admin-api-key">
-          Admin API key
-        </label>
-        <input
-          id="admin-api-key"
-          className="login-input"
-          type="password"
-          autoComplete="current-password"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder="Paste your secret key"
-          disabled={loading}
-        />
-        {error && <p className="login-error">{error}</p>}
-        <button className="btn btn-primary login-submit" type="submit" disabled={loading}>
-          {loading ? 'Checking…' : 'Sign in'}
-        </button>
-      </form>
+      <div className="login-card-shell">
+        <form className="login-card" onSubmit={handleSubmit}>
+          <div className="login-header">
+            <img src="/logo.jpg" alt="Dhamma Channel logo" className="logo-image login-logo" />
+            <h1 className="login-title">
+              <span className="login-title-burmese">မုဒြာ</span>
+              <span className="login-title-en">Dhamma Channel</span>
+            </h1>
+          </div>
+          <input
+            id="admin-api-key"
+            className="login-input"
+            type="password"
+            autoComplete="current-password"
+            aria-label="Admin API key"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="Paste your secret key"
+            disabled={loading}
+          />
+          {error && <p className="login-error">{error}</p>}
+          <button className="btn btn-primary login-submit" type="submit" disabled={loading}>
+            {loading ? 'Checking…' : 'Sign in'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

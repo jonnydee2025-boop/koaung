@@ -1,9 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import PageLoader from './components/PageLoader';
+import ErrorBoundary from './components/ErrorBoundary';
+import RouteFallback from './components/RouteFallback';
 import Login from './pages/Login';
 import { isAuthenticated } from './data/adminAuth';
+import { SETTINGS_SECTIONS } from './data/settingsSections';
 import { MobileNavProvider, useMobileNav } from './context/MobileNavContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -38,6 +41,7 @@ function RequireAuth({ children }) {
 
 function AppShell() {
   const { sidebarOpen, closeSidebar } = useMobileNav();
+  const location = useLocation();
 
   return (
     <div className={`app-layout${sidebarOpen ? ' sidebar-open' : ''}`}>
@@ -51,40 +55,47 @@ function AppShell() {
       )}
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
       <div className="main-content">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <LazyPage>
-                <Dashboard />
-              </LazyPage>
-            }
-          />
-          <Route
-            path="/jobs"
-            element={
-              <LazyPage>
-                <Jobs />
-              </LazyPage>
-            }
-          />
-          <Route
-            path="/logs"
-            element={
-              <LazyPage>
-                <Logs />
-              </LazyPage>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <LazyPage>
-                <Settings />
-              </LazyPage>
-            }
-          />
-        </Routes>
+        <ErrorBoundary resetKey={location.pathname}>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <LazyPage>
+                  <Dashboard />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="/jobs"
+              element={
+                <LazyPage>
+                  <Jobs />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="/logs"
+              element={
+                <LazyPage>
+                  <Logs />
+                </LazyPage>
+              }
+            />
+            <Route path="/settings" element={<Navigate to="/general" replace />} />
+            {SETTINGS_SECTIONS.map(({ path }) => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <LazyPage>
+                    <Settings />
+                  </LazyPage>
+                }
+              />
+            ))}
+            <Route path="*" element={<RouteFallback />} />
+          </Routes>
+        </ErrorBoundary>
       </div>
     </div>
   );
