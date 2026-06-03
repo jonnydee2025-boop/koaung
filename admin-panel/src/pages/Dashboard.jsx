@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import Header from '../components/Header';
 import ContentCalendar from '../components/ContentCalendar';
-import Skeleton from '../components/Skeleton';
+import PageLoader from '../components/PageLoader';
+import Spinner from '../components/Spinner';
 import ErrorBanner from '../components/ErrorBanner';
 import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle } from 'lucide-react';
 import { cancelRender } from '../data/api';
@@ -177,7 +178,13 @@ export default function Dashboard() {
             <div key={label} className={`stat-card ${color}`}>
               <div className={`stat-icon ${color}`}>{icon}</div>
               <div className="stat-value">
-                {statsLoading ? <Skeleton h={32} w={60} /> : value}
+                {statsLoading ? (
+                  <span className="stat-value-spinner">
+                    <Spinner size="sm" />
+                  </span>
+                ) : (
+                  value
+                )}
               </div>
               <div className="stat-label">{label}</div>
               <span className={`stat-delta ${color === 'red' ? 'down' : 'up'}`}>
@@ -198,13 +205,10 @@ export default function Dashboard() {
               <TrendingUp size={16} style={{ color: 'var(--text-muted)' }} />
             </div>
             {statsLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} h={40} />
-                ))}
-              </div>
+              <PageLoader variant="section" label="Loading breakdown…" />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {statusBreakdown.map((s) => (
                   <div key={s.label}>
                     <div
@@ -233,7 +237,6 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            )}
             <div
               style={{
                 marginTop: 20,
@@ -249,6 +252,8 @@ export default function Dashboard() {
                 {stats?.processing ?? '—'} job(s)
               </span>
             </div>
+              </>
+            )}
           </div>
 
           <div className="card">
@@ -277,7 +282,13 @@ export default function Dashboard() {
                   }}
                 >
                   <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                  <span style={{ fontWeight: 700, color }}>{val}</span>
+                  <span style={{ fontWeight: 700, color }}>
+                    {statsLoading ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      val
+                    )}
+                  </span>
                 </div>
               ))}
             </div>

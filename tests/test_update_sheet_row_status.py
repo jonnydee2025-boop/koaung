@@ -34,7 +34,7 @@ class UpdateSheetRowStatusTests(unittest.TestCase):
             Schedule_Time="2026-05-25T20:49:00+00:00",
             logs="render failed",
         )
-        mock_get_row.return_value = (headers, target)
+        mock_get_row.return_value = (headers, [target], target)
         mock_build.return_value = (MagicMock(), None)
 
         result = update_sheet_row_status(13656, "pending")
@@ -63,7 +63,7 @@ class UpdateSheetRowStatusTests(unittest.TestCase):
     ) -> None:
         headers = ["status", "logs"]
         target = _row(10, "failed", logs="still here")
-        mock_get_row.return_value = (headers, target)
+        mock_get_row.return_value = (headers, [target], target)
         mock_build.return_value = (MagicMock(), None)
 
         update_sheet_row_status(10, "do")

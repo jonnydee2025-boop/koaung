@@ -55,11 +55,26 @@ class JobListingTests(unittest.TestCase):
         jobs = [
             sample_job(1, "pending", monk="U Vimala"),
             sample_job(2, "pending", monk="U Pandita"),
+            sample_job(3, "do", monk="U Vimala"),
         ]
         self.assertEqual(
             filter_jobs(jobs, "all", "", "U Vimala"),
-            [sample_job(1, "pending", monk="U Vimala")],
+            [sample_job(1, "pending", monk="U Vimala"), sample_job(3, "do", monk="U Vimala")],
         )
+
+    def test_job_status_counts_respect_monk_scope(self) -> None:
+        jobs = [
+            sample_job(1, "pending", monk="U Vimala"),
+            sample_job(2, "do", monk="U Vimala"),
+            sample_job(3, "pending", monk="U Pandita"),
+            sample_job(4, "done", monk="U Vimala"),
+        ]
+        scoped = filter_jobs(jobs, "all", "", "U Vimala")
+        counts = job_status_counts(scoped)
+        self.assertEqual(counts["all"], 3)
+        self.assertEqual(counts["pending"], 1)
+        self.assertEqual(counts["do"], 1)
+        self.assertEqual(counts["done"], 1)
 
     def test_unique_monk_names_sorted(self) -> None:
         jobs = [

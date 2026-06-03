@@ -1,7 +1,6 @@
 """Release in-flight renders and sync Google Sheet status when the bot stops."""
 
 from .config import logger
-from .sheet_cache import invalidate_sheet_cache
 from .sheets import mark_row_failed
 from .state import (
     current_render,
@@ -38,5 +37,4 @@ def cleanup_active_render(reason: str = "Cancelled by user") -> bool:
             logger.warning("Could not mark row %s failed: %s", row_number, exc)
 
     reset_current_render_idle(reason)
-    invalidate_sheet_cache()
     return True

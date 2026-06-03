@@ -14,7 +14,7 @@ from .row_rules import (
 from .repeat_jobs import (
     RepeatJob,
     RepeatThumbnail,
-    bump_repeat_run_count,
+    consume_repeat_thumbnail_after_success,
     compute_next_run,
     delete_repeat_job,
     get_repeat_job,
@@ -65,6 +65,12 @@ def get_sheet_rows(sheets: Any) -> tuple[list[str], list[SheetRow]]:
     return headers, rows
 
 
+def _invalidate_sheet_cache_after_write() -> None:
+    from .sheet_cache import invalidate_sheet_cache
+
+    invalidate_sheet_cache()
+
+
 def ensure_column(sheets: Any, headers: list[str], column_name: str) -> int:
     normalized = normalize_header(column_name)
     if normalized in headers:
@@ -78,6 +84,7 @@ def ensure_column(sheets: Any, headers: list[str], column_name: str) -> int:
         body={"values": [[normalized]]},
     ).execute()
     headers.append(normalized)
+    _invalidate_sheet_cache_after_write()
     return next_index
 
 
@@ -89,6 +96,7 @@ def update_sheet_cell(sheets: Any, row_number: int, column_index: int, value: st
         valueInputOption="RAW",
         body={"values": [[value]]},
     ).execute()
+    _invalidate_sheet_cache_after_write()
 
 
 def update_task_status(
@@ -207,6 +215,17 @@ def has_do_row(rows: list[SheetRow]) -> bool:
     return bool(_collect_do_anchor_candidates(rows))
 
 
+def has_next_render_row(*, do_only: bool = False, now: datetime | None = None) -> bool:
+    """True when another row would be picked by the render queue (without reserving)."""
+    sheets, _ = build_google_services()
+    _, rows = get_sheet_rows(sheets)
+    if do_only:
+        return has_do_row(rows)
+    if has_due_scheduled_row(rows, now=now):
+        return True
+    return has_do_row(rows)
+
+
 def _resolve_do_anchor(row: SheetRow, rows_by_number: dict[int, SheetRow]) -> SheetRow | None:
     anchor_number = resolve_batch_anchor_row(row.row_number)
     anchor = rows_by_number.get(anchor_number)
@@ -313,7 +332,9 @@ def _collect_due_scheduled_anchors(
     return _collect_due_timed_anchors(rows, moment)
 
 
-def reserve_next_do_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
+def reserve_next_do_row(
+    sheets: Any,
+) -> tuple[list[str], list[SheetRow], SheetRow | None]:
     """Reserve the next do row only (never scheduled); batch members resolve to anchor."""
     headers, rows = get_sheet_rows(sheets)
     if "status" not in headers:
@@ -321,14 +342,17 @@ def reserve_next_do_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
 
     candidates = _collect_do_anchor_candidates(rows)
     if not candidates:
-        return headers, None
+        return headers, rows, None
 
     candidate = candidates[0]
     update_task_status(sheets, headers, candidate.row_number, "processing", "")
-    return headers, candidate
+    _sync_row_status_in_memory(rows, candidate.row_number, "processing")
+    return headers, rows, candidate
 
 
-def reserve_next_pending_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
+def reserve_next_pending_row(
+    sheets: Any,
+) -> tuple[list[str], list[SheetRow], SheetRow | None]:
     """Reserve the next render row: due Scheduled first, then do (never pending)."""
     headers, rows = get_sheet_rows(sheets)
     if "status" not in headers:
@@ -342,15 +366,17 @@ def reserve_next_pending_row(sheets: Any) -> tuple[list[str], SheetRow | None]:
         update_task_status(
             sheets, headers, candidate.row_number, "processing", ""
         )
-        return headers, candidate
+        _sync_row_status_in_memory(rows, candidate.row_number, "processing")
+        return headers, rows, candidate
 
     do_candidates = _collect_do_anchor_candidates(rows)
     if do_candidates:
         candidate = do_candidates[0]
         update_task_status(sheets, headers, candidate.row_number, "processing", "")
-        return headers, candidate
+        _sync_row_status_in_memory(rows, candidate.row_number, "processing")
+        return headers, rows, candidate
 
-    return headers, None
+    return headers, rows, None
 
 
 def mark_row_failed(row_number: int, log_message: str) -> None:
@@ -359,7 +385,21 @@ def mark_row_failed(row_number: int, log_message: str) -> None:
     update_task_status(sheets, headers, row_number, "failed", log_message)
 
 
-def _get_sheet_row_or_raise(sheets, row_number: int):
+def _sync_row_status_in_memory(
+    rows: list[SheetRow],
+    row_number: int,
+    status: str,
+) -> None:
+    for row in rows:
+        if row.row_number == row_number:
+            row.values["status"] = status
+            return
+
+
+def _get_sheet_row_or_raise(
+    sheets,
+    row_number: int,
+) -> tuple[list[str], list[SheetRow], SheetRow]:
     headers, rows = get_sheet_rows(sheets)
     if "status" not in headers:
         raise RuntimeError("Missing required 'status' column.")
@@ -367,13 +407,13 @@ def _get_sheet_row_or_raise(sheets, row_number: int):
     target = next((r for r in rows if r.row_number == row_number), None)
     if target is None:
         raise ValueError(f"Sheet row {row_number} not found.")
-    return headers, target
+    return headers, rows, target
 
 
 def assert_row_retryable(row_number: int) -> None:
     """Raise ValueError if the row cannot be retried from the admin panel."""
     sheets, _ = build_google_services()
-    _, target = _get_sheet_row_or_raise(sheets, row_number)
+    _, _, target = _get_sheet_row_or_raise(sheets, row_number)
     status = target.values.get("status", "").strip().lower()
     if status == "processing":
         raise ValueError(f"Row {row_number} is currently processing.")
@@ -383,12 +423,15 @@ def assert_row_retryable(row_number: int) -> None:
         )
 
 
-def prepare_failed_row_for_retry(sheets, row_number: int) -> tuple[list[str], "SheetRow"]:
+def prepare_failed_row_for_retry(
+    sheets,
+    row_number: int,
+) -> tuple[list[str], list[SheetRow], SheetRow]:
     """
     Validate a failed row and mark it processing for an explicit admin-panel retry.
-    Returns (headers, row). Raises ValueError if the row is missing or not retryable.
+    Returns (headers, rows, row). Raises ValueError if the row is missing or not retryable.
     """
-    headers, target = _get_sheet_row_or_raise(sheets, row_number)
+    headers, rows, target = _get_sheet_row_or_raise(sheets, row_number)
     status = target.values.get("status", "").strip().lower()
     if status == "processing":
         raise ValueError(f"Row {row_number} is currently processing.")
@@ -403,7 +446,8 @@ def prepare_failed_row_for_retry(sheets, row_number: int) -> tuple[list[str], "S
         "processing",
         "Retry from admin panel",
     )
-    return headers, target
+    _sync_row_status_in_memory(rows, row_number, "processing")
+    return headers, rows, target
 
 
 ADMIN_SETTABLE_STATUSES = frozenset({"pending", "do", "failed", "done"})
@@ -431,7 +475,7 @@ def update_sheet_row_status(row_number: int, status: str) -> dict[str, str | int
         )
 
     sheets, _ = build_google_services()
-    headers, target = _get_sheet_row_or_raise(sheets, row_number)
+    headers, _, target = _get_sheet_row_or_raise(sheets, row_number)
     previous = target.values.get("status", "").strip().lower()
     if previous == "processing":
         raise ValueError(f"Row {row_number} is currently processing.")
@@ -548,6 +592,8 @@ def reschedule_repeat_anchor_after_upload(
     headers: list[str],
     anchor_row: int,
     log_message: str,
+    *,
+    consumed_repeat_thumbnail_id: str | None = None,
 ) -> None:
     """After a successful repeat render, set anchor to repeat with next Schedule_Time."""
     job = get_repeat_job(anchor_row)
@@ -576,7 +622,10 @@ def reschedule_repeat_anchor_after_upload(
         f"{log_message} Next repeat: {schedule_time_storage_value(next_run)}. "
         f"{repeat_job_description(job)}.",
     )
-    bump_repeat_run_count(anchor_row)
+    consume_repeat_thumbnail_after_success(
+        anchor_row,
+        consumed_file_id=consumed_repeat_thumbnail_id,
+    )
 
 
 def schedule_job_row(
@@ -785,8 +834,9 @@ def schedule_sheet_row(row_number: int, schedule_time_raw: str) -> dict[str, str
 
 
 def get_status_statistics() -> dict[str, int]:
-    sheets, _ = build_google_services()
-    headers, rows = get_sheet_rows(sheets)
+    from .sheet_cache import get_cached_sheet_rows
+
+    headers, rows = get_cached_sheet_rows()
     if "status" not in headers:
         raise RuntimeError("Missing required 'status' column.")
 

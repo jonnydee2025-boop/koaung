@@ -8,6 +8,7 @@ from video_bot.models import SheetRow
 from video_bot.sheets import (
     has_do_row,
     has_due_scheduled_row,
+    has_next_render_row,
     reserve_next_do_row,
     reserve_next_pending_row,
 )
@@ -26,6 +27,39 @@ class SheetQueueTests(unittest.TestCase):
     def test_has_do_row_false_when_only_pending(self) -> None:
         rows = [_row(10, "pending")]
         self.assertFalse(has_do_row(rows))
+
+    @patch("video_bot.sheets.get_sheet_rows")
+    @patch("video_bot.sheets.build_google_services")
+    def test_has_next_render_row_do_only(
+        self,
+        mock_build: MagicMock,
+        mock_get_rows: MagicMock,
+    ) -> None:
+        mock_build.return_value = (MagicMock(), None)
+        mock_get_rows.return_value = (["status"], [_row(10, "do")])
+        self.assertTrue(has_next_render_row(do_only=True))
+
+    @patch("video_bot.sheets.get_sheet_rows")
+    @patch("video_bot.sheets.build_google_services")
+    def test_has_next_render_row_scheduled_before_do(
+        self,
+        mock_build: MagicMock,
+        mock_get_rows: MagicMock,
+    ) -> None:
+        mock_build.return_value = (MagicMock(), None)
+        mock_get_rows.return_value = (
+            ["status", "schedule_time"],
+            [
+                _row(10, "do"),
+                _row(11, "scheduled", schedule_time="2020-01-01T10:00:00+00:00"),
+            ],
+        )
+        self.assertTrue(
+            has_next_render_row(
+                do_only=False,
+                now=datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc),
+            )
+        )
 
     def test_has_due_scheduled_row_past_time(self) -> None:
         past = datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc)
@@ -57,7 +91,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [do_row, repeat_row])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 5)
@@ -76,7 +110,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [do_row, scheduled])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 5)
@@ -95,7 +129,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [pending, do_row])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 6)
@@ -112,7 +146,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [pending])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNone(selected)
         mock_update.assert_not_called()
@@ -143,7 +177,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [repeat_row, do_row])
         sheets = MagicMock()
 
-        _, selected = reserve_next_do_row(sheets)
+        _, _, selected = reserve_next_do_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 6)
@@ -161,7 +195,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [scheduled, do_row])
         sheets = MagicMock()
 
-        _, selected = reserve_next_do_row(sheets)
+        _, _, selected = reserve_next_do_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 6)
@@ -179,7 +213,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [do_row, scheduled])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 5)
@@ -209,7 +243,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [anchor, member])
         sheets = MagicMock()
 
-        _, selected = reserve_next_do_row(sheets)
+        _, _, selected = reserve_next_do_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 70)
@@ -251,7 +285,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [anchor, member])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 70)
@@ -276,7 +310,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [anchor, member_a, member_b])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 70)
@@ -294,7 +328,7 @@ class SheetQueueTests(unittest.TestCase):
         mock_get_rows.return_value = (headers, [anchor])
         sheets = MagicMock()
 
-        _, selected = reserve_next_pending_row(sheets)
+        _, _, selected = reserve_next_pending_row(sheets)
 
         self.assertIsNotNone(selected)
         self.assertEqual(selected.row_number, 70)

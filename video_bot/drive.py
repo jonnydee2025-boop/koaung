@@ -1,5 +1,6 @@
 import random
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -7,7 +8,13 @@ from urllib.parse import parse_qs, urlparse
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
-from .config import BACKGROUND_VIDEO_DRIVE_FOLDER, BACKGROUND_VIDEO_EXTENSIONS, logger
+from .config import (
+    BACKGROUND_VIDEO_DRIVE_FOLDER,
+    BACKGROUND_VIDEO_EXTENSIONS,
+    DRIVE_BACKGROUND_CACHE_DIR,
+    ENABLE_DRIVE_BACKGROUND_CACHE,
+    logger,
+)
 from .google_services import build_drive_service
 from .models import DriveBackgroundVideo, DriveMediaFile
 from .row_rules import get_rule_for_row
@@ -205,11 +212,66 @@ def list_drive_background_videos(
 
 def download_drive_file(drive: Any, file_id: str, destination: Path) -> None:
     request = drive.files().get_media(fileId=file_id, supportsAllDrives=True)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("wb") as output:
         downloader = MediaIoBaseDownload(output, request, chunksize=1024 * 1024)
         done = False
         while not done:
             _, done = downloader.next_chunk()
+
+
+def background_cache_path(file_id: str, file_name: str = "") -> Path:
+    ext = Path(file_name).suffix.lower() if file_name else MP4_EXTENSION
+    if ext not in BACKGROUND_VIDEO_EXTENSIONS:
+        ext = MP4_EXTENSION
+    return DRIVE_BACKGROUND_CACHE_DIR / f"{file_id}{ext}"
+
+
+def _copy_background_to_workdir(cache_path: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(cache_path, destination)
+
+
+def _download_background_to_cache(drive: Any, file_id: str, cache_path: Path) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    partial_path = cache_path.with_name(f"{cache_path.name}.part")
+    try:
+        download_drive_file(drive, file_id, partial_path)
+        partial_path.replace(cache_path)
+    except Exception:
+        partial_path.unlink(missing_ok=True)
+        raise
+
+
+def copy_or_download_background_video(
+    drive: Any,
+    file_id: str,
+    destination: Path,
+    *,
+    file_name: str = "",
+    label: str,
+) -> str:
+    """Use a VPS disk cache keyed by Drive file_id; thumbnails are not cached."""
+    if not ENABLE_DRIVE_BACKGROUND_CACHE:
+        download_drive_file(drive, file_id, destination)
+        return label
+
+    cache_path = background_cache_path(file_id, file_name)
+    if cache_path.is_file() and cache_path.stat().st_size > 0:
+        _copy_background_to_workdir(cache_path, destination)
+        display_name = file_name or file_id
+        logger.info(
+            "Background video cache hit (%s): %s",
+            display_name,
+            cache_path,
+        )
+        return f"{label} (cached)"
+
+    _download_background_to_cache(drive, file_id, cache_path)
+    _copy_background_to_workdir(cache_path, destination)
+    display_name = file_name or file_id
+    logger.info("Background video cached on VPS (%s): %s", display_name, cache_path)
+    return label
 
 
 def is_insufficient_permissions_error(exc: HttpError) -> bool:
@@ -231,8 +293,13 @@ def pick_and_download_drive_background(
         )
 
     selected = random.choice(candidates)
-    download_drive_file(drive, selected.file_id, destination)
-    return f"Google Drive: {selected.name}"
+    return copy_or_download_background_video(
+        drive,
+        selected.file_id,
+        destination,
+        file_name=selected.name,
+        label=f"Google Drive: {selected.name}",
+    )
 
 
 def download_drive_file_by_id(
@@ -241,7 +308,17 @@ def download_drive_file_by_id(
     destination: Path,
     *,
     label: str,
+    file_name: str = "",
+    use_background_cache: bool = False,
 ) -> str:
+    if use_background_cache:
+        return copy_or_download_background_video(
+            drive,
+            file_id,
+            destination,
+            file_name=file_name,
+            label=label,
+        )
     download_drive_file(drive, file_id, destination)
     return label
 
@@ -271,6 +348,8 @@ def prepare_background_video(destination: Path, row_number: int | None = None) -
                     rule.background_video_id,
                     destination,
                     label=f"Google Drive (row {row_number}): {name}",
+                    file_name=name,
+                    use_background_cache=True,
                 )
         return pick_and_download_drive_background(drive, folder_id, destination)
 

@@ -140,37 +140,54 @@ export function prefetchAdjacentCalendarMonths(year, month) {
   ]);
 }
 
-/** Prefetch page 1 for toolbar filter tabs so switching filters stays instant. */
+/** Prefetch one filter tab (hover/focus) or the active tab only. */
+export function prefetchJobsFilterTab({
+  pageSize = DEFAULT_PAGE_SIZE,
+  search = '',
+  monk = '',
+  status = 'all',
+} = {}) {
+  const key = jobsPageCacheKey({
+    page: 1,
+    pageSize,
+    status,
+    search,
+    monk,
+  });
+  return prefetchCache(
+    key,
+    () =>
+      fetchJobsPage({
+        page: 1,
+        pageSize,
+        status,
+        search,
+        monk,
+      }),
+    JOBS_PAGE_TTL,
+  );
+}
+
+/** @deprecated Prefer prefetchJobsFilterTab for a single tab. */
 export function prefetchJobsFilterTabs({
   pageSize = DEFAULT_PAGE_SIZE,
   search = '',
   monk = '',
   status,
 } = {}) {
-  const targets = status != null ? [[status]] : JOBS_TOOLBAR_FILTERS;
-
+  if (status != null) {
+    return prefetchJobsFilterTab({ pageSize, search, monk, status });
+  }
+  const targets = JOBS_TOOLBAR_FILTERS;
   return Promise.all(
-    targets.map(([filterStatus]) => {
-      const key = jobsPageCacheKey({
-        page: 1,
+    targets.map(([filterStatus]) =>
+      prefetchJobsFilterTab({
         pageSize,
-        status: filterStatus,
         search,
         monk,
-      });
-      return prefetchCache(
-        key,
-        () =>
-          fetchJobsPage({
-            page: 1,
-            pageSize,
-            status: filterStatus,
-            search,
-            monk,
-          }),
-        JOBS_PAGE_TTL,
-      );
-    }),
+        status: filterStatus,
+      }),
+    ),
   );
 }
 
@@ -231,27 +248,22 @@ export async function warmAppCache({ jobs = true } = {}) {
   await Promise.all(tasks);
 }
 
-/** Warm Jobs page 1 + pages 2–3 from Dashboard after login. */
+/** Warm Jobs page 1 + page 2 from Dashboard after login. */
 export async function warmJobsCache({
   pageSize = DEFAULT_PAGE_SIZE,
   search = '',
   monk = '',
 } = {}) {
   await Promise.all([
-    prefetchJobsFilterTabs({ pageSize, search, monk }),
+    prefetchJobsFilterTab({ pageSize, search, monk, status: 'all' }),
     prefetchAdjacentJobsPages({
       page: 1,
-      totalPages: Number.POSITIVE_INFINITY,
+      totalPages: 2,
       pageSize,
       status: 'all',
       search,
       monk,
     }),
-    prefetchCache(
-      JOBS_MONKS_CACHE_KEY,
-      () => fetchJobMonks(),
-      JOBS_MONKS_TTL,
-    ),
   ]);
 }
 

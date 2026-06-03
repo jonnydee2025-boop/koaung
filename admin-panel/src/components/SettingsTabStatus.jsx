@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+import Spinner from './Spinner';
 
 export default function SettingsTabStatus({ loading, refreshing, label }) {
   if (!loading && !refreshing) {
@@ -10,8 +10,9 @@ export default function SettingsTabStatus({ loading, refreshing, label }) {
       className={`settings-tab-status${loading ? ' settings-tab-status--loading' : ' settings-tab-status--refreshing'}`}
       role="status"
       aria-live="polite"
+      aria-busy="true"
     >
-      <RefreshCw size={13} className="settings-tab-status-icon" aria-hidden="true" />
+      <Spinner size="sm" className="settings-tab-status-icon" />
       <span>{loading ? `Loading ${label}…` : `Updating ${label}…`}</span>
     </div>
   );

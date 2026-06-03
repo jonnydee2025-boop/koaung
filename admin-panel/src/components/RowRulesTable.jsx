@@ -4,6 +4,7 @@ import { fetchDriveMediaOptions, fetchRowRules, saveRowRules } from '../data/api
 import { invalidateCache, writeCache } from '../data/queryCache';
 import { SETTINGS_ROW_RULES_CACHE_KEY } from '../data/settingsCacheKeys';
 import SettingsTabStatus from './SettingsTabStatus';
+import LoadingOverlay from './LoadingOverlay';
 
 function emptyRule() {
   return {
@@ -274,9 +275,10 @@ export default function RowRulesTable({ embedded = false, query }) {
         </p>
       )}
 
-      <div
-        className={`settings-panel-body settings-panel-body--rules${loading ? ' is-loading' : ''}${refreshing ? ' is-refreshing' : ''}`}
-        aria-busy={loading || refreshing}
+      <LoadingOverlay
+        loading={loading}
+        label="Loading row rules…"
+        className={`settings-panel-body settings-panel-body--rules${refreshing ? ' is-refreshing' : ''}`}
       >
         {showTable ? (
           <div className="row-rules-list">
@@ -398,11 +400,9 @@ export default function RowRulesTable({ embedded = false, query }) {
             })}
           </div>
         ) : (
-          <div className="settings-panel-skeleton settings-panel-skeleton--rules" aria-hidden="true">
-            <div className="settings-panel-skeleton-row" />
-          </div>
+          <div className="settings-panel-placeholder" aria-hidden="true" />
         )}
-      </div>
+      </LoadingOverlay>
 
       <button
         type="button"

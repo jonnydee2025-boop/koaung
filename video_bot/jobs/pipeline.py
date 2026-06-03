@@ -11,9 +11,7 @@ from ..drive import prepare_background_video
 from ..media import download_file, enhance_audio, render_video
 from ..models import RenderTaskFailed, RetryJob, SheetRow
 from ..repeat_jobs import (
-    bump_repeat_run_count,
     get_repeat_job,
-    load_repeat_jobs,
     repeat_job_for_row,
     repeat_run_has_thumbnail,
     repeat_thumbnail_for_run,
@@ -24,7 +22,7 @@ from ..row_rules import (
     row_has_thumbnail,
 )
 from ..schedule_time import read_row_schedule_time
-from ..sheets import get_sheet_rows, get_sheet_rows_by_numbers, reschedule_repeat_anchor_after_upload, update_task_status
+from ..sheets import get_sheet_rows_by_numbers, reschedule_repeat_anchor_after_upload, update_task_status
 from ..state import current_render, register_retry_job
 from ..thumbnails import prepare_drive_thumbnail, prepare_row_thumbnail
 from ..youtube import (
@@ -40,8 +38,6 @@ from .upload_log import build_upload_log_message
 from .workdir import (
     cleanup_stale_workdirs,
     delete_render_files_after_youtube_upload,
-    find_render_workdir,
-    find_rendered_video,
     purge_workdir,
     unlink_if_exists,
 )
@@ -53,12 +49,12 @@ def process_reserved_row(
     headers: list[str],
     row: SheetRow,
     progress_callback=None,
+    *,
+    all_rows: list[SheetRow],
 ) -> dict[str, str]:
     batch_context = get_batch_rule_for_anchor(row.row_number)
     is_batch = batch_context is not None
     batch_row_numbers = batch_context[1] if batch_context else [row.row_number]
-
-    _, all_rows = get_sheet_rows(sheets)
 
     if is_batch:
         batch_sheet_rows = get_sheet_rows_by_numbers(all_rows, batch_row_numbers)
@@ -91,42 +87,26 @@ def process_reserved_row(
         )
     is_repeat = repeat_job is not None
 
-    existing_workdir = find_render_workdir(row.row_number) if is_repeat else None
-    existing_video = find_rendered_video(existing_workdir) if existing_workdir else None
-    reuse_render = bool(existing_video)
-
-    cleanup_stale_workdirs(protected_row_numbers=set(load_repeat_jobs().keys()))
+    cleanup_stale_workdirs()
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
 
-    if reuse_render and existing_workdir is not None and existing_video is not None:
-        workdir = existing_workdir
-        video_path = existing_video
-        logger.info(
-            "Repeat row %s: reusing cached render %s (thumbnail-only refresh when rule set)",
-            row.row_number,
-            video_path,
-        )
-    else:
-        workdir = Path(tempfile.mkdtemp(prefix=f"render_{row.row_number}_", dir=TMP_ROOT))
-        video_path = workdir / f"{uuid.uuid4().hex}.mp4"
+    workdir = Path(tempfile.mkdtemp(prefix=f"render_{row.row_number}_", dir=TMP_ROOT))
+    video_path = workdir / f"{uuid.uuid4().hex}.mp4"
 
     mp3_path = workdir / "audio.mp3"
     enhanced_audio_path = workdir / "audio_enhanced.wav"
     render_audio_path = mp3_path
     background_path = workdir / "background.mp4"
     thumbnail_path: Path | None = None
-    cleanup_workdir = not is_repeat
-    workdir_kept_reason: str | None = "repeat" if is_repeat else None
+    cleanup_workdir = True
+    workdir_kept_reason: str | None = None
     uploaded_video_id = None
     thumbnail_warning = ""
     upload_description = description
     upload_tags: list[str] = []
 
     try:
-        if reuse_render:
-            if job_progress is not None:
-                job_progress("Reusing cached render (repeat)", None)
-        elif is_batch:
+        if is_batch:
             render_audio_path = prepare_batch_audio(
                 all_rows=all_rows,
                 batch_row_numbers=batch_row_numbers,
@@ -199,11 +179,13 @@ def process_reserved_row(
             )
 
         thumb_file = workdir / "thumbnail.jpg"
+        repeat_thumb_file_id: str | None = None
         if job_progress is not None:
             job_progress("Preparing thumbnail", None)
         if is_repeat and repeat_job is not None:
             repeat_thumb = repeat_thumbnail_for_run(repeat_job)
             if repeat_thumb is not None:
+                repeat_thumb_file_id = repeat_thumb.file_id
                 thumbnail_source = prepare_drive_thumbnail(
                     thumb_file,
                     row_number=row.row_number,
@@ -213,9 +195,8 @@ def process_reserved_row(
             else:
                 thumbnail_source = None
                 logger.info(
-                    "Repeat row %s: no thumbnail for run %s (%s configured)",
+                    "Repeat row %s: no thumbnail queued (%s in list)",
                     row.row_number,
-                    repeat_job.run_count + 1,
                     len(repeat_job.thumbnails),
                 )
         else:
@@ -257,14 +238,13 @@ def process_reserved_row(
             tags=upload_tags,
         )
         uploaded_video_id = video_id
-        if not is_repeat:
-            delete_render_files_after_youtube_upload(
-                video_path=video_path,
-                background_path=background_path,
-                mp3_path=mp3_path,
-                enhanced_audio_path=enhanced_audio_path,
-                render_audio_path=render_audio_path,
-            )
+        delete_render_files_after_youtube_upload(
+            video_path=video_path,
+            background_path=background_path,
+            mp3_path=mp3_path,
+            enhanced_audio_path=enhanced_audio_path,
+            render_audio_path=render_audio_path,
+        )
 
         if thumbnail_path is not None:
             thumbnail_warning = (
@@ -312,6 +292,9 @@ def process_reserved_row(
                 headers,
                 row.row_number,
                 log_message,
+                consumed_repeat_thumbnail_id=(
+                    repeat_thumb_file_id if repeat_thumb_file_id and not thumbnail_warning else None
+                ),
             )
         else:
             for sheet_row_number in rows_to_update:
@@ -326,19 +309,10 @@ def process_reserved_row(
         if job_progress is not None:
             job_progress("Finished", None)
 
-        if is_repeat:
-            cleanup_workdir = False
-            workdir_kept_reason = "repeat"
-            logger.info(
-                "Repeat row %s: render workdir kept on VPS for next run (thumbnail refresh): %s",
-                row.row_number,
-                workdir,
-            )
-        else:
-            unlink_if_exists(thumbnail_path)
-            purge_workdir(workdir)
-            cleanup_workdir = False
-            workdir_kept_reason = None
+        unlink_if_exists(thumbnail_path)
+        purge_workdir(workdir)
+        cleanup_workdir = False
+        workdir_kept_reason = None
         return {
             "title": title,
             "monk_name": monk_name,

@@ -41,8 +41,6 @@ class _InMemoryLogHandler(logging.Handler):
             level_name = "SUCCESS"
         elif "kept on vps for retry" in lower or "files kept on vps for retry" in lower:
             level_name = "WARNING"
-        elif "render workdir kept on vps for next run" in lower:
-            level_name = "INFO"
         elif any(kw in msg for kw in ("uploaded", "complete", "Done")):
             level_name = "SUCCESS"
         self.buffer.append({
@@ -97,6 +95,13 @@ GOOGLE_CLIENT_SECRET_FILE = Path(
 ).resolve()
 GOOGLE_TOKEN_FILE = Path(os.getenv("GOOGLE_TOKEN_FILE", "token.json")).resolve()
 TMP_ROOT = Path(os.getenv("TMP_ROOT", "tmp_video_jobs")).resolve()
+DRIVE_BACKGROUND_CACHE_DIR = Path(
+    os.getenv(
+        "DRIVE_BACKGROUND_CACHE_DIR",
+        str(TMP_ROOT / "drive_background_cache"),
+    )
+).resolve()
+ENABLE_DRIVE_BACKGROUND_CACHE = env_bool("ENABLE_DRIVE_BACKGROUND_CACHE", True)
 ROW_RULES_PATH = Path(os.getenv("ROW_RULES_PATH", "row_range_rules.json")).resolve()
 FFMPEG_BIN = os.getenv("FFMPEG_BIN", "ffmpeg")
 FFPROBE_BIN = os.getenv("FFPROBE_BIN", "ffprobe")
@@ -108,6 +113,7 @@ SCHEDULE_CHECK_INTERVAL_SECONDS = max(
     10,
     int(os.getenv("SCHEDULE_CHECK_INTERVAL_SECONDS", "30")),
 )
+AUTO_QUEUE_NEXT_JOB = env_bool("AUTO_QUEUE_NEXT_JOB", True)
 ADMIN_API_KEY = os.environ["ADMIN_API_KEY"]
 ADMIN_API_CORS_ORIGINS = [
     origin.strip()

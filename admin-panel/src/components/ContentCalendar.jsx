@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
-import Skeleton from './Skeleton';
+import PageLoader from './PageLoader';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
@@ -116,24 +116,6 @@ function EventDetail({ event, onClose }) {
           </div>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function CalendarGridSkeleton() {
-  return (
-    <div className="content-calendar-grid content-calendar-grid--loading" aria-hidden="true">
-      {WEEKDAYS.map((label) => (
-        <div key={label} className="content-calendar-weekday">
-          {label}
-        </div>
-      ))}
-      {Array.from({ length: 35 }).map((_, index) => (
-        <div key={index} className="content-calendar-day content-calendar-day-skeleton">
-          <Skeleton h={14} w={18} />
-          <Skeleton h={18} w="70%" />
-        </div>
-      ))}
     </div>
   );
 }
@@ -253,7 +235,7 @@ export default function ContentCalendar() {
       {error ? <div className="content-calendar-error">{error}</div> : null}
 
       {showInitialLoad ? (
-        <CalendarGridSkeleton />
+        <PageLoader variant="section" label="Loading calendar…" />
       ) : (
         <div className={`content-calendar-grid${refreshing ? ' content-calendar-grid--refreshing' : ''}`}>
           {WEEKDAYS.map((label) => (

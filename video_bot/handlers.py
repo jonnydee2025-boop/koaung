@@ -18,9 +18,10 @@ from .config import (
     logger,
 )
 from .drive import google_drive_folder_id
-from .jobs import run_render_job, run_retry_job
+from .jobs import run_retry_job
 from .models import NoPendingRows
 from .progress_display import admin_progress_callback
+from .render_chain import run_render_chain
 from .render_cleanup import cleanup_active_render
 from .sheets import get_status_statistics
 from .state import (
@@ -31,7 +32,6 @@ from .state import (
     task_lock,
 )
 from .telegram_notify import (
-    notify_no_pending_rows,
     notify_render_failure,
     notify_render_success,
 )
@@ -59,37 +59,25 @@ async def run_telegram_render(
     *,
     on_busy: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
-    """Run the next sheet render; notify admin chat on success or failure."""
+    """Run do-row renders; auto-chains until the queue is empty when enabled."""
     if is_render_busy():
         if on_busy is not None:
             await on_busy()
         return
 
-    async with task_lock:
-        try:
-            result = await asyncio.to_thread(
-                run_render_job,
-                admin_progress_callback,
-                do_only=True,
-            )
-        except NoPendingRows:
-            reset_current_render_idle("No do rows")
-            await notify_no_pending_rows()
-            return
-        except Exception as exc:
-            logger.exception("Render task failed")
-            reset_current_render_idle(f"Failed: {exc}")
-            await notify_render_failure(exc)
-            return
-
     current_render.update({
-        "running": False,
-        "pct": 100,
-        "status": "Done",
-        "title": result.get("title", ""),
-        "youtube_id": result.get("video_id", ""),
+        "running": True,
+        "pct": 0,
+        "status": "Queued",
+        "title": "",
+        "youtube_id": "",
+        "row_number": 0,
     })
-    await notify_render_success(result)
+
+    await run_render_chain(
+        admin_progress_callback,
+        do_only=True,
+    )
 
 
 async def render_next(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -134,6 +134,7 @@ export default function ScheduleJobModal({
 
   const minValue = toLocalInputValue(new Date(Date.now() + 60 * 1000));
   const runCount = job?.repeat?.run_count ?? 0;
+  const queuedThumbCount = repeatThumbnails.filter((t) => t.file_id).length;
 
   const toggleWeekday = (day) => {
     setDaysOfWeek((prev) => {
@@ -327,8 +328,11 @@ export default function ScheduleJobModal({
               <div className="schedule-repeat-thumbs" style={{ marginTop: 16 }}>
                 <div className="login-label">Repeat thumbnails (in order)</div>
                 <p className="modal-hint" style={{ marginTop: 4, marginBottom: 10 }}>
-                  One thumbnail per repeat run. Run {runCount + 1} uses slot {runCount + 1}.
-                  After the list ends, uploads continue without a thumbnail (private).
+                  Next run uses the first thumbnail in this list. After a fully successful upload,
+                  that thumbnail is removed from the queue only (files stay on Google Drive).
+                  {queuedThumbCount === 0
+                    ? ' Queue is empty — uploads will be private until you add thumbnails.'
+                    : ` ${queuedThumbCount} queued · ${runCount} successful run(s) so far.`}
                   Row-based rule thumbnails are disabled for repeat rows.
                 </p>
                 {repeatThumbnails.map((thumb, index) => (

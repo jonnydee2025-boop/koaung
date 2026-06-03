@@ -4,6 +4,7 @@ import { invalidateCache } from '../data/queryCache';
 import { SETTINGS_GEMINI_CACHE_KEY } from '../data/settingsCacheKeys';
 import { Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import SettingsTabStatus from './SettingsTabStatus';
+import LoadingOverlay from './LoadingOverlay';
 
 function parseFallbackText(text) {
   return text
@@ -153,9 +154,10 @@ export default function GeminiModelSettings({ embedded = false, query }) {
         <p className="settings-feedback settings-feedback--success">Gemini settings saved.</p>
       )}
 
-      <div
-        className={`settings-panel-body settings-panel-body--ai${loading ? ' is-loading' : ''}${refreshing ? ' is-refreshing' : ''}`}
-        aria-busy={loading || refreshing}
+      <LoadingOverlay
+        loading={loading}
+        label="Loading AI settings…"
+        className={`settings-panel-body settings-panel-body--ai${refreshing ? ' is-refreshing' : ''}`}
       >
         {showForm ? (
           <>
@@ -284,12 +286,9 @@ export default function GeminiModelSettings({ embedded = false, query }) {
             </div>
           </>
         ) : (
-          <div className="settings-panel-skeleton settings-panel-skeleton--ai" aria-hidden="true">
-            <div className="settings-panel-skeleton-block" />
-            <div className="settings-panel-skeleton-block settings-panel-skeleton-block--short" />
-          </div>
+          <div className="settings-panel-placeholder" aria-hidden="true" />
         )}
-      </div>
+      </LoadingOverlay>
     </div>
   );
 }

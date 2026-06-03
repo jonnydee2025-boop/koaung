@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header';
+import PageLoader from '../components/PageLoader';
 import { triggerRenderNext, cancelRender } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
 import { useLazyVisible } from '../hooks/useLazyVisible';
@@ -9,14 +10,11 @@ import { Download, RefreshCw } from 'lucide-react';
 
 const LEVELS = ['ALL', 'INFO', 'SUCCESS', 'WARNING', 'ERROR'];
 
-/** Highlight only repeat-cache vs retry-hold lines (the confusing cases). */
+/** Highlight retry-hold log lines. */
 function logLineAccent(msg) {
   const m = (msg || '').toLowerCase();
   if (m.includes('kept on vps for retry') || m.includes('files kept on vps for retry')) {
     return 'retry';
-  }
-  if (m.includes('render workdir kept on vps for next run') || m.includes('reusing cached render')) {
-    return 'repeat';
   }
   return null;
 }
@@ -157,7 +155,7 @@ export default function Logs() {
 
           <div className={`log-container${loading ? ' log-container--loading' : ''}`} id="log-viewer">
             {loading ? (
-              <div className="log-container-placeholder">Loading logs…</div>
+              <PageLoader variant="inline" label="Loading logs…" />
             ) : filtered.length === 0 ? (
               <div
                 style={{

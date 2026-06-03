@@ -41,19 +41,26 @@ def run_render_job(
                 row_number,
                 anchor_row,
             )
-        headers, selected = prepare_failed_row_for_retry(sheets, anchor_row)
+        headers, all_rows, selected = prepare_failed_row_for_retry(sheets, anchor_row)
     elif do_only:
-        headers, selected = reserve_next_do_row(sheets)
+        headers, all_rows, selected = reserve_next_do_row(sheets)
         if selected is None:
             raise NoPendingRows()
     else:
-        headers, selected = reserve_next_pending_row(sheets)
+        headers, all_rows, selected = reserve_next_pending_row(sheets)
         if selected is None:
             raise NoPendingRows()
 
     logger.info("Selected row: %s", selected.row_number)
     current_render["row_number"] = selected.row_number
-    return process_reserved_row(sheets, youtube, headers, selected, progress_callback)
+    return process_reserved_row(
+        sheets,
+        youtube,
+        headers,
+        selected,
+        progress_callback,
+        all_rows=all_rows,
+    )
 
 
 def run_retry_job(retry_id: str, progress_callback=None) -> dict[str, str]:
@@ -69,7 +76,7 @@ def run_retry_job(retry_id: str, progress_callback=None) -> dict[str, str]:
     )
 
     sheets, youtube = build_google_services()
-    headers, _ = get_sheet_rows(sheets)
+    headers, all_rows = get_sheet_rows(sheets)
     try:
         update_task_status(sheets, headers, job.row.row_number, "processing", "Retrying task.")
     except Exception as exc:
@@ -78,7 +85,14 @@ def run_retry_job(retry_id: str, progress_callback=None) -> dict[str, str]:
 
     if job.mode == "full":
         retry_jobs.pop(retry_id, None)
-        return process_reserved_row(sheets, youtube, headers, job.row, progress_callback)
+        return process_reserved_row(
+            sheets,
+            youtube,
+            headers,
+            job.row,
+            progress_callback,
+            all_rows=all_rows,
+        )
 
     if job.mode == "sheet_update":
         return _retry_sheet_update(job, retry_id, sheets, youtube, headers, job_progress)
@@ -185,12 +199,10 @@ def _retry_youtube_upload(
             job_progress,
             tags=job.tags or [],
         )
-        is_repeat = get_repeat_job(job.row.row_number) is not None
-        if not is_repeat:
-            unlink_if_exists(job.video_path)
-            if job.workdir is not None:
-                for name in ("background.mp4", "audio.mp3", "audio_enhanced.wav"):
-                    unlink_if_exists(job.workdir / name)
+        unlink_if_exists(job.video_path)
+        if job.workdir is not None:
+            for name in ("background.mp4", "audio.mp3", "audio_enhanced.wav"):
+                unlink_if_exists(job.workdir / name)
 
         thumbnail_warning = ""
         if job.thumbnail_path is not None:
@@ -233,16 +245,9 @@ def _retry_youtube_upload(
         )
 
         retry_jobs.pop(retry_id, None)
-        if not is_repeat:
-            unlink_if_exists(job.thumbnail_path)
-            if job.workdir is not None:
-                purge_workdir(job.workdir)
-        elif job.workdir is not None:
-            logger.info(
-                "Repeat row %s: render workdir kept on VPS for next run: %s",
-                job.row.row_number,
-                job.workdir,
-            )
+        unlink_if_exists(job.thumbnail_path)
+        if job.workdir is not None:
+            purge_workdir(job.workdir)
 
         if job_progress is not None:
             job_progress("Finished", None)

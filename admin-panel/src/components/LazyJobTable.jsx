@@ -4,14 +4,48 @@ import JobLogModal from './JobLogModal';
 import Mp3PlayerModal from './Mp3PlayerModal';
 import JobStatusSelect from './JobStatusSelect';
 import Skeleton from './Skeleton';
+import LoadingOverlay from './LoadingOverlay';
 import { RotateCcw, ExternalLink, CalendarClock, NotebookText } from 'lucide-react';
 import { isDoneStatus, isPendingStatus } from '../data/statusTheme';
 
 const PAGE_SIZE = 25;
+const SKELETON_ROWS = 6;
+
+function tableColSpan(showActions, columns) {
+  return columns === 'full' ? (showActions ? 6 : 5) : showActions ? 5 : 4;
+}
+
+function JobsTableSkeleton({ showActions, columns }) {
+  const colSpan = tableColSpan(showActions, columns);
+  return (
+    <table className="jobs-table-skeleton">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Row</th>
+          <th>Status</th>
+          <th>YouTube</th>
+          <th>Log</th>
+          {showActions && <th>Actions</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
+          <tr key={i}>
+            <td colSpan={colSpan}>
+              <Skeleton h={16} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 export default function LazyJobTable({
   jobs,
-  loading,
+  initialLoading = false,
+  overlayLoading = false,
   filtered,
   onRetry,
   onStatusChange,
@@ -63,19 +97,15 @@ export default function LazyJobTable({
     return () => observer.disconnect();
   }, [hasMore, filtered.length, disableLazyRows]);
 
-  if (loading && jobs.length === 0) {
+  if (initialLoading) {
     return (
-      <table>
-        <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              <td colSpan={columns === 'full' ? 6 : 5}>
-                <Skeleton />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <LoadingOverlay
+        loading
+        label="Loading jobs…"
+        className="jobs-table-initial-load"
+      >
+        <JobsTableSkeleton showActions={showActions} columns={columns} />
+      </LoadingOverlay>
     );
   }
 
@@ -88,7 +118,8 @@ export default function LazyJobTable({
   }
 
   return (
-    <>
+    <LoadingOverlay loading={overlayLoading} label="Updating jobs…">
+      <>
       <table>
         <thead>
           <tr>
@@ -237,6 +268,7 @@ export default function LazyJobTable({
         open={Boolean(playerJob)}
         onClose={() => setPlayerJob(null)}
       />
-    </>
+      </>
+    </LoadingOverlay>
   );
 }

@@ -15,8 +15,7 @@ import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
   prefetchAdjacentJobsPages,
-  prefetchJobsFilterTabs,
-  useJobMonks,
+  prefetchJobsFilterTab,
   useJobsPage,
 } from '../hooks/useSheetData';
 
@@ -39,6 +38,7 @@ export default function Jobs() {
 
   const countsRef = useRef(EMPTY_COUNTS);
   const sheetTotalRef = useRef(null);
+  const lastItemsRef = useRef([]);
 
   const jobsQuery = useJobsPage(
     {
@@ -50,7 +50,6 @@ export default function Jobs() {
     },
     { enabled: isVisible },
   );
-  const monksQuery = useJobMonks({ enabled: isVisible });
 
   const pageData = jobsQuery.data;
   if (pageData?.counts) {
@@ -72,9 +71,9 @@ export default function Jobs() {
     setPage(1);
   }, [filter, monkFilter, debouncedSearch]);
 
-  useSheetCacheInvalidation(jobsQuery.refresh, monksQuery.refresh);
+  useSheetCacheInvalidation(jobsQuery.refresh);
 
-  const monkOptions = monksQuery.data?.monks ?? [];
+  const monkOptions = pageData?.monks ?? [];
 
   useEffect(() => {
     if (monkFilter && monkOptions.length > 0 && !monkOptions.includes(monkFilter)) {
@@ -90,26 +89,12 @@ export default function Jobs() {
   }, [pageData?.page, pageData?.total_pages, page]);
 
   useEffect(() => {
-    if (!isVisible) return;
-    prefetchJobsFilterTabs({
-      pageSize: PAGE_SIZE,
-      search: debouncedSearch,
-      monk: monkFilter,
-    });
-  }, [isVisible, debouncedSearch, monkFilter]);
-
-  useEffect(() => {
     if (!pageData || !isVisible) return;
     prefetchAdjacentJobsPages({
       page: pageData.page ?? page,
       totalPages: pageData.total_pages ?? 1,
       pageSize: PAGE_SIZE,
       status: filter,
-      search: debouncedSearch,
-      monk: monkFilter,
-    });
-    prefetchJobsFilterTabs({
-      pageSize: PAGE_SIZE,
       search: debouncedSearch,
       monk: monkFilter,
     });
@@ -124,19 +109,29 @@ export default function Jobs() {
     monk: monkFilter,
   });
   const queryMatchesTab = jobsQuery.cacheKey === activeQueryKey;
-  const items = queryMatchesTab ? (pageData?.items ?? []) : [];
+  const filterScopeActive = Boolean(monkFilter || debouncedSearch);
+  const scopedTrackTotal = queryMatchesTab
+    ? (pageData?.filter_total ?? counts.all ?? 0)
+    : (counts.all ?? 0);
+  if (queryMatchesTab && pageData?.items) {
+    lastItemsRef.current = pageData.items;
+  }
+
+  const displayItems = queryMatchesTab ? (pageData?.items ?? []) : lastItemsRef.current;
+  const fetching = !isVisible || !queryMatchesTab || jobsQuery.isInitialLoad || jobsQuery.loading;
+  const initialLoading = fetching && displayItems.length === 0;
+  const overlayLoading = fetching && displayItems.length > 0;
+  const loading = initialLoading || overlayLoading;
+  const items = displayItems;
   const total = queryMatchesTab ? (pageData?.total ?? filterCount) : filterCount;
   const totalPages = queryMatchesTab
     ? (pageData?.total_pages ?? Math.max(1, Math.ceil(filterCount / PAGE_SIZE) || 1))
     : Math.max(1, Math.ceil(filterCount / PAGE_SIZE) || 1);
-  const loading = !isVisible || !queryMatchesTab || jobsQuery.isInitialLoad
-    || (jobsQuery.loading && items.length === 0);
   const error = jobsQuery.error;
 
   const refreshSheet = () => {
     invalidateSheetCaches();
     jobsQuery.refresh();
-    monksQuery.refresh();
   };
 
   const handleFilterChange = (value) => {
@@ -219,9 +214,15 @@ export default function Jobs() {
       <Header
         title="Jobs"
         subtitle={
-          sheetTotal != null
-            ? `${sheetTotal.toLocaleString()} rows in Google Sheet`
-            : 'Live from Google Sheet'
+          sheetTotal == null
+            ? 'Live from Google Sheet'
+            : filterScopeActive
+              ? monkFilter
+                ? `${scopedTrackTotal.toLocaleString()} tracks · ${monkFilter}${
+                    debouncedSearch ? ` · search “${debouncedSearch}”` : ''
+                  }`
+                : `${scopedTrackTotal.toLocaleString()} matches · search “${debouncedSearch}”`
+              : `${sheetTotal.toLocaleString()} rows in Google Sheet`
         }
       />
       <div ref={pageRef} className="page-content">
@@ -237,7 +238,7 @@ export default function Jobs() {
                   id={`filter-${val}`}
                   onClick={() => handleFilterChange(val)}
                   onMouseEnter={() =>
-                    prefetchJobsFilterTabs({
+                    prefetchJobsFilterTab({
                       pageSize: PAGE_SIZE,
                       search: debouncedSearch,
                       monk: monkFilter,
@@ -245,7 +246,7 @@ export default function Jobs() {
                     })
                   }
                   onFocus={() =>
-                    prefetchJobsFilterTabs({
+                    prefetchJobsFilterTab({
                       pageSize: PAGE_SIZE,
                       search: debouncedSearch,
                       monk: monkFilter,
@@ -263,7 +264,10 @@ export default function Jobs() {
               <MonkFilterTab
                 value={monkFilter}
                 options={monkOptions}
-                onChange={setMonkFilter}
+                onChange={(name) => {
+                  setMonkFilter(name);
+                  setPage(1);
+                }}
                 statusFilter={filter}
               />
             </div>
@@ -273,7 +277,7 @@ export default function Jobs() {
                 type="button"
                 className="btn btn-ghost btn-sm"
                 onClick={refreshSheet}
-                disabled={loading && !items.length}
+                disabled={initialLoading}
               >
                 <RefreshCw size={13} />
                 Refresh
@@ -284,7 +288,8 @@ export default function Jobs() {
           <div className="table-wrap jobs-table-wrap">
             <LazyJobTable
               jobs={items}
-              loading={loading}
+              initialLoading={initialLoading}
+              overlayLoading={overlayLoading}
               filtered={items}
               showActions
               enableTitlePlayer
@@ -304,7 +309,7 @@ export default function Jobs() {
             total={total}
             pageSize={PAGE_SIZE}
             onPageChange={handlePageChange}
-            disabled={loading && !items.length}
+            disabled={fetching}
           />
         </div>
       </div>

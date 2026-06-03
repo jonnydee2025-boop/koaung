@@ -8,12 +8,19 @@ from ..job_status import (
     is_pending_status,
 )
 from ..jobs.row_helpers import get_duration_min, get_monk_name
-from ..repeat_jobs import get_repeat_job, repeat_job_for_row
+from ..repeat_jobs import RepeatJob, load_repeat_jobs, repeat_job_for_row, repeat_jobs_mtime
 from ..schedule_time import read_row_schedule_time
-from ..sheet_cache import get_cached_sheet_rows
+from ..sheet_cache import cache_generation, get_cached_sheet_rows
+
+_jobs_memo: tuple[int, float, list[dict]] | None = None
 
 
-def row_to_job_dict(row: Any, headers: list[str]) -> dict:
+def row_to_job_dict(
+    row: Any,
+    headers: list[str],
+    *,
+    repeat_jobs: dict[int, RepeatJob] | None = None,
+) -> dict:
     status = row.values.get("status", "").strip().lower()
     title = row.values.get("dhamma_title", row.values.get("title", "")).strip()
     monk = get_monk_name(row)
@@ -28,7 +35,9 @@ def row_to_job_dict(row: Any, headers: list[str]) -> dict:
     schedule_dt = read_row_schedule_time(row.values)
     schedule_time = schedule_dt.isoformat() if schedule_dt else ""
 
-    repeat_job = get_repeat_job(row.row_number)
+    if repeat_jobs is None:
+        repeat_jobs = load_repeat_jobs()
+    repeat_job = repeat_jobs.get(row.row_number)
     if repeat_job is None and status == "repeat":
         repeat_job = repeat_job_for_row(
             row.row_number,
@@ -72,10 +81,29 @@ def find_sheet_row(row_number: int) -> Any | None:
     return None
 
 
-def all_jobs_sorted(*, force_refresh: bool = False) -> list[dict]:
-    headers, rows = get_cached_sheet_rows(force=force_refresh)
-    jobs = [row_to_job_dict(row, headers) for row in rows]
+def _build_jobs_sorted(headers: list[str], rows: list[Any]) -> list[dict]:
+    repeat_jobs = load_repeat_jobs()
+    jobs = [row_to_job_dict(row, headers, repeat_jobs=repeat_jobs) for row in rows]
     jobs.sort(key=lambda item: item["row"], reverse=True)
+    return jobs
+
+
+def all_jobs_sorted(*, force_refresh: bool = False) -> list[dict]:
+    global _jobs_memo
+    generation = cache_generation()
+    repeat_mtime = repeat_jobs_mtime()
+
+    if (
+        not force_refresh
+        and _jobs_memo is not None
+        and _jobs_memo[0] == generation
+        and _jobs_memo[1] == repeat_mtime
+    ):
+        return _jobs_memo[2]
+
+    headers, rows = get_cached_sheet_rows(force=force_refresh)
+    jobs = _build_jobs_sorted(headers, rows)
+    _jobs_memo = (generation, repeat_mtime, jobs)
     return jobs
 
 
@@ -145,3 +173,13 @@ def filter_jobs(
         filtered.append(job)
 
     return filtered
+
+
+def jobs_in_list_scope(
+    jobs: list[dict],
+    *,
+    search: str = "",
+    monk: str = "",
+) -> list[dict]:
+    """Jobs matching monk + search before status tab filter (for tab counts)."""
+    return filter_jobs(jobs, "all", search, monk)

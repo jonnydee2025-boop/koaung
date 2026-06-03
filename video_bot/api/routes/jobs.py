@@ -8,12 +8,13 @@ from ..job_listing import (
     filter_jobs,
     find_sheet_row,
     job_status_counts,
+    jobs_in_list_scope,
     unique_monk_names,
 )
 from ..render_runner import queue_admin_render
 from ..schemas import ScheduleJobRequest, UpdateJobStatusRequest
-from ...sheet_cache import invalidate_sheet_cache
 from ...row_rules import resolve_batch_anchor_row
+from ...sheet_cache import invalidate_sheet_cache
 from ...sheets import (
     assert_row_retryable,
     schedule_job_row,
@@ -44,7 +45,8 @@ def list_jobs(
 ):
     try:
         jobs = all_jobs_sorted(force_refresh=refresh)
-        counts = job_status_counts(jobs)
+        scoped = jobs_in_list_scope(jobs, search=search, monk=monk)
+        counts = job_status_counts(scoped)
 
         filtered = filter_jobs(jobs, status, search, monk)
         total = len(filtered)
@@ -64,7 +66,11 @@ def list_jobs(
             "total": total,
             "total_pages": total_pages,
             "counts": counts,
+            "monks": unique_monk_names(jobs),
             "sheet_total": len(jobs),
+            "filter_total": len(scoped),
+            "monk": monk.strip(),
+            "search": search.strip(),
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -130,7 +136,6 @@ def schedule_job(row_number: int, body: ScheduleJobRequest):
             timezone=body.timezone,
             repeat_thumbnails=repeat_thumbnails,
         )
-        invalidate_sheet_cache()
         return result
     except ValueError as exc:
         raise http_error_from_value(exc) from exc
@@ -146,7 +151,6 @@ async def retry_job(row_number: int, background_tasks: BackgroundTasks):
     except ValueError as exc:
         raise http_error_from_value(exc) from exc
 
-    invalidate_sheet_cache()
     result = await queue_admin_render(background_tasks, row_number=anchor_row)
     return {**result, "row": anchor_row, "requested_row": row_number}
 
@@ -155,7 +159,6 @@ async def retry_job(row_number: int, background_tasks: BackgroundTasks):
 def update_job_status(row_number: int, body: UpdateJobStatusRequest):
     try:
         result = update_sheet_row_status(row_number, body.status)
-        invalidate_sheet_cache()
         return result
     except ValueError as exc:
         raise http_error_from_value(exc) from exc

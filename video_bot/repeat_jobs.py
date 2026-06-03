@@ -51,9 +51,9 @@ class RepeatJob:
     time: str = "07:00"
     days_of_week: list[int] = field(default_factory=list)
     timezone: str = "UTC"
-    """Ordered thumbnails: run N uses thumbnails[N] (0-based). Empty slots after the list."""
+    """Ordered thumbnails: next run uses thumbnails[0]; used slots are removed after success."""
     thumbnails: list[RepeatThumbnail] = field(default_factory=list)
-    """Successful uploads completed; next render uses thumbnails[run_count]."""
+    """Successful repeat uploads completed (used thumbnails are removed from the queue)."""
     run_count: int = 0
 
 
@@ -91,28 +91,59 @@ def _parse_repeat_thumbnails(raw: Any) -> list[RepeatThumbnail]:
 
 
 def repeat_run_has_thumbnail(job: RepeatJob) -> bool:
-    index = max(job.run_count, 0)
-    if index >= len(job.thumbnails):
+    if not job.thumbnails:
         return False
-    return bool(job.thumbnails[index].file_id.strip())
+    return bool(job.thumbnails[0].file_id.strip())
 
 
 def repeat_thumbnail_for_run(job: RepeatJob) -> RepeatThumbnail | None:
-    index = max(job.run_count, 0)
-    if index >= len(job.thumbnails):
+    if not job.thumbnails:
         return None
-    thumb = job.thumbnails[index]
+    thumb = job.thumbnails[0]
     if not thumb.file_id.strip():
         return None
     return thumb
 
 
-def bump_repeat_run_count(anchor_row: int) -> None:
+def consume_repeat_thumbnail_after_success(
+    anchor_row: int,
+    *,
+    consumed_file_id: str | None = None,
+) -> None:
+    """
+    Record a successful repeat upload. When consumed_file_id is set, remove that
+    thumbnail from the repeat queue (Google Drive file is not deleted).
+    """
     job = load_repeat_jobs().get(anchor_row)
     if job is None:
         return
     job.run_count += 1
+    removed: RepeatThumbnail | None = None
+    if consumed_file_id and job.thumbnails:
+        consumed = consumed_file_id.strip()
+        if job.thumbnails[0].file_id == consumed:
+            removed = job.thumbnails.pop(0)
+        else:
+            kept: list[RepeatThumbnail] = []
+            for thumb in job.thumbnails:
+                if thumb.file_id == consumed and removed is None:
+                    removed = thumb
+                    continue
+                kept.append(thumb)
+            job.thumbnails = kept
     save_repeat_job(job)
+    if removed is not None:
+        logger.info(
+            "Repeat row %s: removed used thumbnail from queue (%s remaining, Drive unchanged): %s",
+            anchor_row,
+            len(job.thumbnails),
+            removed.name or removed.file_id,
+        )
+
+
+def bump_repeat_run_count(anchor_row: int) -> None:
+    """Deprecated alias — increments run_count only."""
+    consume_repeat_thumbnail_after_success(anchor_row, consumed_file_id=None)
 
 
 def _repeat_from_dict(data: dict[str, Any]) -> RepeatJob:
@@ -155,18 +186,38 @@ def validate_repeat_job(job: RepeatJob) -> None:
         raise ValueError("Select at least one weekday for weekly repeat.")
 
 
+_repeat_jobs_cache: tuple[float, dict[int, RepeatJob]] | None = None
+
+
+def repeat_jobs_mtime() -> float:
+    if REPEAT_JOBS_PATH.is_file():
+        return REPEAT_JOBS_PATH.stat().st_mtime
+    return 0.0
+
+
 def load_repeat_jobs() -> dict[int, RepeatJob]:
+    mtime = repeat_jobs_mtime()
+    global _repeat_jobs_cache
+    if _repeat_jobs_cache is not None and _repeat_jobs_cache[0] == mtime:
+        return _repeat_jobs_cache[1]
+
     if not REPEAT_JOBS_PATH.is_file():
-        return {}
+        jobs: dict[int, RepeatJob] = {}
+        _repeat_jobs_cache = (mtime, jobs)
+        return jobs
     try:
         payload = json.loads(REPEAT_JOBS_PATH.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Could not read repeat jobs file: %s", exc)
-        return {}
+        jobs = {}
+        _repeat_jobs_cache = (mtime, jobs)
+        return jobs
     raw = payload.get("jobs", payload if isinstance(payload, dict) else {})
     if not isinstance(raw, dict):
-        return {}
-    jobs: dict[int, RepeatJob] = {}
+        jobs = {}
+        _repeat_jobs_cache = (mtime, jobs)
+        return jobs
+    jobs = {}
     for key, item in raw.items():
         if not isinstance(item, dict):
             continue
@@ -176,6 +227,7 @@ def load_repeat_jobs() -> dict[int, RepeatJob]:
             jobs[job.anchor_row] = job
         except (ValueError, TypeError) as exc:
             logger.warning("Skipping invalid repeat job %s: %s", key, exc)
+    _repeat_jobs_cache = (mtime, jobs)
     return jobs
 
 
@@ -347,12 +399,14 @@ def delete_repeat_job(anchor_row: int) -> None:
 
 
 def _write_jobs(jobs: dict[int, RepeatJob]) -> None:
+    global _repeat_jobs_cache
     REPEAT_JOBS_PATH.parent.mkdir(parents=True, exist_ok=True)
     payload = {"jobs": {str(row): asdict(job) for row, job in sorted(jobs.items())}}
     REPEAT_JOBS_PATH.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    _repeat_jobs_cache = (repeat_jobs_mtime(), jobs)
 
 
 def repeat_slot_key(job: RepeatJob) -> str:

@@ -37,6 +37,11 @@ def get_google_credentials(force_reauth: bool = False) -> Credentials:
     return credentials
 
 
+def build_sheets_service() -> Any:
+    credentials = get_google_credentials()
+    return build("sheets", "v4", credentials=credentials)
+
+
 def build_google_services() -> tuple[Any, Any]:
     credentials = get_google_credentials()
     sheets = build("sheets", "v4", credentials=credentials)

@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import RowRulesTable from '../components/RowRulesTable';
 import GeminiModelSettings from '../components/GeminiModelSettings';
 import SettingsTabStatus from '../components/SettingsTabStatus';
+import Spinner from '../components/Spinner';
 import { shutdownServer } from '../data/api';
 import { clearAdminApiKey } from '../data/adminAuth';
 import { useLazyVisible } from '../hooks/useLazyVisible';
@@ -16,7 +17,6 @@ import {
   AlertTriangle,
   Bot,
   Info,
-  Loader2,
   LogOut,
   Server,
   Sparkles,
@@ -59,7 +59,7 @@ function SettingsNav({ active, onSelect, layout, loadingBySection = {} }) {
   const renderLabel = (id, label, Icon) => (
     <>
       {loadingBySection[id] ? (
-        <Loader2 size={14} className="settings-studio-nav-icon settings-tab-status-icon" aria-hidden="true" />
+        <Spinner size="sm" className="settings-studio-nav-icon" />
       ) : Icon ? (
         <Icon size={15} className="settings-studio-nav-icon" />
       ) : null}
@@ -81,7 +81,7 @@ function SettingsNav({ active, onSelect, layout, loadingBySection = {} }) {
             onClick={() => onSelect(id)}
           >
             {loadingBySection[id] ? (
-              <Loader2 size={12} className="settings-tab-status-icon" aria-hidden="true" />
+              <Spinner size="sm" />
             ) : null}
             {label}
           </button>
