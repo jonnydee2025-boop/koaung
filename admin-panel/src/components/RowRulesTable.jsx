@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, RefreshCw, Save } from 'lucide-react';
-import { fetchDriveMediaOptions, fetchRowRules, saveRowRules } from '../data/api';
+import { Pencil, Trash2, RefreshCw, Save } from 'lucide-react';
+import { fetchDriveMediaOptions, saveRowRules } from '../data/api';
 import { invalidateCache, writeCache } from '../data/queryCache';
 import { SETTINGS_ROW_RULES_CACHE_KEY } from '../data/settingsCacheKeys';
 import SettingsTabStatus from './SettingsTabStatus';
@@ -56,21 +56,67 @@ function batchRowsFromLegacyRule(r) {
 
 function mapRulesFromApi(rulesData) {
   const rules = rulesData?.rules;
-  return rules?.length
-    ? rules.map((r) => ({
-        batch_rows: batchRowsFromLegacyRule(r),
-        from_row: r.from_row ?? '',
-        to_row: r.to_row ?? '',
-        background_video_id: r.background_video_id ?? '',
-        background_video_name: r.background_video_name ?? '',
-        thumbnail_file_id: r.thumbnail_file_id ?? '',
-        thumbnail_name: r.thumbnail_name ?? '',
-        background_loop_count:
-          r.background_loop_count != null && r.background_loop_count !== ''
-            ? String(r.background_loop_count)
-            : '',
-      }))
-    : [emptyRule()];
+  if (!rules?.length) {
+    return [];
+  }
+  return rules.map((r) => ({
+    batch_rows: batchRowsFromLegacyRule(r),
+    from_row: r.from_row ?? '',
+    to_row: r.to_row ?? '',
+    background_video_id: r.background_video_id ?? '',
+    background_video_name: r.background_video_name ?? '',
+    thumbnail_file_id: r.thumbnail_file_id ?? '',
+    thumbnail_name: r.thumbnail_name ?? '',
+    background_loop_count:
+      r.background_loop_count != null && r.background_loop_count !== ''
+        ? String(r.background_loop_count)
+        : '',
+  }));
+}
+
+function ruleToPayload(rule, backgrounds, thumbnails, repeatAnchors) {
+  const batchRows = String(rule.batch_rows).trim();
+  const firstRow = batchRows.split(/[\s,]+/).filter(Boolean)[0];
+  const anchorRow = ruleAnchorRow(batchRows);
+  const isRepeatAnchor = repeatAnchors.has(anchorRow);
+  return {
+    from_row: Number(firstRow),
+    to_row: null,
+    batch_rows: batchRows,
+    background_video_id: rule.background_video_id || '',
+    background_video_name:
+      rule.background_video_name ||
+      backgrounds.find((b) => b.id === rule.background_video_id)?.name ||
+      '',
+    thumbnail_file_id: isRepeatAnchor ? '' : rule.thumbnail_file_id || '',
+    thumbnail_name: isRepeatAnchor
+      ? ''
+      : rule.thumbnail_name ||
+        thumbnails.find((t) => t.id === rule.thumbnail_file_id)?.name ||
+        '',
+    background_loop_count:
+      parseBatchRowCount(batchRows) > 1 ||
+      rule.background_loop_count === '' ||
+      rule.background_loop_count == null
+        ? null
+        : Number(rule.background_loop_count),
+  };
+}
+
+function displayMediaLabel(name, id) {
+  const value = (name || '').trim();
+  if (value) return value;
+  return id ? 'Selected' : 'Default';
+}
+
+function displayLoops(rule) {
+  if (parseBatchRowCount(rule.batch_rows) > 1) {
+    return 'Auto';
+  }
+  if (!rule.background_loop_count) {
+    return 'Auto';
+  }
+  return rule.background_loop_count;
 }
 
 function SelectMedia({ id, value, options, disabled, onChange, title }) {
@@ -81,9 +127,7 @@ function SelectMedia({ id, value, options, disabled, onChange, title }) {
       value={value}
       disabled={disabled}
       onChange={onChange}
-      title={
-        title ?? options.find((o) => o.id === value)?.name ?? 'Default'
-      }
+      title={title ?? options.find((o) => o.id === value)?.name ?? 'Default'}
     >
       <option value="">— Default —</option>
       {options.map((opt) => (
@@ -96,7 +140,9 @@ function SelectMedia({ id, value, options, disabled, onChange, title }) {
 }
 
 export default function RowRulesTable({ embedded = false, query: queryProp }) {
-  const [rules, setRules] = useState([emptyRule()]);
+  const [rules, setRules] = useState([]);
+  const [draftRule, setDraftRule] = useState(emptyRule());
+  const [editingIndex, setEditingIndex] = useState(null);
   const [backgrounds, setBackgrounds] = useState([]);
   const [thumbnails, setThumbnails] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -115,9 +161,12 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
 
   const loading = Boolean(query.isInitialLoad);
   const refreshing = query.refreshing;
-  const rowDisabled = loading || refreshing || refreshingDrive || saving;
-
+  const formDisabled = loading || refreshing || refreshingDrive || saving;
   const repeatAnchors = new Set(query.data?.rulesData?.repeat_anchors ?? []);
+  const draftBatchCount = parseBatchRowCount(draftRule.batch_rows);
+  const draftIsMultiBatch = draftBatchCount > 1;
+  const draftAnchorRow = ruleAnchorRow(draftRule.batch_rows);
+  const draftIsRepeatAnchor = repeatAnchors.has(draftAnchorRow);
 
   useEffect(() => {
     const bundle = query.data;
@@ -133,6 +182,11 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
       setError(query.error);
     }
   }, [query.error]);
+
+  const resetDraft = () => {
+    setDraftRule(emptyRule());
+    setEditingIndex(null);
+  };
 
   const refreshDriveLists = async () => {
     setError('');
@@ -155,273 +209,311 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
     }
   };
 
-  const updateRule = (index, patch) => {
-    setRules((prev) =>
-      prev.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)),
-    );
-  };
-
-  const addRule = () => setRules((prev) => [...prev, emptyRule()]);
-
-  const removeRule = (index) => {
-    setRules((prev) => (prev.length <= 1 ? [emptyRule()] : prev.filter((_, i) => i !== index)));
-  };
-
-  const handleSave = async () => {
+  const persistRules = async (nextRules, successMessage = 'Row rules saved.') => {
     setError('');
     setSuccess('');
     setSaving(true);
     try {
-      const payload = rules
-        .filter((r) => r.batch_rows !== '' && r.batch_rows != null)
-        .map((r) => {
-          const batchRows = String(r.batch_rows).trim();
-          const firstRow = batchRows.split(/[\s,]+/).filter(Boolean)[0];
-          const anchorRow = ruleAnchorRow(batchRows);
-          const isRepeatAnchor = repeatAnchors.has(anchorRow);
-          return {
-            from_row: Number(firstRow),
-            to_row: null,
-            batch_rows: batchRows,
-            background_video_id: r.background_video_id || '',
-            background_video_name:
-              r.background_video_name ||
-              backgrounds.find((b) => b.id === r.background_video_id)?.name ||
-              '',
-            thumbnail_file_id: isRepeatAnchor ? '' : r.thumbnail_file_id || '',
-            thumbnail_name: isRepeatAnchor
-              ? ''
-              : r.thumbnail_name ||
-                thumbnails.find((t) => t.id === r.thumbnail_file_id)?.name ||
-                '',
-            background_loop_count:
-              parseBatchRowCount(batchRows) > 1 ||
-              r.background_loop_count === '' ||
-              r.background_loop_count == null
-                ? null
-                : Number(r.background_loop_count),
-          };
-        });
+      const payload = nextRules.map((rule) =>
+        ruleToPayload(rule, backgrounds, thumbnails, repeatAnchors),
+      );
       const result = await saveRowRules(payload);
       const autoDoCount = result.auto_do_rows?.length ?? 0;
       setSuccess(
         autoDoCount
-          ? `Row rules saved. ${autoDoCount} row(s) set to do in the sheet.`
-          : 'Row rules saved.',
+          ? `${successMessage} ${autoDoCount} row(s) set to do in the sheet.`
+          : successMessage,
       );
       setTimeout(() => setSuccess(''), 3000);
       invalidateCache(SETTINGS_ROW_RULES_CACHE_KEY);
       await query.refresh();
     } catch (e) {
       setError(e.message);
+      throw e;
     } finally {
       setSaving(false);
     }
   };
 
-  const showTable = !loading;
+  const handleSaveRule = async () => {
+    const batchRows = String(draftRule.batch_rows ?? '').trim();
+    if (!batchRows) {
+      setError('Enter at least one sheet row in Select Rows.');
+      return;
+    }
+
+    const nextRules =
+      editingIndex == null
+        ? [...rules, { ...draftRule, batch_rows: batchRows }]
+        : rules.map((rule, index) =>
+            index === editingIndex ? { ...draftRule, batch_rows: batchRows } : rule,
+          );
+
+    try {
+      await persistRules(
+        nextRules,
+        editingIndex == null ? 'Rule saved.' : 'Rule updated.',
+      );
+      setRules(nextRules);
+      resetDraft();
+    } catch {
+      // error already set
+    }
+  };
+
+  const handleEditRule = (index) => {
+    setDraftRule({ ...rules[index] });
+    setEditingIndex(index);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleDeleteRule = async (index) => {
+    const nextRules = rules.filter((_, i) => i !== index);
+    try {
+      await persistRules(nextRules, 'Rule deleted.');
+      setRules(nextRules);
+      if (editingIndex === index) {
+        resetDraft();
+      } else if (editingIndex != null && editingIndex > index) {
+        setEditingIndex(editingIndex - 1);
+      }
+    } catch {
+      // error already set
+    }
+  };
+
+  const showContent = !loading;
 
   return (
-    <div className={embedded ? 'settings-studio-panel' : 'card settings-card row-rules-card'}>
+    <div className={`row-rules-page${embedded ? ' row-rules-page--embedded' : ''}`}>
       <SettingsTabStatus loading={loading} refreshing={refreshing} label="row rules" />
 
-      <div className="settings-section-header">
-        <div className="settings-section-header-main">
-          <div className={embedded ? 'settings-studio-panel-title settings-section-title' : 'settings-section-title'}>
-            Row-based rules
-          </div>
-          <p className={embedded ? 'settings-studio-panel-subtitle' : 'settings-section-hint'}>
-            Map sheet rows to background video, thumbnail, and loop count. First row in{' '}
-            <strong>Select Rows</strong> is the anchor. Thumbnails for <code>repeat</code> rows are
-            set under Jobs → Schedule → Repeat.
-          </p>
-          {!embedded && (
-            <>
-          <p className="settings-section-hint">
-            Map sheet rows to a background (.mp4), thumbnail (<code>Thumbnails/</code>),
-            and/or loop count. Use <strong>Select Rows</strong> with comma-separated sheet row
-            numbers from the Jobs tab (first row is the anchor/trigger). Multiple rows concatenate
-            audio into one render; member rows are marked complete automatically. Loops apply only
-            to single-row rules.
-          </p>
-          <p className="settings-section-hint">
-            Saving a background or thumbnail sets those rows to <code>do</code> in the sheet
-            immediately (rows already <code>scheduled</code> or <code>repeat</code> are left
-            unchanged). For batch jobs, schedule the <strong>anchor row</strong>.
-          </p>
-            </>
-          )}
-        </div>
-        <div className="settings-section-actions">
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={refreshDriveLists}
-            disabled={loading || refreshingDrive}
-          >
-            <RefreshCw size={14} className={refreshingDrive ? 'content-calendar-spin' : ''} />
-            Refresh Drive lists
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={handleSave}
-            disabled={loading || saving}
-          >
-            <Save size={14} />
-            {saving ? 'Saving…' : 'Save rules'}
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <p className="settings-feedback settings-feedback--error">
-          {error}
-        </p>
-      )}
-      {success && (
-        <p className="settings-feedback settings-feedback--success">
-          {success}
-        </p>
-      )}
+      {error && <p className="settings-feedback settings-feedback--error">{error}</p>}
+      {success && <p className="settings-feedback settings-feedback--success">{success}</p>}
 
       <LoadingOverlay
         loading={loading}
         label="Loading row rules…"
-        className={`settings-panel-body settings-panel-body--rules${refreshing ? ' is-refreshing' : ''}`}
+        className={`row-rules-loading${refreshing ? ' is-refreshing' : ''}`}
       >
-        {showTable ? (
-          <div className="row-rules-list">
-            <div className="row-rules-head" aria-hidden="true">
-              <span>Select Rows</span>
-              <span>Background</span>
-              <span>Thumbnail</span>
-              <span>Loops</span>
-              <span />
-            </div>
-            {rules.map((rule, index) => {
-              const batchCount = parseBatchRowCount(rule.batch_rows);
-              const isMultiBatch = batchCount > 1;
-              const anchorRow = ruleAnchorRow(rule.batch_rows);
-              const isRepeatAnchor = repeatAnchors.has(anchorRow);
-              return (
-                <div key={index} className="row-rules-row">
-                  <div className="row-rules-field">
-                    <label className="row-rules-field-label" htmlFor={`rows-${index}`}>
-                      Select Rows
-                    </label>
+        {showContent ? (
+          <>
+            <section className="row-rules-form-card card">
+              <h3 className="row-rules-section-title">
+                {editingIndex == null ? 'Add New Row Rule' : 'Edit Row Rule'}
+              </h3>
+
+              <div className="row-rules-form-stack">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="row-rules-draft-rows">
+                    Select Rows
+                  </label>
+                  <input
+                    id="row-rules-draft-rows"
+                    className="form-input row-rules-rows"
+                    type="text"
+                    placeholder="4409 or 70, 601, 805"
+                    value={draftRule.batch_rows}
+                    disabled={formDisabled}
+                    onChange={(e) =>
+                      setDraftRule((prev) => ({
+                        ...prev,
+                        batch_rows: e.target.value.replace(/[^\d,\s]/g, ''),
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="row-rules-draft-bg">
+                    Background
+                  </label>
+                  <SelectMedia
+                    id="row-rules-draft-bg"
+                    value={draftRule.background_video_id}
+                    options={backgrounds}
+                    disabled={formDisabled}
+                    onChange={(e) => {
+                      const opt = backgrounds.find((b) => b.id === e.target.value);
+                      setDraftRule((prev) => ({
+                        ...prev,
+                        background_video_id: e.target.value,
+                        background_video_name: opt?.name ?? '',
+                      }));
+                    }}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="row-rules-draft-thumb">
+                    Thumbnail
+                  </label>
+                  <SelectMedia
+                    id="row-rules-draft-thumb"
+                    value={draftIsRepeatAnchor ? '' : draftRule.thumbnail_file_id}
+                    options={thumbnails}
+                    disabled={formDisabled || draftIsRepeatAnchor}
+                    title={
+                      draftIsRepeatAnchor
+                        ? 'Repeat row — set thumbnails in Jobs → Schedule → Repeat'
+                        : undefined
+                    }
+                    onChange={(e) => {
+                      const opt = thumbnails.find((t) => t.id === e.target.value);
+                      setDraftRule((prev) => ({
+                        ...prev,
+                        thumbnail_file_id: e.target.value,
+                        thumbnail_name: opt?.name ?? '',
+                      }));
+                    }}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="row-rules-draft-loops">
+                    Loops
+                  </label>
+                  <div className="row-rules-loops-row">
                     <input
-                      id={`rows-${index}`}
-                      className="form-input row-rules-rows"
-                      type="text"
-                      placeholder="70, 601, 805"
-                      aria-label={`Rule ${index + 1} select rows`}
-                      title="Comma-separated sheet row numbers; first row is the anchor"
-                      value={rule.batch_rows}
-                      disabled={rowDisabled}
-                      onChange={(e) =>
-                        updateRule(index, {
-                          batch_rows: e.target.value.replace(/[^\d,\s]/g, ''),
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="row-rules-field">
-                    <label className="row-rules-field-label" htmlFor={`bg-${index}`}>
-                      Background
-                    </label>
-                    <SelectMedia
-                      id={`bg-${index}`}
-                      value={rule.background_video_id}
-                      options={backgrounds}
-                      disabled={rowDisabled}
-                      onChange={(e) => {
-                        const opt = backgrounds.find((b) => b.id === e.target.value);
-                        updateRule(index, {
-                          background_video_id: e.target.value,
-                          background_video_name: opt?.name ?? '',
-                        });
-                      }}
-                    />
-                  </div>
-                  <div className="row-rules-field">
-                    <label className="row-rules-field-label" htmlFor={`thumb-${index}`}>
-                      Thumbnail
-                    </label>
-                    <SelectMedia
-                      id={`thumb-${index}`}
-                      value={isRepeatAnchor ? '' : rule.thumbnail_file_id}
-                      options={thumbnails}
-                      disabled={rowDisabled || isRepeatAnchor}
-                      title={
-                        isRepeatAnchor
-                          ? 'Repeat row — set thumbnails in Jobs → Schedule → Repeat'
-                          : undefined
-                      }
-                      onChange={(e) => {
-                        const opt = thumbnails.find((t) => t.id === e.target.value);
-                        updateRule(index, {
-                          thumbnail_file_id: e.target.value,
-                          thumbnail_name: opt?.name ?? '',
-                        });
-                      }}
-                    />
-                  </div>
-                  <div className="row-rules-field">
-                    <label className="row-rules-field-label" htmlFor={`loops-${index}`}>
-                      Loops
-                    </label>
-                    <input
-                      id={`loops-${index}`}
+                      id="row-rules-draft-loops"
                       className="form-input row-rules-num"
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       placeholder="Auto"
-                      aria-label={`Rule ${index + 1} background loops`}
-                      title={
-                        isMultiBatch
-                          ? 'Batch mode uses auto background loop over combined audio'
-                          : 'Repeat audio and background N times (empty = auto)'
-                      }
-                      value={isMultiBatch ? '' : rule.background_loop_count}
-                      disabled={rowDisabled || isMultiBatch}
+                      value={draftIsMultiBatch ? '' : draftRule.background_loop_count}
+                      disabled={formDisabled || draftIsMultiBatch}
                       onChange={(e) =>
-                        updateRule(index, {
+                        setDraftRule((prev) => ({
+                          ...prev,
                           background_loop_count: e.target.value.replace(/\D/g, ''),
-                        })
+                        }))
                       }
                     />
-                  </div>
-                  <div className="row-rules-row-actions">
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm job-action-btn row-rules-delete"
-                      onClick={() => removeRule(index)}
-                      title="Remove rule"
-                      aria-label="Remove rule"
-                      disabled={rowDisabled}
+                      className="btn btn-ghost btn-sm row-rules-refresh-btn"
+                      onClick={refreshDriveLists}
+                      disabled={loading || refreshingDrive}
                     >
-                      <Trash2 size={14} />
+                      <RefreshCw
+                        size={14}
+                        className={refreshingDrive ? 'content-calendar-spin' : ''}
+                      />
+                      Refresh Drive Lists
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+
+                <div className="row-rules-form-actions">
+                  {editingIndex != null && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={resetDraft}
+                      disabled={formDisabled}
+                    >
+                      Cancel edit
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-primary row-rules-save-btn"
+                    onClick={handleSaveRule}
+                    disabled={formDisabled}
+                  >
+                    <Save size={14} />
+                    {saving ? 'Saving…' : editingIndex == null ? 'Save Rule' : 'Update Rule'}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="row-rules-saved-card card">
+              <h3 className="row-rules-section-title">Saved Rules</h3>
+
+              {rules.length === 0 ? (
+                <p className="row-rules-empty">No saved rules yet.</p>
+              ) : (
+                <div className="row-rules-saved-wrap">
+                  <table className="row-rules-saved-table">
+                    <thead>
+                      <tr>
+                        <th scope="col" className="row-rules-col-index">
+                          #
+                        </th>
+                        <th scope="col" className="row-rules-col-rows">
+                          Rows
+                        </th>
+                        <th scope="col" className="row-rules-col-media">
+                          Background
+                        </th>
+                        <th scope="col" className="row-rules-col-media">
+                          Thumbnail
+                        </th>
+                        <th scope="col" className="row-rules-col-loops">
+                          Loops
+                        </th>
+                        <th scope="col" className="row-rules-col-actions">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rules.map((rule, index) => (
+                        <tr
+                          key={`${rule.batch_rows}-${index}`}
+                          className={editingIndex === index ? 'is-editing' : ''}
+                        >
+                          <td className="row-rules-index">{index + 1}</td>
+                          <td className="row-rules-cell-rows">{rule.batch_rows}</td>
+                          <td className="row-rules-cell-media">
+                            {displayMediaLabel(
+                              rule.background_video_name,
+                              rule.background_video_id,
+                            )}
+                          </td>
+                          <td className="row-rules-cell-media">
+                            {displayMediaLabel(rule.thumbnail_name, rule.thumbnail_file_id)}
+                          </td>
+                          <td className="row-rules-cell-loops">{displayLoops(rule)}</td>
+                          <td className="row-rules-cell-actions">
+                            <div className="row-rules-saved-actions">
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm job-action-btn"
+                                onClick={() => handleEditRule(index)}
+                                disabled={formDisabled}
+                                aria-label={`Edit rule ${index + 1}`}
+                                title="Edit"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm job-action-btn row-rules-delete"
+                                onClick={() => handleDeleteRule(index)}
+                                disabled={formDisabled}
+                                aria-label={`Delete rule ${index + 1}`}
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
         ) : (
           <div className="settings-panel-placeholder" aria-hidden="true" />
         )}
       </LoadingOverlay>
-
-      <button
-        type="button"
-        className="btn btn-ghost btn-sm row-rules-add-btn"
-        onClick={addRule}
-        disabled={loading || refreshing}
-      >
-        <Plus size={14} /> Add rule
-      </button>
     </div>
   );
 }

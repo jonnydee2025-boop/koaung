@@ -1,17 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveGeminiModels } from '../data/api';
 import { invalidateCache } from '../data/queryCache';
 import { SETTINGS_GEMINI_CACHE_KEY } from '../data/settingsCacheKeys';
-import { Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import { GripVertical, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import SettingsTabStatus from './SettingsTabStatus';
 import LoadingOverlay from './LoadingOverlay';
 
-function parseFallbackText(text) {
-  return text
-    .split(/[\n,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+const DEFAULT_PRIMARY_MODEL = 'gemini-2.5-flash';
 
 function buildInitialKeyRows(data) {
   const previews = data?.api_key_previews ?? [];
@@ -24,11 +19,88 @@ function buildInitialKeyRows(data) {
   return [];
 }
 
+function reorderList(items, fromIndex, toIndex) {
+  if (fromIndex === toIndex) {
+    return items;
+  }
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+function FallbackModelList({ models, disabled, onReorder, onRemove }) {
+  const dragIndexRef = useRef(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  const handleDragStart = (index) => (event) => {
+    dragIndexRef.current = index;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (index) => (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (index) => (event) => {
+    event.preventDefault();
+    const from = dragIndexRef.current;
+    if (from != null && from !== index) {
+      onReorder(from, index);
+    }
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+  };
+
+  if (models.length === 0) {
+    return <p className="settings-gemini-hint gemini-fallback-empty">No backup models yet.</p>;
+  }
+
+  return (
+    <ul className="gemini-fallback-list" aria-label="Fallback models try order">
+      {models.map((model, index) => (
+        <li
+          key={model}
+          className={`gemini-fallback-item${dragOverIndex === index ? ' is-drag-over' : ''}`}
+          draggable={!disabled}
+          onDragStart={handleDragStart(index)}
+          onDragOver={handleDragOver(index)}
+          onDrop={handleDrop(index)}
+          onDragEnd={handleDragEnd}
+        >
+          <span className="gemini-fallback-drag" aria-hidden="true">
+            <GripVertical size={16} />
+          </span>
+          <span className="gemini-fallback-chip">{model}</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm job-action-btn gemini-fallback-delete"
+            onClick={() => onRemove(index)}
+            disabled={disabled}
+            aria-label={`Remove ${model}`}
+            title="Remove"
+          >
+            <Trash2 size={14} />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function GeminiModelSettings({ embedded = false, query }) {
-  const [primaryModel, setPrimaryModel] = useState('');
-  const [fallbackText, setFallbackText] = useState('');
+  const [primaryModel, setPrimaryModel] = useState(DEFAULT_PRIMARY_MODEL);
+  const [fallbackModels, setFallbackModels] = useState([]);
   const [knownModels, setKnownModels] = useState([]);
-  const [modelChain, setModelChain] = useState([]);
+  const [addModelValue, setAddModelValue] = useState('');
   const [apiKeyInputs, setApiKeyInputs] = useState([]);
   const [apiKeyPreviews, setApiKeyPreviews] = useState([]);
   const [apiKeyCount, setApiKeyCount] = useState(0);
@@ -46,16 +118,16 @@ export default function GeminiModelSettings({ embedded = false, query }) {
   useEffect(() => {
     const data = query.data;
     if (!data) return;
-    setPrimaryModel(data.primary_model ?? '');
-    setFallbackText((data.fallback_models ?? []).join('\n'));
+    setPrimaryModel(data.primary_model?.trim() || DEFAULT_PRIMARY_MODEL);
+    setFallbackModels(Array.isArray(data.fallback_models) ? [...data.fallback_models] : []);
     setKnownModels(data.known_models ?? []);
-    setModelChain(data.model_chain ?? []);
     setPersisted(Boolean(data.persisted));
     setApiKeyPreviews(data.api_key_previews ?? []);
     setApiKeyCount(data.api_key_count ?? 0);
     setApiKeyFromEnv(Boolean(data.api_key_from_env));
     setApiKeysPersisted(Boolean(data.api_keys_persisted));
     setApiKeyInputs(buildInitialKeyRows(data));
+    setAddModelValue('');
     setError('');
   }, [query.data]);
 
@@ -64,6 +136,26 @@ export default function GeminiModelSettings({ embedded = false, query }) {
       setError(query.error);
     }
   }, [query.error]);
+
+  const modelOptions = useMemo(() => {
+    const merged = new Set([
+      DEFAULT_PRIMARY_MODEL,
+      ...knownModels,
+      primaryModel,
+      ...fallbackModels,
+    ]);
+    return [...merged].filter(Boolean).sort();
+  }, [knownModels, primaryModel, fallbackModels]);
+
+  const addableModels = useMemo(
+    () =>
+      modelOptions.filter(
+        (model) =>
+          model !== primaryModel &&
+          !fallbackModels.some((item) => item.toLowerCase() === model.toLowerCase()),
+      ),
+    [modelOptions, primaryModel, fallbackModels],
+  );
 
   const updateApiKeyInput = (index, value) => {
     setApiKeyInputs((rows) => rows.map((row, i) => (i === index ? value : row)));
@@ -77,6 +169,21 @@ export default function GeminiModelSettings({ embedded = false, query }) {
     setApiKeyInputs((rows) => rows.filter((_, i) => i !== index));
   };
 
+  const handlePrimaryChange = (value) => {
+    setPrimaryModel(value);
+    setFallbackModels((prev) =>
+      prev.filter((model) => model.toLowerCase() !== value.toLowerCase()),
+    );
+  };
+
+  const handleAddFallbackModel = (value) => {
+    if (!value) return;
+    if (value.toLowerCase() === primaryModel.toLowerCase()) return;
+    if (fallbackModels.some((model) => model.toLowerCase() === value.toLowerCase())) return;
+    setFallbackModels((prev) => [...prev, value]);
+    setAddModelValue('');
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
@@ -84,13 +191,12 @@ export default function GeminiModelSettings({ embedded = false, query }) {
     try {
       const payload = {
         primary_model: primaryModel.trim(),
-        fallback_models: parseFallbackText(fallbackText),
+        fallback_models: fallbackModels,
         api_keys: apiKeyInputs,
       };
       const result = await saveGeminiModels(payload);
-      setPrimaryModel(result.primary_model ?? primaryModel);
-      setFallbackText((result.fallback_models ?? []).join('\n'));
-      setModelChain(result.model_chain ?? []);
+      setPrimaryModel(result.primary_model?.trim() || DEFAULT_PRIMARY_MODEL);
+      setFallbackModels(Array.isArray(result.fallback_models) ? [...result.fallback_models] : []);
       setPersisted(true);
       setApiKeyPreviews(result.api_key_previews ?? []);
       setApiKeyCount(result.api_key_count ?? 0);
@@ -108,13 +214,6 @@ export default function GeminiModelSettings({ embedded = false, query }) {
     }
   };
 
-  const previewChain = [
-    primaryModel.trim(),
-    ...parseFallbackText(fallbackText).filter(
-      (model) => model.toLowerCase() !== primaryModel.trim().toLowerCase(),
-    ),
-  ].filter(Boolean);
-
   const showForm = !loading;
   const apiKeyStatus =
     apiKeyCount > 0
@@ -122,12 +221,16 @@ export default function GeminiModelSettings({ embedded = false, query }) {
       : 'Not set';
 
   return (
-    <div className={embedded ? 'settings-studio-panel' : 'card settings-card'}>
+    <div className={`gemini-settings-page${embedded ? ' gemini-settings-page--embedded' : ''}`}>
       <SettingsTabStatus loading={loading} refreshing={refreshing} label="AI settings" />
 
-      <div className="settings-section-header">
+      <div className="settings-section-header gemini-settings-intro">
         <div className="settings-section-header-main">
-          <div className={embedded ? 'settings-studio-panel-title settings-section-title' : 'settings-section-title'}>
+          <div
+            className={
+              embedded ? 'settings-studio-panel-title settings-section-title' : 'settings-section-title'
+            }
+          >
             <Sparkles size={16} className="settings-section-icon" />
             Gemini model fallback
           </div>
@@ -136,18 +239,17 @@ export default function GeminiModelSettings({ embedded = false, query }) {
             loads from <code>gemini_youtube_prompt_spec.json</code> on the server.
           </div>
         </div>
-        <div className="settings-section-actions">
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={handleSave}
-            disabled={formDisabled || !primaryModel.trim()}
-          >
-            <Save size={14} />
-            {saving ? 'Saving…' : saved ? 'Saved' : 'Save settings'}
-          </button>
-        </div>
       </div>
+
+      <button
+        type="button"
+        className="btn btn-primary gemini-settings-save-btn"
+        onClick={handleSave}
+        disabled={formDisabled || !primaryModel.trim()}
+      >
+        <Save size={14} />
+        {saving ? 'Saving…' : saved ? 'Saved' : 'Save settings'}
+      </button>
 
       {error && <div className="settings-alert settings-alert--error">{error}</div>}
       {saved && (
@@ -161,98 +263,115 @@ export default function GeminiModelSettings({ embedded = false, query }) {
       >
         {showForm ? (
           <>
-            <div className="settings-gemini-keys">
-              <div className="form-group">
-                <label className="form-label">API keys (failover order)</label>
+            <section className="gemini-settings-section card">
+              <h3 className="gemini-settings-section-title">API keys (failover order)</h3>
+              <p className="settings-gemini-hint">
+                Key 1 is tried first. If quota is exceeded, key 2 is used automatically. Leave a
+                field blank to keep the existing key at that slot.
+              </p>
+              {apiKeyFromEnv && !apiKeysPersisted && apiKeyInputs.length === 1 && (
                 <p className="settings-gemini-hint">
-                  Key 1 is tried first. If quota is exceeded, key 2 is used automatically.
-                  Leave a field blank to keep the existing key at that slot.
+                  1 key from <code>.env</code> — add more below and Save to store on server.
                 </p>
-                {apiKeyFromEnv && !apiKeysPersisted && apiKeyInputs.length === 1 && (
-                  <p className="settings-gemini-hint">
-                    1 key from <code>.env</code> — add more below and Save to store on server.
-                  </p>
-                )}
-                {apiKeyInputs.map((value, index) => (
-                  <div key={index} className="settings-gemini-key-row">
-                    <span className="settings-gemini-key-index" aria-hidden="true">
-                      {index + 1}
-                    </span>
-                    <div className="settings-gemini-key-field">
-                      <input
-                        type="password"
-                        className="form-input"
-                        value={value}
-                        onChange={(e) => updateApiKeyInput(index, e.target.value)}
-                        placeholder={
-                          apiKeyPreviews[index]
-                            ? `Current: ${apiKeyPreviews[index]}`
-                            : 'Paste Gemini API key'
-                        }
-                        autoComplete="off"
-                        disabled={formDisabled}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm job-action-btn"
-                      onClick={() => removeApiKeyRow(index)}
+              )}
+              {apiKeyInputs.map((value, index) => (
+                <div key={index} className="settings-gemini-key-row">
+                  <span className="settings-gemini-key-index" aria-hidden="true">
+                    {index + 1}
+                  </span>
+                  <div className="settings-gemini-key-field">
+                    <input
+                      type="password"
+                      className="form-input"
+                      value={value}
+                      onChange={(e) => updateApiKeyInput(index, e.target.value)}
+                      placeholder={
+                        apiKeyPreviews[index]
+                          ? `Current: ${apiKeyPreviews[index]}`
+                          : 'Paste Gemini API key'
+                      }
+                      autoComplete="off"
                       disabled={formDisabled}
-                      aria-label={`Remove API key ${index + 1}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    />
                   </div>
-                ))}
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={addApiKeyRow}
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm job-action-btn"
+                    onClick={() => removeApiKeyRow(index)}
+                    disabled={formDisabled}
+                    aria-label={`Remove API key ${index + 1}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm gemini-add-api-key-btn"
+                onClick={addApiKeyRow}
+                disabled={formDisabled}
+              >
+                <Plus size={14} />
+                Add API key
+              </button>
+            </section>
+
+            <section className="gemini-settings-section card">
+              <div className="form-group">
+                <label className="form-label gemini-field-label" htmlFor="gemini-primary-model">
+                  Primary model (used first)
+                </label>
+                <select
+                  id="gemini-primary-model"
+                  className="form-input form-select gemini-primary-select"
+                  value={primaryModel}
+                  onChange={(e) => handlePrimaryChange(e.target.value)}
                   disabled={formDisabled}
                 >
-                  <Plus size={14} />
-                  Add API key
-                </button>
-              </div>
-            </div>
-
-            <div className="settings-gemini-grid">
-              <div className="form-group">
-                <label className="form-label" htmlFor="gemini-primary-model">
-                  Primary model
-                </label>
-                <input
-                  id="gemini-primary-model"
-                  className="form-input"
-                  list="gemini-model-options"
-                  value={primaryModel}
-                  onChange={(e) => setPrimaryModel(e.target.value)}
-                  placeholder="gemini-2.5-flash"
-                  disabled={formDisabled}
-                />
-                <datalist id="gemini-model-options">
-                  {knownModels.map((model) => (
-                    <option key={model} value={model} />
+                  {modelOptions.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="gemini-fallback-models">
-                  Fallback models
+              <div className="form-group gemini-fallback-group">
+                <label className="form-label gemini-field-label">
+                  Fallback models (drag-and-drop try order)
                 </label>
-                <textarea
-                  id="gemini-fallback-models"
-                  className="form-input settings-gemini-fallbacks"
-                  rows={4}
-                  value={fallbackText}
-                  onChange={(e) => setFallbackText(e.target.value)}
-                  placeholder={'gemini-2.0-flash\ngemini-1.5-flash'}
+                <FallbackModelList
+                  models={fallbackModels}
                   disabled={formDisabled}
+                  onReorder={(from, to) =>
+                    setFallbackModels((prev) => reorderList(prev, from, to))
+                  }
+                  onRemove={(index) =>
+                    setFallbackModels((prev) => prev.filter((_, i) => i !== index))
+                  }
                 />
-                <p className="settings-gemini-hint">One model per line or comma-separated.</p>
+                <div className="gemini-add-backup-row">
+                  <span className="gemini-add-backup-label">
+                    <Plus size={14} aria-hidden />
+                    Add backup model
+                  </span>
+                  <select
+                    className="form-input form-select gemini-add-backup-select"
+                    value={addModelValue}
+                    onChange={(e) => handleAddFallbackModel(e.target.value)}
+                    disabled={formDisabled || addableModels.length === 0}
+                    aria-label="Select backup model to add"
+                  >
+                    <option value="">Select model</option>
+                    {addableModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            </section>
 
             <div className="settings-gemini-meta">
               <div className="settings-status-row">
@@ -269,19 +388,13 @@ export default function GeminiModelSettings({ embedded = false, query }) {
               </div>
               <div className="settings-status-row">
                 <span className="settings-status-label">Models saved on server</span>
-                <span className="settings-status-value">
+                <span
+                  className={`settings-status-value ${
+                    persisted ? 'settings-status-value--accent' : ''
+                  }`}
+                >
                   {persisted ? 'Yes' : 'Using .env defaults'}
                 </span>
-              </div>
-              <div className="settings-gemini-chain">
-                <span className="settings-status-label">Try order</span>
-                <div className="settings-gemini-chain-list">
-                  {(previewChain.length ? previewChain : modelChain).map((model, index) => (
-                    <span key={`${model}-${index}`} className="settings-gemini-chip">
-                      {index + 1}. {model}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           </>
