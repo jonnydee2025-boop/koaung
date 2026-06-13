@@ -1,6 +1,7 @@
 """Tests for Jobs API listing helpers."""
 
 import unittest
+import unittest.mock
 
 from helpers import sample_job
 from video_bot.api.job_listing import (
@@ -35,6 +36,36 @@ class JobListingTests(unittest.TestCase):
         self.assertEqual(counts["processing"], 1)
         self.assertEqual(counts["scheduled"], 1)
         self.assertEqual(counts["failed"], 1)
+
+    def test_filter_jobs_favorite(self) -> None:
+        jobs = [
+            sample_job(1, "pending"),
+            sample_job(2, "done"),
+            sample_job(3, "failed"),
+        ]
+        prefs = {"1": {"favorite": True, "remark": ""}, "3": {"favorite": True, "remark": ""}}
+        with unittest.mock.patch(
+            "video_bot.api.job_listing.load_job_player_prefs",
+            return_value=prefs,
+        ):
+            self.assertEqual(
+                filter_jobs(jobs, "favorite", ""),
+                [sample_job(1, "pending"), sample_job(3, "failed")],
+            )
+
+    def test_job_status_counts_includes_favorite(self) -> None:
+        jobs = [
+            sample_job(1, "pending"),
+            sample_job(2, "done"),
+            sample_job(3, "failed"),
+        ]
+        prefs = {"1": {"favorite": True, "remark": ""}}
+        with unittest.mock.patch(
+            "video_bot.api.job_listing.load_job_player_prefs",
+            return_value=prefs,
+        ):
+            counts = job_status_counts(jobs)
+            self.assertEqual(counts["favorite"], 1)
 
     def test_filter_jobs_pending_excludes_do(self) -> None:
         jobs = [sample_job(1, "pending"), sample_job(2, "do")]

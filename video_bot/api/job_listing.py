@@ -10,6 +10,7 @@ from ..job_status import (
 from ..jobs.row_helpers import get_duration_min, get_monk_name
 from ..repeat_jobs import RepeatJob, load_repeat_jobs, repeat_job_for_row, repeat_jobs_mtime
 from ..schedule_time import read_row_schedule_time
+from ..job_player_prefs import load_job_player_prefs
 from ..sheet_cache import cache_generation, get_cached_sheet_rows
 
 _jobs_memo: tuple[int, float, list[dict]] | None = None
@@ -110,9 +111,24 @@ def all_jobs_sorted(*, force_refresh: bool = False) -> list[dict]:
     return jobs
 
 
+def favorite_row_numbers() -> set[int]:
+    prefs = load_job_player_prefs()
+    rows: set[int] = set()
+    for key, value in prefs.items():
+        if not value.get("favorite"):
+            continue
+        try:
+            rows.add(int(key))
+        except (TypeError, ValueError):
+            continue
+    return rows
+
+
 def job_status_counts(jobs: list[dict]) -> dict[str, int]:
+    fav_rows = favorite_row_numbers()
     counts = {
         "all": len(jobs),
+        "favorite": sum(1 for job in jobs if job.get("row") in fav_rows),
         "done": sum(1 for job in jobs if is_done_status(job["status"])),
         "processing": sum(1 for job in jobs if job["status"] == "processing"),
         "pending": sum(1 for job in jobs if is_pending_status(job["status"])),
@@ -150,22 +166,26 @@ def filter_jobs(
     query = search.strip().lower()
     monk_filter = monk.strip()
     filtered: list[dict] = []
+    fav_rows = favorite_row_numbers() if status == "favorite" else None
 
     for job in jobs:
         job_status = job["status"]
-        if status == "done" and not is_done_status(job_status):
+        if status == "favorite":
+            if job.get("row") not in fav_rows:
+                continue
+        elif status == "done" and not is_done_status(job_status):
             continue
-        if status == "processing" and job_status != "processing":
+        elif status == "processing" and job_status != "processing":
             continue
-        if status == "pending" and not is_pending_status(job_status):
+        elif status == "pending" and not is_pending_status(job_status):
             continue
-        if status == "do" and job_status != "do":
+        elif status == "do" and job_status != "do":
             continue
-        if status == "failed" and job_status != "failed":
+        elif status == "failed" and job_status != "failed":
             continue
-        if status == "scheduled" and job_status != "scheduled":
+        elif status == "scheduled" and job_status != "scheduled":
             continue
-        if status == "repeat" and job_status != "repeat":
+        elif status == "repeat" and job_status != "repeat":
             continue
 
         if monk_filter and job_monk_name(job) != monk_filter:

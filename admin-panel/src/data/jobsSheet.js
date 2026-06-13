@@ -4,6 +4,7 @@
 
 export const JOB_STATUS_FILTER_KEYS = [
   'all',
+  'favorite',
   'done',
   'processing',
   'pending',
@@ -15,6 +16,7 @@ export const JOB_STATUS_FILTER_KEYS = [
 
 export const STATUS_FILTER_LABELS = {
   all: 'All',
+  favorite: 'Favorites',
   done: 'Done',
   processing: 'Processing',
   pending: 'Pending',

@@ -13,6 +13,7 @@ import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { EMPTY_COUNTS, JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
 import { jobsLinkSearchParams, parseJobsLinkParams } from '../data/jobsDeepLink';
+import { subscribeJobPlayerPrefs } from '../data/jobPlayerPrefs';
 import { jobsPageCacheKey } from '../data/jobsCacheKeys';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
@@ -122,6 +123,12 @@ export default function Jobs() {
   }, [filter, monkFilter, debouncedSearch, rowFilter]);
 
   useSheetCacheInvalidation(jobsQuery.refresh);
+
+  useEffect(() => {
+    return subscribeJobPlayerPrefs(() => {
+      jobsQuery.refresh();
+    });
+  }, [jobsQuery.refresh]);
 
   const monkOptions = pageData?.monks ?? [];
 

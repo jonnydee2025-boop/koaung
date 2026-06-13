@@ -1,4 +1,5 @@
 import { fetchJobPlayerPrefs, saveJobPlayerPref } from './api';
+import { invalidateCache } from './queryCache';
 
 const LEGACY_STORAGE_KEY = 'dhamma-job-player-prefs';
 const CHANGE_EVENT = 'job-player-prefs-changed';
@@ -127,6 +128,7 @@ export async function setJobFavorite(row, favorite) {
 
   try {
     await saveJobPlayerPref(row, next);
+    invalidateCache('jobs:*');
   } catch (error) {
     if (previous) {
       cache[key] = previous;

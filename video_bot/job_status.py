@@ -2,6 +2,7 @@
 
 JOB_STATUS_FILTER_KEYS = (
     "all",
+    "favorite",
     "done",
     "processing",
     "pending",
