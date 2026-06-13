@@ -318,10 +318,6 @@
     padding: 14px;
   }
 
-  .page-content .settings-card {
-    padding: 20px;
-  }
-
   .settings-studio-panel {
     padding: 18px 16px;
   }
@@ -330,22 +326,6 @@
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
-  }
-
-  .settings-section-actions {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  .settings-section-actions .btn {
-    flex: 1;
-    justify-content: center;
-  }
-
-  .settings-section-hint {
-    max-width: none;
-    font-size: 12.5px;
-    line-height: 1.6;
   }
 
   .row-rules-loops-row {

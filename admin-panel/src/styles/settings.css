@@ -186,43 +186,6 @@
   align-items: center;
   gap: 6px;
 }
-.settings-panel-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.settings-panel-skeleton-block {
-  height: 42px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(
-    90deg,
-    var(--bg-hover) 0%,
-    var(--bg-surface) 50%,
-    var(--bg-hover) 100%
-  );
-  background-size: 200% 100%;
-  animation: settings-shimmer 1.2s ease-in-out infinite;
-}
-.settings-panel-skeleton-block--short {
-  min-height: 120px;
-  height: 120px;
-}
-.settings-panel-skeleton-row {
-  min-height: 52px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(
-    90deg,
-    var(--bg-hover) 0%,
-    var(--bg-surface) 50%,
-    var(--bg-hover) 100%
-  );
-  background-size: 200% 100%;
-  animation: settings-shimmer 1.2s ease-in-out infinite;
-}
-@keyframes settings-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
-}
 .settings-panel-body--ai {
   min-height: 360px;
 }
@@ -432,33 +395,6 @@
   min-width: 0;
 }
 
-.settings-card {
-  position: relative;
-  padding: 26px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.28), 0 0 0 1px rgba(212, 175, 55, 0.04) inset;
-  overflow: visible;
-  flex-shrink: 0;
-  background: linear-gradient(170deg, var(--bg-card) 0%, #1c1a15 100%);
-  border-top-color: rgba(212, 175, 55, 0.2);
-}
-.settings-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent-deep), var(--accent), var(--accent-hover), transparent);
-  opacity: 0.7;
-}
-.settings-card > .card-header,
-.settings-card > .settings-section-header {
-  margin-bottom: 20px;
-}
-.settings-card.settings-danger-card::before {
-  background: linear-gradient(90deg, rgba(199, 92, 92, 0.6), var(--red), rgba(199, 92, 92, 0.4));
-}
-
 .settings-section-header {
   display: flex;
   align-items: flex-start;
@@ -487,29 +423,6 @@
   font-size: 11px;
   color: var(--accent);
 }
-.settings-section-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 8px;
-  margin-bottom: 0;
-  line-height: 1.55;
-  max-width: 56ch;
-}
-.settings-section-hint code {
-  font-size: 11px;
-  color: var(--accent);
-}
-.settings-section-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-left: auto;
-  flex-shrink: 0;
-  align-items: center;
-  min-height: 32px;
-}
-.settings-loading-text { font-size: 13px; color: var(--text-muted); }
-
 .settings-info-banner {
   display: flex;
   gap: 10px;
@@ -527,22 +440,11 @@
 .settings-info-banner svg { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
 .settings-info-banner code { font-size: 11px; color: var(--accent); }
 
-.settings-top-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 26px;
-  align-items: start;
-}
 .settings-config-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 18px 28px;
 }
-.settings-config-col { display: flex; flex-direction: column; gap: 16px; }
-.settings-ack-btn { margin-top: 20px; }
-.settings-side-stack { display: flex; flex-direction: column; gap: 20px; }
-.settings-status-card .settings-section-header,
-.settings-status-card .card-header { margin-bottom: 12px; }
 .settings-status-rows { display: flex; flex-direction: column; gap: 0; }
 .settings-status-row {
   display: flex;
@@ -581,11 +483,6 @@
 .settings-status-value--yellow { color: var(--yellow); }
 .settings-status-hint { font-size: 11px; color: var(--text-muted); margin: 12px 0 10px; line-height: 1.45; }
 .settings-signout-btn { width: 100%; justify-content: center; }
-.settings-danger-card {
-  border-color: rgba(239, 68, 68, 0.35);
-  background: rgba(239, 68, 68, 0.06);
-  padding: 26px;
-}
 .settings-danger-title { color: var(--red); }
 .settings-danger-text {
   font-size: 13px;
@@ -614,12 +511,6 @@
 }
 .settings-kill-btn:hover { filter: brightness(1.08); }
 
-.settings-gemini-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
-}
 .gemini-settings-page {
   display: flex;
   flex-direction: column;
@@ -647,10 +538,6 @@
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-.gemini-primary-select {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
 }
 .gemini-settings-page .media-select-dropdown,
 .gemini-settings-page .option-select-dropdown {

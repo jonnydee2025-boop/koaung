@@ -23,7 +23,6 @@ export {
 } from './systemApi';
 export {
   fetchSettings,
-  fetchRowRules,
   fetchRowRulesBundle,
   saveRowRules,
   fetchDriveMediaOptions,

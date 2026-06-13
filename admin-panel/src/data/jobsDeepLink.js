@@ -1,7 +1,6 @@
 import { JOB_STATUS_FILTER_KEYS } from './jobsSheet';
 
-/** Build `/jobs` path with filter query params for deep links. */
-export function buildJobsLink({ status, monk, search, row } = {}) {
+function serializeJobsLink({ status, monk, search, row } = {}) {
   const params = new URLSearchParams();
   if (status && status !== 'all') {
     params.set('status', status);
@@ -14,7 +13,12 @@ export function buildJobsLink({ status, monk, search, row } = {}) {
   } else if (search?.trim()) {
     params.set('search', search.trim());
   }
-  const qs = params.toString();
+  return params;
+}
+
+/** Build `/jobs` path with filter query params for deep links. */
+export function buildJobsLink(state = {}) {
+  const qs = serializeJobsLink(state).toString();
   return qs ? `/jobs?${qs}` : '/jobs';
 }
 
@@ -30,18 +34,6 @@ export function parseJobsLinkParams(searchParams) {
 }
 
 /** Serialize filter state for `setSearchParams`. */
-export function jobsLinkSearchParams({ status, monk, search, row } = {}) {
-  const params = new URLSearchParams();
-  if (status && status !== 'all') {
-    params.set('status', status);
-  }
-  if (monk?.trim()) {
-    params.set('monk', monk.trim());
-  }
-  if (row != null && String(row).trim() !== '') {
-    params.set('row', String(row).trim());
-  } else if (search?.trim()) {
-    params.set('search', search.trim());
-  }
-  return params;
+export function jobsLinkSearchParams(state = {}) {
+  return serializeJobsLink(state);
 }

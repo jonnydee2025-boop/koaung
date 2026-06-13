@@ -9,7 +9,6 @@ import ErrorBanner from '../components/ErrorBanner';
 import { RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
 import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
-import { invalidateSheetCaches } from '../data/queryCache';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { EMPTY_COUNTS, JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
@@ -38,7 +37,6 @@ export default function Jobs() {
   const [search, setSearch] = useState(linkState.search);
   const searchTypingRef = useRef(false);
 
-  const [actionError, setActionError] = useState('');
   const [updatingStatusRow, setUpdatingStatusRow] = useState(null);
   const [retryingRow, setRetryingRow] = useState(null);
   const [schedulingRow, setSchedulingRow] = useState(null);
@@ -129,17 +127,9 @@ export default function Jobs() {
 
   useEffect(() => {
     if (monkFilter && monkOptions.length > 0 && !monkOptions.includes(monkFilter)) {
-      setSearchParams(
-        jobsLinkSearchParams({
-          status: filter,
-          monk: '',
-          search: debouncedSearch,
-          row: rowFilter,
-        }),
-        { replace: true },
-      );
+      updateJobsLink({ monk: '' }, { replace: true });
     }
-  }, [monkFilter, monkOptions, filter, debouncedSearch, rowFilter, setSearchParams]);
+  }, [monkFilter, monkOptions]);
 
   useEffect(() => {
     if (!pageData?.total_pages) return;
@@ -192,7 +182,7 @@ export default function Jobs() {
   const error = jobsQuery.error;
 
   const refreshSheet = () => {
-    invalidateSheetCaches();
+    sheetRefresh();
     jobsQuery.refresh();
   };
 
@@ -232,14 +222,12 @@ export default function Jobs() {
       return;
     }
 
-    setActionError('');
     setRetryingRow(job.row);
     try {
       await retryJobRender(job.row);
       showSuccess(`Retry queued for row #${job.row}.`);
       setTimeout(refreshSheet, 1500);
     } catch (e) {
-      setActionError(e.message);
       showError(e.message);
     } finally {
       setRetryingRow(null);
@@ -261,7 +249,6 @@ export default function Jobs() {
     if (!scheduleTarget) return;
     setScheduleModalError('');
     setSchedulingRow(scheduleTarget.row);
-    setActionError('');
     try {
       await scheduleJob(scheduleTarget.row, payload);
       setScheduleTarget(null);
@@ -273,7 +260,6 @@ export default function Jobs() {
       );
     } catch (e) {
       setScheduleModalError(e.message);
-      setActionError(e.message);
       showError(e.message);
     } finally {
       setSchedulingRow(null);
@@ -282,21 +268,19 @@ export default function Jobs() {
 
   const handleStatusChange = async (job, newStatus) => {
     if (!job?.row || !newStatus) return;
-    setActionError('');
     setUpdatingStatusRow(job.row);
     try {
       await updateJobStatus(job.row, newStatus);
       refreshSheet();
       showSuccess(`Row #${job.row} set to ${newStatus}.`);
     } catch (e) {
-      setActionError(e.message);
       showError(e.message);
     } finally {
       setUpdatingStatusRow(null);
     }
   };
 
-  const displayError = actionError || error;
+  const displayError = error;
 
   return (
     <>

@@ -8,7 +8,6 @@ import ErrorBanner from '../components/ErrorBanner';
 import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle } from 'lucide-react';
 import { cancelRender } from '../data/api';
 import { buildJobsLink } from '../data/jobsDeepLink';
-import { invalidateSheetCaches } from '../data/queryCache';
 import { useConfirm } from '../context/ConfirmContext';
 import { useToast } from '../context/ToastContext';
 import { useLazyVisible } from '../hooks/useLazyVisible';
@@ -35,13 +34,11 @@ export default function Dashboard() {
     title: '',
   };
 
-  const [actionError, setActionError] = useState('');
-
   const errors = [statsQuery.error, renderQuery.error].filter(Boolean);
-  const error = actionError || errors.join(' | ');
+  const error = errors.join(' | ');
 
   const refreshAll = () => {
-    invalidateSheetCaches();
+    sheetRefresh();
     statsQuery.refresh();
     renderQuery.refresh();
   };
@@ -69,7 +66,6 @@ export default function Dashboard() {
       refreshAll();
       showSuccess('Render cancelled.');
     } catch (e) {
-      setActionError(`Failed to cancel render: ${e.message}`);
       showError(`Failed to cancel render: ${e.message}`);
     }
   };

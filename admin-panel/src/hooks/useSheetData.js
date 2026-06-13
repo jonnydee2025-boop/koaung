@@ -14,7 +14,6 @@ import {
   LOGS_CACHE_KEY,
   RENDER_STATUS_CACHE_KEY,
 } from '../data/jobsCacheKeys';
-import { JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
 import { prefetchCache } from '../data/queryCache';
 import { ensureJobPlayerPrefsLoaded } from '../data/jobPlayerPrefs';
 import { useCachedQuery } from './useCachedQuery';
@@ -171,29 +170,6 @@ export function prefetchJobsFilterTab({
         row,
       }),
     JOBS_PAGE_TTL,
-  );
-}
-
-/** @deprecated Prefer prefetchJobsFilterTab for a single tab. */
-export function prefetchJobsFilterTabs({
-  pageSize = DEFAULT_PAGE_SIZE,
-  search = '',
-  monk = '',
-  status,
-} = {}) {
-  if (status != null) {
-    return prefetchJobsFilterTab({ pageSize, search, monk, status });
-  }
-  const targets = JOBS_TOOLBAR_FILTERS;
-  return Promise.all(
-    targets.map(([filterStatus]) =>
-      prefetchJobsFilterTab({
-        pageSize,
-        search,
-        monk,
-        status: filterStatus,
-      }),
-    ),
   );
 }
 

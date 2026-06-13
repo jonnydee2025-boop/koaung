@@ -4,16 +4,6 @@
   opacity: 0.72;
   transition: opacity 0.15s ease;
 }
-.content-calendar-day-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  min-height: 88px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-}
 .content-calendar-cache-meta {
   margin-top: 10px;
 }
