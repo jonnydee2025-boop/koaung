@@ -1,0 +1,264 @@
+/* Shared labels */
+.field-label,
+.schedule-field-label,
+.settings-page .form-label,
+.gemini-field-label {
+  display: block;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--field-label-color);
+  margin-bottom: 8px;
+}
+
+.settings-page .form-group {
+  gap: 8px;
+}
+
+.field-group {
+  margin-bottom: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Calm pill inputs — single source of truth */
+.field-control,
+.form-input,
+.form-select,
+select.form-input {
+  width: 100%;
+  background-color: var(--field-bg);
+  border: none;
+  border-radius: var(--field-radius-pill);
+  padding: var(--field-pad-y) var(--field-pad-x);
+  font-size: 14px;
+  color: var(--field-text);
+  font-family: inherit;
+  outline: none;
+  min-height: var(--field-min-height);
+  box-shadow: none;
+  transition: background-color var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+textarea.form-input,
+textarea.field-control {
+  border-radius: var(--radius);
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.settings-page textarea.form-input {
+  min-height: 108px;
+  border-radius: var(--radius-lg);
+}
+
+.field-control:hover:not(:disabled):not([readonly]),
+.form-input:hover:not(:disabled):not([readonly]),
+.form-select:hover:not(:disabled),
+select.form-input:hover:not(:disabled) {
+  background-color: var(--field-bg-hover);
+}
+
+.field-control:focus,
+.form-input:focus,
+.form-select:focus,
+select.form-input:focus {
+  background-color: var(--field-bg-focus);
+  border: none;
+  box-shadow: none;
+}
+
+.field-control:focus-visible,
+.form-input:focus-visible,
+.form-select:focus-visible,
+select.form-input:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.18);
+  outline-offset: 2px;
+}
+
+.form-input:disabled,
+.form-select:disabled,
+select.form-input:disabled,
+.field-control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.form-input--readonly,
+.form-input--readonly:disabled,
+.form-input--readonly[readonly],
+.form-input[readonly]:not(.form-input--loading),
+.form-input:disabled:not(.form-input--loading) {
+  background-color: var(--field-bg-readonly);
+  color: var(--text-secondary);
+  cursor: default;
+  opacity: 0.72;
+}
+
+.form-input--loading {
+  color: var(--text-muted);
+  opacity: 0.65;
+}
+
+select.form-input,
+.form-select {
+  cursor: pointer;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23857a6e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+
+select.form-input:focus,
+.form-select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c5baa9' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+
+.media-select-dropdown-trigger.form-input,
+.datetime-wheel-picker .media-select-dropdown-trigger.form-input,
+.time-wheel-picker .media-select-dropdown-trigger.form-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  padding-right: 14px;
+}
+
+/* Schedule modal — larger touch targets only */
+.schedule-modal .field-control,
+.schedule-modal .form-input,
+.schedule-modal .login-input,
+.schedule-modal .schedule-field-input,
+.schedule-modal select.login-input,
+.schedule-modal .media-select-dropdown-trigger.form-input {
+  min-height: var(--field-min-height-lg);
+  padding: var(--field-pad-lg-y) var(--field-pad-lg-x);
+  margin-bottom: 0;
+  color: var(--field-text);
+}
+
+.schedule-modal .media-select-dropdown-trigger.form-input {
+  position: relative;
+  padding-right: 44px;
+}
+
+.schedule-modal .login-input::placeholder {
+  color: var(--field-placeholder);
+  font-weight: 400;
+  opacity: 1;
+}
+
+.schedule-modal input[type='time'].login-input,
+.schedule-modal input[type='datetime-local'].login-input {
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  padding-right: 44px;
+}
+
+.schedule-modal .media-select-dropdown-chevron {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  margin: 0;
+  color: var(--field-chevron);
+  filter: none;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.schedule-modal .media-select-dropdown.is-open .media-select-dropdown-chevron {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* Login card input */
+.login-input {
+  width: 100%;
+  margin-bottom: 14px;
+  font-family: inherit;
+}
+
+.login-card .login-input {
+  border: none;
+  border-radius: var(--field-radius-pill);
+  background-color: var(--field-bg);
+  color: var(--field-text);
+  box-shadow: none;
+  text-align: center;
+  min-height: var(--field-min-height);
+  padding: var(--field-pad-y) var(--field-pad-x);
+}
+
+.login-card .login-input:hover:not(:disabled) {
+  background-color: var(--field-bg-hover);
+}
+
+.login-card .login-input:focus {
+  background-color: var(--field-bg-focus);
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.login-card .login-input::placeholder {
+  color: var(--field-placeholder);
+}
+
+.login-card .login-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Gemini dropdown trigger tweaks */
+.gemini-settings-page .media-select-dropdown-trigger.form-input {
+  position: relative;
+  padding-right: 44px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  text-align: left;
+}
+
+.gemini-settings-page .media-select-dropdown-label {
+  font-family: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gemini-settings-page .media-select-dropdown-chevron {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  margin: 0;
+  color: var(--field-chevron);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.gemini-settings-page .media-select-dropdown.is-open .media-select-dropdown-chevron {
+  transform: translateY(-50%) rotate(180deg);
+}

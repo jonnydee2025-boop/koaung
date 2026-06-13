@@ -335,11 +335,29 @@ def _with_drive_retry(operation):
         return operation(drive)
 
 
-def prepare_background_video(destination: Path, row_number: int | None = None) -> str:
+def prepare_background_video(
+    destination: Path,
+    row_number: int | None = None,
+    *,
+    background_video_id: str | None = None,
+    background_video_name: str | None = None,
+    skip_row_rules: bool = False,
+) -> str:
     folder_id = get_root_drive_folder_id()
 
     def run(drive: Any) -> str:
-        if row_number is not None:
+        explicit_id = (background_video_id or "").strip()
+        if explicit_id:
+            name = (background_video_name or "").strip() or explicit_id
+            return download_drive_file_by_id(
+                drive,
+                explicit_id,
+                destination,
+                label=f"Google Drive: {name}",
+                file_name=name,
+                use_background_cache=True,
+            )
+        if not skip_row_rules and row_number is not None:
             rule = get_rule_for_row(row_number)
             if rule and rule.background_video_id:
                 name = rule.background_video_name or rule.background_video_id

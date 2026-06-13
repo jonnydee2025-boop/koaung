@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
+import BottomNav from './components/BottomNav';
 import PageLoader from './components/PageLoader';
 import ErrorBoundary from './components/ErrorBoundary';
 import RouteFallback from './components/RouteFallback';
@@ -8,6 +9,8 @@ import Login from './pages/Login';
 import { isAuthenticated } from './data/adminAuth';
 import { SETTINGS_SECTIONS } from './data/settingsSections';
 import { MobileNavProvider, useMobileNav } from './context/MobileNavContext';
+import { ToastProvider } from './context/ToastContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Jobs = lazy(() => import('./pages/Jobs'));
@@ -97,6 +100,7 @@ function AppShell() {
           </Routes>
         </ErrorBoundary>
       </div>
+      <BottomNav />
     </div>
   );
 }
@@ -105,9 +109,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <RequireAuth>
-        <MobileNavProvider>
-          <AppShell />
-        </MobileNavProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <MobileNavProvider>
+              <AppShell />
+            </MobileNavProvider>
+          </ConfirmProvider>
+        </ToastProvider>
       </RequireAuth>
     </BrowserRouter>
   );

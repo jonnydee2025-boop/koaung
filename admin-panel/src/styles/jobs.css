@@ -1,0 +1,357 @@
+/* Jobs table — compact icon-only action buttons */
+.job-action-btn {
+  padding: 6px 8px;
+  min-width: 32px;
+  justify-content: center;
+  line-height: 0;
+}
+.job-log-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: normal;
+  gap: 4px;
+  white-space: nowrap;
+}
+.job-log-btn-label {
+  font-size: 11px;
+}
+.job-youtube-link {
+  font-size: 11px;
+  color: var(--accent);
+}
+.job-title-btn {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.job-title-btn:hover {
+  color: var(--accent-hover);
+}
+.mp3-player-modal {
+  max-width: 520px;
+}
+.mp3-player-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.mp3-player-favorite {
+  color: var(--text-muted);
+}
+.mp3-player-favorite.is-active {
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.25);
+}
+.mp3-player-remark {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.mp3-player-remark-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.mp3-player-remark-input {
+  min-height: 72px;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.job-title-btn,
+.job-title-text {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 100%;
+}
+.job-title-favorite {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.job-title-btn.truncate {
+  white-space: normal;
+  text-align: left;
+}
+.mp3-player-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+}
+.mp3-player-meta-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.mp3-player-meta-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+.mp3-player-audio {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.mp3-player-loading,
+.mp3-player-error {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+.job-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Jobs toolbar */
+.jobs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.jobs-toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.jobs-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.jobs-filter-tab,
+.jobs-filter-dropdown {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  touch-action: manipulation;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: var(--field-bg);
+  color: var(--text-secondary);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.jobs-filter-tab.is-open,
+.jobs-filter-tab.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.jobs-filter-tab:active,
+.logs-level-tab:active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.jobs-filter-tab.is-active:active,
+.jobs-filter-tab.is-open:active,
+.logs-level-tab.is-active:active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.jobs-filter-count {
+  margin-left: 0;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.08);
+  padding: 1px 6px;
+  border-radius: 10px;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  flex-shrink: 1;
+}
+.jobs-filter-count-accent {
+  background: rgba(255,255,255,0.14);
+}
+.jobs-filter-chevron {
+  opacity: 0.55;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+.monk-filter-dropdown.is-open .jobs-filter-chevron {
+  transform: rotate(180deg);
+}
+
+/* Shared toolbar floating menus (monk filter + status dropdown) */
+.jobs-filter-dropdown,
+.status-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+.toolbar-dropdown-menu,
+.status-dropdown-menu {
+  z-index: 30;
+  min-width: 168px;
+  max-width: min(280px, 80vw);
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  padding: 6px;
+  background: linear-gradient(160deg, #26231e 0%, #201e19 100%);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(212,175,55,0.04) inset;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.toolbar-dropdown-menu.is-floating,
+.status-dropdown-menu.is-floating {
+  position: fixed;
+  top: auto;
+  left: auto;
+  z-index: 3000;
+}
+.monk-filter-menu {
+  min-width: 200px;
+}
+.toolbar-dropdown-item,
+.status-dropdown-item {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  justify-content: flex-start;
+  padding: 7px 10px;
+  border-radius: 999px;
+  transition: background 0.15s ease, color 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.toolbar-dropdown-item:hover,
+.status-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.toolbar-dropdown-item:active,
+.status-dropdown-item:active {
+  background: var(--accent-dim);
+}
+.toolbar-dropdown-item:focus,
+.status-dropdown-item:focus {
+  outline: none;
+}
+.toolbar-dropdown-item:focus-visible,
+.status-dropdown-item:focus-visible {
+  outline: 2px solid rgba(212, 175, 55, 0.45);
+  outline-offset: 1px;
+}
+.toolbar-dropdown-item.is-active,
+.status-dropdown-item.is-active {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.toolbar-dropdown-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.toolbar-dropdown-check,
+.status-dropdown-check {
+  margin-left: auto;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+.toolbar-dropdown-empty {
+  margin: 4px 8px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Collapsible search */
+.collapsible-search {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.collapsible-search-toggle {
+  padding: 6px 8px;
+  min-width: 32px;
+  justify-content: center;
+}
+.collapsible-search-input-wrap {
+  position: relative;
+  overflow: hidden;
+  width: 0;
+  opacity: 0;
+  transition: width 0.25s ease, opacity 0.2s ease;
+}
+.collapsible-search.is-open .collapsible-search-input-wrap {
+  width: 220px;
+  opacity: 1;
+}
+.collapsible-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.collapsible-search-input {
+  width: 220px;
+  padding-left: 34px;
+  font-size: 12px;
+}
+
+/* Jobs table layout helpers */
+.jobs-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.jobs-table-wrap table {
+  min-width: 640px;
+}
+.job-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+/* Status badge dropdown */
+.status-dropdown-trigger {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding-right: 8px;
+  gap: 6px;
+}
+.status-dropdown-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+.status-dropdown-chevron {
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+.status-dropdown.is-locked .status-dropdown-trigger {
+  pointer-events: none;
+}

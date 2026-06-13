@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { setAdminApiKey } from '../data/adminAuth';
 import { verifyAdminApiKey } from '../data/api';
 import { warmAppCache } from '../hooks/useSheetData';
+import ErrorBanner from '../components/ErrorBanner';
 
 export default function Login({ onSuccess }) {
   const [key, setKey] = useState('');
@@ -50,7 +51,7 @@ export default function Login({ onSuccess }) {
             placeholder="Paste your secret key"
             disabled={loading}
           />
-          {error && <p className="login-error">{error}</p>}
+          {error && <ErrorBanner message={error} className="error-banner--inline" />}
           <button className="btn btn-primary login-submit" type="submit" disabled={loading}>
             {loading ? 'Checking…' : 'Sign in'}
           </button>

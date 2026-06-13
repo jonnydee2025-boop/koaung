@@ -1,0 +1,8 @@
+.flex { display: flex; }
+.flex-center { display: flex; align-items: center; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.ml-auto { margin-left: auto; }
+.text-muted { color: var(--text-muted); font-size: 12px; }
+.text-mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }

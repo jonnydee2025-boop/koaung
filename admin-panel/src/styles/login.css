@@ -1,0 +1,112 @@
+/* Login */
+@property --login-glow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--surface-modal);
+  position: relative;
+}
+.login-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/lotus-pattern.svg');
+  background-size: 96px 96px;
+  background-repeat: repeat;
+  opacity: 0.055;
+  pointer-events: none;
+}
+.login-card-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  border-radius: var(--radius-lg);
+  padding: 0;
+  background: transparent;
+  animation: none;
+  box-shadow: none;
+}
+.login-card {
+  width: 100%;
+  background: var(--surface-modal);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+  padding: 44px 32px 36px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+.login-card .btn-primary.login-submit {
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: none;
+  color: #1a1814;
+  font-weight: 600;
+}
+.login-card .btn-primary.login-submit:hover {
+  background: var(--accent-hover);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-card-shell {
+    background: transparent;
+  }
+}
+.login-header {
+  margin-bottom: 32px;
+  padding-top: 4px;
+}
+.login-logo {
+  display: block;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 22px;
+}
+.login-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  line-height: 1.2;
+  text-align: center;
+}
+.login-title-burmese {
+  font-family: 'Noto Sans Myanmar', Inter, sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 10px rgba(212, 175, 55, 0.65),
+    0 0 22px rgba(212, 175, 55, 0.4),
+    0 0 36px rgba(212, 175, 55, 0.22);
+}
+.login-title-en {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.login-subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; line-height: 1.6; }
+.login-subtitle code { font-size: 11.5px; color: var(--accent); background: var(--accent-dim); padding: 1px 5px; border-radius: 4px; }
+.login-label {
+  display: block;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.login-submit { width: 100%; justify-content: center; margin-top: 4px; }

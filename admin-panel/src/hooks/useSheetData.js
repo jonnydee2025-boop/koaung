@@ -43,10 +43,11 @@ export function useJobsPage({
   status = 'all',
   search = '',
   monk = '',
+  row = null,
 } = {}, options = {}) {
   const pollMs = options.pollMs ?? 0;
   const enabled = options.enabled ?? true;
-  const cacheKey = jobsPageCacheKey({ page, pageSize, status, search, monk });
+  const cacheKey = jobsPageCacheKey({ page, pageSize, status, search, monk, row });
   const fetcher = useCallback(
     (force) =>
       fetchJobsPage({
@@ -55,9 +56,10 @@ export function useJobsPage({
         status,
         search,
         monk,
+        row,
         refresh: Boolean(force),
       }),
-    [page, pageSize, status, search, monk],
+    [page, pageSize, status, search, monk, row],
   );
   const query = useCachedQuery(cacheKey, fetcher, {
     ttlMs: JOBS_PAGE_TTL,
@@ -147,6 +149,7 @@ export function prefetchJobsFilterTab({
   search = '',
   monk = '',
   status = 'all',
+  row = null,
 } = {}) {
   const key = jobsPageCacheKey({
     page: 1,
@@ -154,6 +157,7 @@ export function prefetchJobsFilterTab({
     status,
     search,
     monk,
+    row,
   });
   return prefetchCache(
     key,
@@ -164,6 +168,7 @@ export function prefetchJobsFilterTab({
         status,
         search,
         monk,
+        row,
       }),
     JOBS_PAGE_TTL,
   );
@@ -200,6 +205,7 @@ export function prefetchAdjacentJobsPages({
   status = 'all',
   search = '',
   monk = '',
+  row = null,
 } = {}) {
   const targets = [page + 1, page + 2].filter(
     (nextPage) => nextPage >= 1 && nextPage <= totalPages,
@@ -213,6 +219,7 @@ export function prefetchAdjacentJobsPages({
         status,
         search,
         monk,
+        row,
       });
       return prefetchCache(
         key,
@@ -223,6 +230,7 @@ export function prefetchAdjacentJobsPages({
             status,
             search,
             monk,
+            row,
           }),
         JOBS_PAGE_TTL,
       );

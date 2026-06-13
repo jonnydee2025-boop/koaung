@@ -43,6 +43,7 @@ from ...gemini_settings import (
 from ...repeat_jobs import load_repeat_jobs
 from ...row_rules import (
     load_row_rules,
+    prune_row_rules_for_repeat_anchors,
     save_row_rules,
     validate_row_rules,
     validate_row_rules_for_repeat_anchors,
@@ -140,6 +141,7 @@ def get_row_rules():
     for row in rows:
         if row.values.get("status", "").strip().lower() == "repeat":
             repeat_anchors.add(row.row_number)
+    prune_row_rules_for_repeat_anchors(repeat_anchors)
     return {
         "rules": [row_rule_to_dict(rule) for rule in load_row_rules()],
         "repeat_anchors": sorted(repeat_anchors),

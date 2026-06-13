@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { buildJobsLink } from '../data/jobsDeepLink';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import PageLoader from './PageLoader';
+import ErrorBanner from './ErrorBanner';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
 import {
@@ -13,9 +15,9 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MAX_CHIPS = 3;
 
 const KIND_META = {
-  scheduled: { label: 'Scheduled', color: 'var(--blue)', className: 'scheduled' },
-  repeat: { label: 'Repeat', color: '#a78bfa', className: 'repeat' },
-  do: { label: 'Priority', color: '#f59e0b', className: 'do' },
+  scheduled: { label: 'Scheduled', className: 'scheduled' },
+  repeat: { label: 'Repeat', className: 'repeat' },
+  do: { label: 'Priority', className: 'do' },
 };
 
 function pad(n) {
@@ -67,6 +69,37 @@ function buildMonthCells(year, month) {
   return cells;
 }
 
+const KIND_ORDER = ['scheduled', 'repeat', 'do'];
+
+function uniqueEventKinds(events) {
+  const kinds = [];
+  for (const kind of KIND_ORDER) {
+    if (events.some((event) => (event.kind || 'scheduled') === kind)) {
+      kinds.push(kind);
+    }
+  }
+  return kinds;
+}
+
+function DayEventDots({ events }) {
+  const kinds = uniqueEventKinds(events);
+  if (kinds.length === 0) return null;
+  return (
+    <div className="content-calendar-day-dots" aria-hidden="true">
+      {kinds.map((kind) => {
+        const meta = KIND_META[kind] || KIND_META.scheduled;
+        return (
+          <span
+            key={kind}
+            className={`content-calendar-day-dot ${meta.className}`}
+            title={meta.label}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function EventChip({ event, onSelect }) {
   const meta = KIND_META[event.kind] || KIND_META.scheduled;
   const label = event.title || event.label || meta.label;
@@ -114,7 +147,7 @@ function EventDetail({ event, onClose }) {
         {event.row != null ? (
           <div className="content-calendar-popover-row">
             <span className="content-calendar-popover-label">Row</span>
-            <Link to="/jobs" className="content-calendar-row-link">
+            <Link to={buildJobsLink({ row: event.row })} className="content-calendar-row-link">
               #{event.row}
             </Link>
           </div>
@@ -236,7 +269,12 @@ export default function ContentCalendar() {
         ))}
       </div>
 
-      {error ? <div className="content-calendar-error">{error}</div> : null}
+      {error ? (
+        <ErrorBanner
+          message={typeof error === 'string' ? error : error.message}
+          className="error-banner--inline"
+        />
+      ) : null}
 
       {showInitialLoad ? (
         <PageLoader variant="section" label="Loading calendar…" />
@@ -271,6 +309,7 @@ export default function ContentCalendar() {
               >
                 <div className="content-calendar-day-number">{cell.day}</div>
                 <div className="content-calendar-day-events">
+                  <DayEventDots events={dayEvents} />
                   {dayEvents.slice(0, MAX_CHIPS).map((event, eventIndex) => (
                     <EventChip
                       key={`${event.at}-${event.row ?? event.label}-${eventIndex}`}
@@ -297,30 +336,46 @@ export default function ContentCalendar() {
       {selectedEvent ? (
         <EventDetail event={selectedEvent} onClose={() => setSelectedEvent(null)} />
       ) : selectedDay && selectedDayEvents.length > 0 ? (
-        <div className="content-calendar-day-panel">
-          <div className="content-calendar-day-panel-header">
-            <span>{new Date(`${selectedDay}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedDay(null)}>
-              Close
-            </button>
-          </div>
-          <div className="content-calendar-day-panel-list">
-            {selectedDayEvents.map((event, index) => (
-              <button
-                key={`${event.at}-${event.row ?? event.label}-${index}`}
-                type="button"
-                className="content-calendar-day-panel-item"
-                onClick={() => setSelectedEvent(event)}
-              >
-                <span className={`content-calendar-kind-badge ${(KIND_META[event.kind] || KIND_META.scheduled).className}`}>
-                  {(KIND_META[event.kind] || KIND_META.scheduled).label}
-                </span>
-                <span className="content-calendar-day-panel-time">{formatTime(event.at)}</span>
-                <span className="content-calendar-day-panel-title">{event.title || event.label}</span>
+        <>
+          <button
+            type="button"
+            className="content-calendar-day-panel-backdrop"
+            aria-label="Close day schedule"
+            onClick={() => setSelectedDay(null)}
+          />
+          <div className="content-calendar-day-panel" role="dialog" aria-label="Day schedule">
+            <div className="content-calendar-day-panel-header">
+              <span>
+                {new Date(`${selectedDay}T12:00:00`).toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </span>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedDay(null)}>
+                Close
               </button>
-            ))}
+            </div>
+            <div className="content-calendar-day-panel-list">
+              {selectedDayEvents.map((event, index) => (
+                <button
+                  key={`${event.at}-${event.row ?? event.label}-${index}`}
+                  type="button"
+                  className="content-calendar-day-panel-item"
+                  onClick={() => setSelectedEvent(event)}
+                >
+                  <span
+                    className={`content-calendar-kind-badge ${(KIND_META[event.kind] || KIND_META.scheduled).className}`}
+                  >
+                    {(KIND_META[event.kind] || KIND_META.scheduled).label}
+                  </span>
+                  <span className="content-calendar-day-panel-time">{formatTime(event.at)}</span>
+                  <span className="content-calendar-day-panel-title">{event.title || event.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       ) : null}
     </div>
   );

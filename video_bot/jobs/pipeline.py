@@ -17,6 +17,7 @@ from ..repeat_jobs import (
     repeat_thumbnail_for_run,
 )
 from ..row_rules import (
+    consume_row_rules_after_render,
     get_background_loop_count_for_row,
     get_batch_rule_for_anchor,
     row_has_thumbnail,
@@ -154,14 +155,24 @@ def process_reserved_row(
 
             if job_progress is not None:
                 job_progress("Preparing background video", None)
+            repeat_bg_id = repeat_job.background_video_id if is_repeat and repeat_job else None
+            repeat_bg_name = repeat_job.background_video_name if is_repeat and repeat_job else None
             background_source = prepare_background_video(
-                background_path, row_number=row.row_number
+                background_path,
+                row_number=row.row_number,
+                background_video_id=repeat_bg_id,
+                background_video_name=repeat_bg_name,
+                skip_row_rules=is_repeat,
             )
             logger.info("Background video: %s", background_source)
             if job_progress is not None:
                 job_progress("Finished background video", None)
 
-            loop_count = get_background_loop_count_for_row(row.row_number)
+            loop_count = (
+                repeat_job.background_loop_count
+                if is_repeat and repeat_job is not None
+                else get_background_loop_count_for_row(row.row_number)
+            )
             if loop_count is not None:
                 logger.info(
                     "Track + background loop count for row %s: %sx",
@@ -305,6 +316,7 @@ def process_reserved_row(
                     "uploaded_to_yt",
                     log_message,
                 )
+            consume_row_rules_after_render(row.row_number)
         logger.info("Upload complete: %s (%s)", video_id, privacy)
         if job_progress is not None:
             job_progress("Finished", None)

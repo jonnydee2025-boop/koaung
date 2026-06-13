@@ -158,56 +158,64 @@ export default function LazyJobTable({
                   </div>
                 )}
               </td>
-              <td className="text-mono" data-label="Row">#{job.row}</td>
+              <td data-label="Row">
+                <span className="job-card-value text-mono">#{job.row}</span>
+              </td>
               <td data-label="Status">
-                {showActions && onStatusChange ? (
-                  <JobStatusSelect
-                    status={job.status}
-                    saving={updatingStatusRow === job.row}
-                    onChange={(newStatus) => onStatusChange(job, newStatus)}
-                  />
-                ) : (
-                  <StatusBadge status={job.status} />
-                )}
-                {job.schedule_time && !isPendingStatus(job.status) && (
-                  <div className="text-muted" style={{ fontSize: 10, marginTop: 4 }}>
-                    {new Date(job.schedule_time).toLocaleString()}
-                  </div>
-                )}
+                <div className="job-card-value job-card-value--stack">
+                  {showActions && onStatusChange ? (
+                    <JobStatusSelect
+                      status={job.status}
+                      saving={updatingStatusRow === job.row}
+                      onChange={(newStatus) => onStatusChange(job, newStatus)}
+                    />
+                  ) : (
+                    <StatusBadge status={job.status} />
+                  )}
+                  {job.schedule_time && !isPendingStatus(job.status) && (
+                    <div className="job-card-meta text-muted">
+                      {new Date(job.schedule_time).toLocaleString()}
+                    </div>
+                  )}
+                </div>
               </td>
               <td data-label="YouTube">
-                {job.youtube_id ? (
-                  <a
-                    href={`https://youtu.be/${job.youtube_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ fontSize: 11, color: 'var(--accent)' }}
-                  >
-                    ▶ {job.youtube_id}
-                  </a>
-                ) : (
-                  '—'
-                )}
+                <span className="job-card-value">
+                  {job.youtube_id ? (
+                    <a
+                      href={`https://youtu.be/${job.youtube_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="job-youtube-link"
+                    >
+                      ▶ {job.youtube_id}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </span>
               </td>
               <td data-label="Log">
-                {(job.logs || '').trim() && !isPendingStatus(job.status) ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm job-log-btn"
-                    onClick={() => setLogJob(job)}
-                    title="View log"
-                    aria-label="View log"
-                  >
-                    <NotebookText size={14} />
-                    <span className="job-log-btn-label">View Log</span>
-                  </button>
-                ) : (
-                  '—'
-                )}
+                <div className="job-card-value job-card-value--inline">
+                  {(job.logs || '').trim() && !isPendingStatus(job.status) ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm job-log-btn"
+                      onClick={() => setLogJob(job)}
+                      title="View log"
+                      aria-label="View log"
+                    >
+                      <NotebookText size={14} />
+                      <span className="job-log-btn-label">View Log</span>
+                    </button>
+                  ) : (
+                    <span className="job-log-empty">—</span>
+                  )}
+                </div>
               </td>
               {showActions && (
                 <td data-label="Actions">
-                  <div className="job-actions">
+                  <div className="job-card-value job-card-value--actions job-actions">
                     {job.youtube_id && (
                       <a
                         href={`https://studio.youtube.com/video/${job.youtube_id}/edit`}

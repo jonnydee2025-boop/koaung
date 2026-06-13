@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import Header from '../components/Header';
 import PageLoader from '../components/PageLoader';
+import ErrorBanner from '../components/ErrorBanner';
 import { triggerRenderNext, cancelRender } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
+import { useConfirm } from '../context/ConfirmContext';
+import { useToast } from '../context/ToastContext';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
+import { useSheetRefresh } from '../hooks/useSheetRefresh';
 import { useCachedLogs, useCachedRenderStatus } from '../hooks/useSheetData';
 import { Download, RefreshCw } from 'lucide-react';
 
@@ -29,6 +33,10 @@ export default function Logs() {
   const [renderStarting, setRenderStarting] = useState(false);
   const [renderError, setRenderError] = useState('');
   const bottomRef = useRef(null);
+  const confirm = useConfirm();
+  const { showSuccess, showError } = useToast();
+  const sheetRefresh = useSheetRefresh();
+  const [refreshing, setRefreshing] = useState(false);
 
   const logs = logsQuery.data ?? [];
   const renderRunning = Boolean(renderQuery.data?.running);
@@ -49,26 +57,48 @@ export default function Logs() {
     renderQuery.refresh();
   };
 
+  const handleHeaderRefresh = () => {
+    setRefreshing(true);
+    sheetRefresh();
+    window.setTimeout(() => setRefreshing(false), 600);
+  };
+
   const handleRenderNext = async () => {
     setRenderError('');
     setRenderStarting(true);
     try {
       await triggerRenderNext();
       refreshAll();
+      showSuccess('Render started for next do row.');
     } catch (e) {
       setRenderError(e.message);
+      showError(e.message);
     } finally {
       setRenderStarting(false);
     }
   };
 
   const handleStopRender = async () => {
+    const ok = await confirm({
+      title: 'Stop render?',
+      message:
+        'This will cancel the current FFmpeg render and mark the job as cancelled.',
+      confirmLabel: 'Stop render',
+      cancelLabel: 'Keep running',
+      variant: 'danger',
+    });
+    if (!ok) {
+      return;
+    }
+
     setRenderError('');
     try {
       await cancelRender();
       refreshAll();
+      showSuccess('Render stopped.');
     } catch (e) {
       setRenderError(e.message);
+      showError(e.message);
     }
   };
 
@@ -83,6 +113,7 @@ export default function Logs() {
     a.download = 'videobot-logs.txt';
     a.click();
     URL.revokeObjectURL(url);
+    showSuccess(`Exported ${filtered.length} log entries.`);
   };
 
   const displayError = error || renderError;
@@ -97,23 +128,11 @@ export default function Logs() {
         renderStarting={renderStarting}
         onRenderNext={handleRenderNext}
         onStopRender={handleStopRender}
+        onRefresh={handleHeaderRefresh}
+        refreshing={refreshing}
       />
       <div ref={pageRef} className="page-content">
-        {displayError && (
-          <div
-            style={{
-              background: 'var(--red-dim)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 8,
-              padding: '10px 16px',
-              marginBottom: 16,
-              fontSize: 13,
-              color: 'var(--red)',
-            }}
-          >
-            ⚠ {displayError}
-          </div>
-        )}
+        {displayError && <ErrorBanner message={displayError} />}
         <div className="card logs-card">
           <div className="logs-toolbar">
             <div className="logs-level-filters">
@@ -157,14 +176,7 @@ export default function Logs() {
             {loading ? (
               <PageLoader variant="inline" label="Loading logs…" />
             ) : filtered.length === 0 ? (
-              <div
-                style={{
-                  color: 'var(--text-muted)',
-                  fontSize: 12,
-                  textAlign: 'center',
-                  padding: 40,
-                }}
-              >
+              <div className="logs-empty-state">
                 {error ? 'Could not load logs.' : 'No log entries match the current filter.'}
               </div>
             ) : (

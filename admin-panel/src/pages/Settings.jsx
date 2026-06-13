@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import Header from '../components/Header';
+import ErrorBanner from '../components/ErrorBanner';
 import RowRulesTable from '../components/RowRulesTable';
 import GeminiModelSettings from '../components/GeminiModelSettings';
 import SettingsTabStatus from '../components/SettingsTabStatus';
@@ -12,6 +13,9 @@ import {
 } from '../data/settingsSections';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
+import { useSheetRefresh } from '../hooks/useSheetRefresh';
+import { useConfirm } from '../context/ConfirmContext';
+import { useToast } from '../context/ToastContext';
 import {
   useCachedGeneralSettings,
   useCachedGeminiSettings,
@@ -50,6 +54,22 @@ function ConfigField({ id, label, fieldKey, cfg }) {
 }
 
 function GeneralSection({ cfg, meta, loading, refreshing }) {
+  const confirm = useConfirm();
+
+  const handleSignOut = async () => {
+    const ok = await confirm({
+      title: 'Sign out?',
+      message: 'You will need your admin API key to sign in again on this device.',
+      confirmLabel: 'Sign out',
+      cancelLabel: 'Stay signed in',
+    });
+    if (!ok) {
+      return;
+    }
+    clearAdminApiKey();
+    window.dispatchEvent(new Event('admin-auth-expired'));
+  };
+
   return (
     <div className="settings-studio-panel">
       <SettingsTabStatus loading={loading} refreshing={refreshing} label="general settings" />
@@ -140,10 +160,7 @@ function GeneralSection({ cfg, meta, loading, refreshing }) {
       <button
         type="button"
         className="btn btn-ghost btn-sm settings-signout-btn settings-studio-signout"
-        onClick={() => {
-          clearAdminApiKey();
-          window.dispatchEvent(new Event('admin-auth-expired'));
-        }}
+        onClick={handleSignOut}
       >
         <LogOut size={14} />
         Sign out
@@ -152,20 +169,27 @@ function GeneralSection({ cfg, meta, loading, refreshing }) {
   );
 }
 
-function DangerSection({ onKill, setError }) {
+function DangerSection({ onKill }) {
+  const confirm = useConfirm();
+  const { showSuccess, showError } = useToast();
+
   const handleKillServer = async () => {
-    if (
-      !window.confirm(
-        'Shut down the Python bot process? The web UI will disconnect until you restart the bot on the VPS.',
-      )
-    ) {
+    const ok = await confirm({
+      title: 'Shut down bot?',
+      message:
+        'This stops the Python backend. The web UI will disconnect until you restart videobot on the VPS.',
+      confirmLabel: 'Shut down',
+      cancelLabel: 'Cancel',
+      variant: 'danger',
+    });
+    if (!ok) {
       return;
     }
     try {
       await onKill();
-      setError('Shutdown signal sent. Server is stopping…');
+      showSuccess('Shutdown signal sent.');
     } catch (e) {
-      setError(`Failed to send shutdown signal: ${e.message}`);
+      showError(`Failed to send shutdown signal: ${e.message}`);
     }
   };
 
@@ -202,8 +226,9 @@ function DangerSection({ onKill, setError }) {
 export default function Settings() {
   const location = useLocation();
   const section = settingsSectionForPath(location.pathname);
-  const [error, setError] = useState('');
   const { ref: pageRef, isVisible } = useLazyVisible({ initialVisible: true });
+  const sheetRefresh = useSheetRefresh();
+  const [refreshing, setRefreshing] = useState(false);
 
   const generalQuery = useCachedGeneralSettings({
     enabled: isVisible && section === 'general',
@@ -215,9 +240,13 @@ export default function Settings() {
     enabled: isVisible && section === 'rules',
   });
 
-  useEffect(() => {
-    if (generalQuery.error) setError(generalQuery.error);
-  }, [generalQuery.error]);
+  const loadError =
+    (section === 'general' && generalQuery.error) ||
+    (section === 'ai' && geminiQuery.error) ||
+    (section === 'rules' && rowRulesQuery.error) ||
+    '';
+  const loadErrorMessage =
+    typeof loadError === 'string' ? loadError : loadError?.message || '';
 
   useSheetCacheInvalidation(
     generalQuery.refresh,
@@ -235,15 +264,22 @@ export default function Settings() {
 
   const meta = settingsSectionMeta(section);
 
+  const handleHeaderRefresh = () => {
+    setRefreshing(true);
+    sheetRefresh();
+    window.setTimeout(() => setRefreshing(false), 600);
+  };
+
   return (
     <>
-      <Header title={meta.title} subtitle={meta.subtitle} />
+      <Header
+        title={meta.title}
+        subtitle={meta.subtitle}
+        onRefresh={handleHeaderRefresh}
+        refreshing={refreshing}
+      />
       <div ref={pageRef} className="page-content settings-page settings-studio-page">
-        {error && (
-          <div className="settings-alert settings-alert--error">
-            {error}
-          </div>
-        )}
+        {loadErrorMessage && <ErrorBanner message={loadErrorMessage} />}
 
         <main className="settings-studio-main settings-studio-main--solo">
           {section === 'general' && (
@@ -261,7 +297,7 @@ export default function Settings() {
             <RowRulesTable embedded query={rowRulesQuery} />
           )}
           {section === 'danger' && (
-            <DangerSection onKill={shutdownServer} setError={setError} />
+            <DangerSection onKill={shutdownServer} />
           )}
         </main>
       </div>

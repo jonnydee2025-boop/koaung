@@ -5,6 +5,9 @@ import { invalidateCache, writeCache } from '../data/queryCache';
 import { SETTINGS_ROW_RULES_CACHE_KEY } from '../data/settingsCacheKeys';
 import SettingsTabStatus from './SettingsTabStatus';
 import LoadingOverlay from './LoadingOverlay';
+import MediaSelectDropdown from './MediaSelectDropdown';
+import { useConfirm } from '../context/ConfirmContext';
+import { useToast } from '../context/ToastContext';
 
 function emptyRule() {
   return {
@@ -119,27 +122,9 @@ function displayLoops(rule) {
   return rule.background_loop_count;
 }
 
-function SelectMedia({ id, value, options, disabled, onChange, title }) {
-  return (
-    <select
-      id={id}
-      className="form-input row-rules-select"
-      value={value}
-      disabled={disabled}
-      onChange={onChange}
-      title={title ?? options.find((o) => o.id === value)?.name ?? 'Default'}
-    >
-      <option value="">— Default —</option>
-      {options.map((opt) => (
-        <option key={opt.id} value={opt.id}>
-          {opt.name}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 export default function RowRulesTable({ embedded = false, query: queryProp }) {
+  const confirm = useConfirm();
+  const { showSuccess, showError } = useToast();
   const [rules, setRules] = useState([]);
   const [draftRule, setDraftRule] = useState(emptyRule());
   const [editingIndex, setEditingIndex] = useState(null);
@@ -147,8 +132,6 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
   const [thumbnails, setThumbnails] = useState([]);
   const [saving, setSaving] = useState(false);
   const [refreshingDrive, setRefreshingDrive] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   const query = queryProp ?? {
     data: null,
@@ -174,14 +157,7 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
     setRules(mapRulesFromApi(bundle.rulesData));
     setBackgrounds(bundle.media?.background_videos ?? []);
     setThumbnails(bundle.media?.thumbnail_images ?? []);
-    setError('');
   }, [query.data]);
-
-  useEffect(() => {
-    if (query.error) {
-      setError(query.error);
-    }
-  }, [query.error]);
 
   const resetDraft = () => {
     setDraftRule(emptyRule());
@@ -189,7 +165,6 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
   };
 
   const refreshDriveLists = async () => {
-    setError('');
     setRefreshingDrive(true);
     try {
       const media = await fetchDriveMediaOptions();
@@ -203,15 +178,13 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
         );
       }
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setRefreshingDrive(false);
     }
   };
 
   const persistRules = async (nextRules, successMessage = 'Row rules saved.') => {
-    setError('');
-    setSuccess('');
     setSaving(true);
     try {
       const payload = nextRules.map((rule) =>
@@ -219,16 +192,15 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
       );
       const result = await saveRowRules(payload);
       const autoDoCount = result.auto_do_rows?.length ?? 0;
-      setSuccess(
+      showSuccess(
         autoDoCount
-          ? `${successMessage} ${autoDoCount} row(s) set to do in the sheet.`
+          ? `${successMessage} ${autoDoCount} row(s) set to do.`
           : successMessage,
       );
-      setTimeout(() => setSuccess(''), 3000);
       invalidateCache(SETTINGS_ROW_RULES_CACHE_KEY);
       await query.refresh();
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
       throw e;
     } finally {
       setSaving(false);
@@ -238,7 +210,13 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
   const handleSaveRule = async () => {
     const batchRows = String(draftRule.batch_rows ?? '').trim();
     if (!batchRows) {
-      setError('Enter at least one sheet row in Select Rows.');
+      showError('Enter at least one sheet row in Select Rows.');
+      return;
+    }
+    if (draftIsRepeatAnchor) {
+      showError(
+        `Row #${draftAnchorRow} is a repeat job. Set background, loop, and thumbnails in Jobs → Schedule → Repeat.`,
+      );
       return;
     }
 
@@ -264,11 +242,21 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
   const handleEditRule = (index) => {
     setDraftRule({ ...rules[index] });
     setEditingIndex(index);
-    setError('');
-    setSuccess('');
   };
 
   const handleDeleteRule = async (index) => {
+    const rule = rules[index];
+    const ok = await confirm({
+      title: 'Delete row rule?',
+      message: `Remove the rule for rows "${rule?.batch_rows || ''}"? This cannot be undone.`,
+      confirmLabel: 'Delete rule',
+      cancelLabel: 'Keep rule',
+      variant: 'danger',
+    });
+    if (!ok) {
+      return;
+    }
+
     const nextRules = rules.filter((_, i) => i !== index);
     try {
       await persistRules(nextRules, 'Rule deleted.');
@@ -288,9 +276,6 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
   return (
     <div className={`row-rules-page${embedded ? ' row-rules-page--embedded' : ''}`}>
       <SettingsTabStatus loading={loading} refreshing={refreshing} label="row rules" />
-
-      {error && <p className="settings-feedback settings-feedback--error">{error}</p>}
-      {success && <p className="settings-feedback settings-feedback--success">{success}</p>}
 
       <LoadingOverlay
         loading={loading}
@@ -323,22 +308,33 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
                       }))
                     }
                   />
+                  {draftIsRepeatAnchor && (
+                    <p className="settings-gemini-hint row-rules-repeat-hint">
+                      Row #{draftAnchorRow} is a repeat job. Use Jobs → Schedule → Repeat for
+                      background, loops, and thumbnails.
+                    </p>
+                  )}
                 </div>
 
                 <div className="form-group">
                   <label className="form-label" htmlFor="row-rules-draft-bg">
                     Background
                   </label>
-                  <SelectMedia
+                  <MediaSelectDropdown
                     id="row-rules-draft-bg"
-                    value={draftRule.background_video_id}
+                    value={draftIsRepeatAnchor ? '' : draftRule.background_video_id}
                     options={backgrounds}
-                    disabled={formDisabled}
-                    onChange={(e) => {
-                      const opt = backgrounds.find((b) => b.id === e.target.value);
+                    disabled={formDisabled || draftIsRepeatAnchor}
+                    searchPlaceholder="Search backgrounds…"
+                    title={
+                      draftIsRepeatAnchor
+                        ? 'Repeat row — set background in Jobs → Schedule → Repeat'
+                        : undefined
+                    }
+                    onChange={(id, opt) => {
                       setDraftRule((prev) => ({
                         ...prev,
-                        background_video_id: e.target.value,
+                        background_video_id: id,
                         background_video_name: opt?.name ?? '',
                       }));
                     }}
@@ -349,21 +345,21 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
                   <label className="form-label" htmlFor="row-rules-draft-thumb">
                     Thumbnail
                   </label>
-                  <SelectMedia
+                  <MediaSelectDropdown
                     id="row-rules-draft-thumb"
                     value={draftIsRepeatAnchor ? '' : draftRule.thumbnail_file_id}
                     options={thumbnails}
                     disabled={formDisabled || draftIsRepeatAnchor}
+                    searchPlaceholder="Search thumbnails…"
                     title={
                       draftIsRepeatAnchor
                         ? 'Repeat row — set thumbnails in Jobs → Schedule → Repeat'
                         : undefined
                     }
-                    onChange={(e) => {
-                      const opt = thumbnails.find((t) => t.id === e.target.value);
+                    onChange={(id, opt) => {
                       setDraftRule((prev) => ({
                         ...prev,
-                        thumbnail_file_id: e.target.value,
+                        thumbnail_file_id: id,
                         thumbnail_name: opt?.name ?? '',
                       }));
                     }}
@@ -382,8 +378,8 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
                       inputMode="numeric"
                       pattern="[0-9]*"
                       placeholder="Auto"
-                      value={draftIsMultiBatch ? '' : draftRule.background_loop_count}
-                      disabled={formDisabled || draftIsMultiBatch}
+                      value={draftIsMultiBatch || draftIsRepeatAnchor ? '' : draftRule.background_loop_count}
+                      disabled={formDisabled || draftIsMultiBatch || draftIsRepeatAnchor}
                       onChange={(e) =>
                         setDraftRule((prev) => ({
                           ...prev,
@@ -421,7 +417,7 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
                     type="button"
                     className="btn btn-primary row-rules-save-btn"
                     onClick={handleSaveRule}
-                    disabled={formDisabled}
+                    disabled={formDisabled || draftIsRepeatAnchor}
                   >
                     <Save size={14} />
                     {saving ? 'Saving…' : editingIndex == null ? 'Save Rule' : 'Update Rule'}
@@ -466,19 +462,19 @@ export default function RowRulesTable({ embedded = false, query: queryProp }) {
                           key={`${rule.batch_rows}-${index}`}
                           className={editingIndex === index ? 'is-editing' : ''}
                         >
-                          <td className="row-rules-index">{index + 1}</td>
-                          <td className="row-rules-cell-rows">{rule.batch_rows}</td>
-                          <td className="row-rules-cell-media">
+                          <td className="row-rules-index" data-label="#">{index + 1}</td>
+                          <td className="row-rules-cell-rows" data-label="Rows">{rule.batch_rows}</td>
+                          <td className="row-rules-cell-media" data-label="Background">
                             {displayMediaLabel(
                               rule.background_video_name,
                               rule.background_video_id,
                             )}
                           </td>
-                          <td className="row-rules-cell-media">
+                          <td className="row-rules-cell-media" data-label="Thumbnail">
                             {displayMediaLabel(rule.thumbnail_name, rule.thumbnail_file_id)}
                           </td>
-                          <td className="row-rules-cell-loops">{displayLoops(rule)}</td>
-                          <td className="row-rules-cell-actions">
+                          <td className="row-rules-cell-loops" data-label="Loops">{displayLoops(rule)}</td>
+                          <td className="row-rules-cell-actions" data-label="Actions">
                             <div className="row-rules-saved-actions">
                               <button
                                 type="button"

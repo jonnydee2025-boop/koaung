@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Star, X } from 'lucide-react';
+import ErrorBanner from './ErrorBanner';
 import { jobAudioStreamUrl } from '../data/api';
 import { getJobPlayerPref } from '../data/jobPlayerPrefs';
 import { useJobPlayerPref } from '../hooks/useJobPlayerPrefs';
@@ -137,7 +138,7 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
   return (
     <div className="modal-overlay" role="presentation" onClick={onClose}>
       <div
-        className="modal-card mp3-player-modal"
+        className="modal-card modal-card--calm mp3-player-modal"
         role="dialog"
         aria-labelledby="mp3-player-modal-title"
         onClick={(e) => e.stopPropagation()}
@@ -190,7 +191,7 @@ export default function Mp3PlayerModal({ job, open, onClose }) {
           />
         </div>
 
-        {error && <p className="login-error mp3-player-error">{error}</p>}
+        {error && <ErrorBanner message={error} className="error-banner--inline mp3-player-error" />}
 
         {loading && !error && (
           <p className="text-muted mp3-player-loading">Buffering audio…</p>

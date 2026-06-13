@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { useMobileNav } from '../context/MobileNavContext';
 import {
   FloatingDropdownMenu,
@@ -46,7 +46,12 @@ export default function MonkFilterTab({ value, options, onChange, statusFilter }
           setOpen((current) => !current);
         }}
       >
-        Monks 🔽
+        <span>Monks</span>
+        <ChevronDown
+          size={12}
+          className="jobs-filter-chevron"
+          aria-hidden
+        />
         {isActive && (
           <span className="jobs-filter-count jobs-filter-count-accent" title={value}>
             {value.length > 14 ? `${value.slice(0, 12)}…` : value}

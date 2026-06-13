@@ -76,6 +76,23 @@ class JobListingTests(unittest.TestCase):
         self.assertEqual(counts["do"], 1)
         self.assertEqual(counts["done"], 1)
 
+    def test_filter_jobs_search_matches_row_number(self) -> None:
+        jobs = [
+            sample_job(42, "pending", title="Morning talk"),
+            sample_job(43, "pending", title="Evening talk"),
+        ]
+        self.assertEqual(filter_jobs(jobs, "all", "42"), [sample_job(42, "pending", title="Morning talk")])
+
+    def test_filter_jobs_row_param(self) -> None:
+        jobs = [
+            sample_job(42, "pending", title="Morning talk"),
+            sample_job(43, "failed", title="Evening talk"),
+        ]
+        self.assertEqual(
+            filter_jobs(jobs, "all", "", row=43),
+            [sample_job(43, "failed", title="Evening talk")],
+        )
+
     def test_unique_monk_names_sorted(self) -> None:
         jobs = [
             sample_job(1, "pending", monk="U Pandita"),

@@ -53,6 +53,10 @@ class RepeatJob:
     timezone: str = "UTC"
     """Ordered thumbnails: next run uses thumbnails[0]; used slots are removed after success."""
     thumbnails: list[RepeatThumbnail] = field(default_factory=list)
+    background_video_id: str = ""
+    background_video_name: str = ""
+    """When set, background is looped this many times (else auto loop until audio ends)."""
+    background_loop_count: int | None = None
     """Successful repeat uploads completed (used thumbnails are removed from the queue)."""
     run_count: int = 0
 
@@ -167,6 +171,11 @@ def _repeat_from_dict(data: dict[str, Any]) -> RepeatJob:
         run_count = max(0, int(run_count_raw))
     except (TypeError, ValueError):
         run_count = 0
+    loop_raw = data.get("background_loop_count")
+    if loop_raw in (None, "", 0):
+        background_loop_count = None
+    else:
+        background_loop_count = int(loop_raw)
 
     return RepeatJob(
         anchor_row=anchor_row,
@@ -175,6 +184,9 @@ def _repeat_from_dict(data: dict[str, Any]) -> RepeatJob:
         days_of_week=days,
         timezone=str(data.get("timezone") or "UTC").strip() or "UTC",
         thumbnails=_parse_repeat_thumbnails(data.get("thumbnails")),
+        background_video_id=str(data.get("background_video_id") or "").strip(),
+        background_video_name=str(data.get("background_video_name") or "").strip(),
+        background_loop_count=background_loop_count,
         run_count=run_count,
     )
 
@@ -184,6 +196,11 @@ def validate_repeat_job(job: RepeatJob) -> None:
     _parse_time(job.time)
     if job.repeat_type == "weekly" and not job.days_of_week:
         raise ValueError("Select at least one weekday for weekly repeat.")
+    if job.background_loop_count is not None:
+        if job.background_loop_count < 1:
+            raise ValueError("Loop count must be at least 1.")
+        if job.background_loop_count > 500:
+            raise ValueError("Loop count cannot exceed 500.")
 
 
 _repeat_jobs_cache: tuple[float, dict[int, RepeatJob]] | None = None

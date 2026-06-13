@@ -10,7 +10,7 @@ from ..sheets import (
     update_task_status,
 )
 from ..repeat_jobs import get_repeat_job, repeat_run_has_thumbnail
-from ..row_rules import resolve_batch_anchor_row, row_has_thumbnail
+from ..row_rules import resolve_batch_anchor_row, row_has_thumbnail, consume_row_rules_after_render
 from ..state import current_render, retry_jobs
 from ..youtube import (
     finalize_video_privacy,
@@ -149,6 +149,8 @@ def _retry_sheet_update(
             "uploaded_to_yt",
             log_message,
         )
+        if get_repeat_job(job.row.row_number) is None:
+            consume_row_rules_after_render(job.row.row_number)
         retry_jobs.pop(retry_id, None)
         if job.workdir is not None and get_repeat_job(job.row.row_number) is None:
             purge_workdir(job.workdir)
@@ -243,6 +245,8 @@ def _retry_youtube_upload(
             "uploaded_to_yt",
             log_message,
         )
+        if repeat_job is None:
+            consume_row_rules_after_render(job.row.row_number)
 
         retry_jobs.pop(retry_id, None)
         unlink_if_exists(job.thumbnail_path)

@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import ErrorBanner from './ErrorBanner';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -21,18 +22,14 @@ export default class ErrorBoundary extends Component {
     if (error) {
       return (
         <div className="page-content">
-          <div className="settings-alert settings-alert--error">
-            <strong>Something went wrong.</strong>
-            <p style={{ marginTop: 8 }}>{error.message}</p>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ marginTop: 12 }}
-              onClick={() => window.location.assign('/')}
-            >
-              Back to Dashboard
-            </button>
-          </div>
+          <ErrorBanner message={`Something went wrong. ${error.message}`} />
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm error-boundary-back"
+            onClick={() => window.location.assign('/')}
+          >
+            Back to Dashboard
+          </button>
         </div>
       );
     }

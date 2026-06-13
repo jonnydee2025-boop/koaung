@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Plus, Trash2, X } from 'lucide-react';
 import { fetchDriveMediaOptions } from '../data/api';
+import MediaSelectDropdown from './MediaSelectDropdown';
+import OptionSelectDropdown from './OptionSelectDropdown';
+import DateTimeWheelPicker from './DateTimeWheelPicker';
+import TimeWheelPicker from './TimeWheelPicker';
+import ErrorBanner from './ErrorBanner';
 
 const WEEKDAYS = [
   { value: 0, label: 'Mon' },
@@ -23,6 +28,13 @@ const TIMEZONES = [
   'America/New_York',
   'America/Los_Angeles',
 ];
+
+const REPEAT_TYPE_OPTIONS = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+];
+
+const TIMEZONE_OPTIONS = TIMEZONES.map((tz) => ({ value: tz, label: tz }));
 
 /** datetime-local value (local timezone) from a Date. */
 function toLocalInputValue(date) {
@@ -80,18 +92,29 @@ export default function ScheduleJobModal({
     () => new Set(job?.repeat?.days_of_week?.length ? job.repeat.days_of_week : [0, 1, 2, 3, 4]),
   );
   const [repeatThumbnails, setRepeatThumbnails] = useState(() => mapRepeatThumbnailsFromJob(job));
+  const [repeatBackgroundId, setRepeatBackgroundId] = useState(job?.repeat?.background_video_id || '');
+  const [repeatBackgroundName, setRepeatBackgroundName] = useState(
+    job?.repeat?.background_video_name || '',
+  );
+  const [repeatLoopCount, setRepeatLoopCount] = useState(
+    job?.repeat?.background_loop_count != null && job?.repeat?.background_loop_count !== ''
+      ? String(job.repeat.background_loop_count)
+      : '',
+  );
   const [driveThumbnails, setDriveThumbnails] = useState([]);
-  const [loadingThumbs, setLoadingThumbs] = useState(false);
+  const [driveBackgrounds, setDriveBackgrounds] = useState([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
   const [localError, setLocalError] = useState('');
 
   useEffect(() => {
     if (open) {
       setMode(job?.status === 'repeat' || job?.repeat ? 'repeat' : 'once');
-      setLocalValue(
+      const minNow = toLocalInputValue(new Date(Date.now() + 60 * 1000));
+      const onceValue =
         job?.schedule_time && job?.status === 'scheduled'
           ? toLocalInputValue(new Date(job.schedule_time))
-          : defaultOnceValue,
-      );
+          : defaultOnceValue;
+      setLocalValue(new Date(onceValue) < new Date(minNow) ? minNow : onceValue);
       setRepeatTime(job?.repeat?.repeat_time || '07:00');
       setRepeatType(job?.repeat?.repeat_type || 'daily');
       setTimezone(job?.repeat?.timezone || 'Asia/Yangon');
@@ -99,6 +122,13 @@ export default function ScheduleJobModal({
         new Set(job?.repeat?.days_of_week?.length ? job.repeat.days_of_week : [0, 1, 2, 3, 4]),
       );
       setRepeatThumbnails(mapRepeatThumbnailsFromJob(job));
+      setRepeatBackgroundId(job?.repeat?.background_video_id || '');
+      setRepeatBackgroundName(job?.repeat?.background_video_name || '');
+      setRepeatLoopCount(
+        job?.repeat?.background_loop_count != null && job?.repeat?.background_loop_count !== ''
+          ? String(job.repeat.background_loop_count)
+          : '',
+      );
       setLocalError('');
     }
   }, [open, defaultOnceValue, job]);
@@ -106,21 +136,23 @@ export default function ScheduleJobModal({
   useEffect(() => {
     if (!open || mode !== 'repeat') return;
     let cancelled = false;
-    setLoadingThumbs(true);
+    setLoadingMedia(true);
     fetchDriveMediaOptions()
       .then((media) => {
         if (!cancelled) {
           setDriveThumbnails(media.thumbnail_images ?? []);
+          setDriveBackgrounds(media.background_videos ?? []);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setDriveThumbnails([]);
+          setDriveBackgrounds([]);
         }
       })
       .finally(() => {
         if (!cancelled) {
-          setLoadingThumbs(false);
+          setLoadingMedia(false);
         }
       });
     return () => {
@@ -133,8 +165,6 @@ export default function ScheduleJobModal({
   }
 
   const minValue = toLocalInputValue(new Date(Date.now() + 60 * 1000));
-  const runCount = job?.repeat?.run_count ?? 0;
-  const queuedThumbCount = repeatThumbnails.filter((t) => t.file_id).length;
 
   const toggleWeekday = (day) => {
     setDaysOfWeek((prev) => {
@@ -193,6 +223,11 @@ export default function ScheduleJobModal({
           days_of_week: [...daysOfWeek].sort((a, b) => a - b),
           timezone,
           repeat_thumbnails: thumbs,
+          background_video_id: repeatBackgroundId,
+          background_video_name: repeatBackgroundName,
+          background_loop_count: repeatLoopCount.trim()
+            ? Number(repeatLoopCount.replace(/\D/g, ''))
+            : null,
         });
       }
     } catch (err) {
@@ -205,18 +240,19 @@ export default function ScheduleJobModal({
   return (
     <div className="modal-overlay" role="presentation" onClick={onClose}>
       <div
-        className="modal-card schedule-modal"
+        className="modal-card modal-card--calm schedule-modal"
         role="dialog"
         aria-labelledby="schedule-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header">
+        <div className="modal-header schedule-modal-header">
           <div>
             <h2 id="schedule-modal-title" className="modal-title">
-              Schedule job
+              Schedule Job
             </h2>
-            <p className="modal-subtitle">
-              Row #{job.row} — {job.title || '(no title)'}
+            <p className="modal-subtitle schedule-modal-subtitle">
+              <span className="schedule-modal-row-ref">Row #{job.row} —</span>{' '}
+              <span className="schedule-modal-job-title">{job.title || '(no title)'}</span>
             </p>
           </div>
           <button type="button" className="btn-icon" onClick={onClose} aria-label="Close">
@@ -246,54 +282,54 @@ export default function ScheduleJobModal({
 
           {mode === 'once' ? (
             <>
-              <label className="login-label" htmlFor="schedule-datetime">
-                Date &amp; time
-              </label>
-              <input
-                id="schedule-datetime"
-                className="login-input"
-                type="datetime-local"
-                value={localValue}
-                min={minValue}
-                onChange={(e) => setLocalValue(e.target.value)}
-                disabled={saving}
-                required
-              />
-              <p className="modal-hint">
+              <div className="schedule-field">
+                <label className="schedule-field-label" htmlFor="schedule-datetime">
+                  Date &amp; time
+                </label>
+                <DateTimeWheelPicker
+                  id="schedule-datetime"
+                  value={localValue}
+                  min={minValue}
+                  disabled={saving}
+                  ariaLabel="Schedule date and time"
+                  onChange={setLocalValue}
+                />
+              </div>
+              <p className="modal-hint schedule-modal-hint">
                 Uses your browser timezone. Cannot overlap another scheduled or repeat time slot.
               </p>
             </>
           ) : (
             <>
-              <label className="login-label" htmlFor="schedule-repeat-time">
-                Time
-              </label>
-              <input
-                id="schedule-repeat-time"
-                className="login-input"
-                type="time"
-                value={repeatTime}
-                onChange={(e) => setRepeatTime(e.target.value)}
-                disabled={saving}
-                required
-              />
+              <div className="schedule-field">
+                <label className="schedule-field-label" htmlFor="schedule-repeat-time">
+                  Time
+                </label>
+                <TimeWheelPicker
+                  id="schedule-repeat-time"
+                  value={repeatTime}
+                  disabled={saving}
+                  ariaLabel="Repeat time"
+                  onChange={setRepeatTime}
+                />
+              </div>
 
-              <label className="login-label" htmlFor="schedule-repeat-type" style={{ marginTop: 12 }}>
-                Pattern
-              </label>
-              <select
-                id="schedule-repeat-type"
-                className="login-input"
-                value={repeatType}
-                onChange={(e) => setRepeatType(e.target.value)}
-                disabled={saving}
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-              </select>
+              <div className="schedule-field">
+                <label className="schedule-field-label" htmlFor="schedule-repeat-type">
+                  Pattern
+                </label>
+                <OptionSelectDropdown
+                  id="schedule-repeat-type"
+                  value={repeatType}
+                  options={REPEAT_TYPE_OPTIONS}
+                  disabled={saving}
+                  ariaLabel="Repeat pattern"
+                  onChange={setRepeatType}
+                />
+              </div>
 
               {repeatType === 'weekly' && (
-                <div className="schedule-weekday-row" style={{ marginTop: 12 }}>
+                <div className="schedule-weekday-row">
                   {WEEKDAYS.map(({ value, label }) => (
                     <label key={value} className="interval-weekday-chip">
                       <input
@@ -308,60 +344,79 @@ export default function ScheduleJobModal({
                 </div>
               )}
 
-              <label className="login-label" htmlFor="schedule-timezone" style={{ marginTop: 12 }}>
-                Timezone
-              </label>
-              <select
-                id="schedule-timezone"
-                className="login-input"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                disabled={saving}
-              >
-                {TIMEZONES.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </select>
+              <div className="schedule-field">
+                <label className="schedule-field-label" htmlFor="schedule-timezone">
+                  Timezone
+                </label>
+                <OptionSelectDropdown
+                  id="schedule-timezone"
+                  value={timezone}
+                  options={TIMEZONE_OPTIONS}
+                  disabled={saving}
+                  ariaLabel="Timezone"
+                  onChange={setTimezone}
+                />
+              </div>
 
-              <div className="schedule-repeat-thumbs" style={{ marginTop: 16 }}>
-                <div className="login-label">Repeat thumbnails (in order)</div>
-                <p className="modal-hint" style={{ marginTop: 4, marginBottom: 10 }}>
-                  Next run uses the first thumbnail in this list. After a fully successful upload,
-                  that thumbnail is removed from the queue only (files stay on Google Drive).
-                  {queuedThumbCount === 0
-                    ? ' Queue is empty — uploads will be private until you add thumbnails.'
-                    : ` ${queuedThumbCount} queued · ${runCount} successful run(s) so far.`}
-                  Row-based rule thumbnails are disabled for repeat rows.
-                </p>
+              <div className="schedule-repeat-media">
+                <div className="schedule-field">
+                  <div className="schedule-field-label">Background video</div>
+                  <MediaSelectDropdown
+                    id="schedule-repeat-background"
+                    value={repeatBackgroundId}
+                    options={driveBackgrounds}
+                    disabled={saving || loadingMedia}
+                    emptyLabel="— Random from Drive —"
+                    searchPlaceholder="Search backgrounds…"
+                    onChange={(id, opt) => {
+                      setRepeatBackgroundId(id);
+                      setRepeatBackgroundName(opt?.name ?? '');
+                    }}
+                  />
+                </div>
+                <div className="schedule-field">
+                  <label className="schedule-field-label" htmlFor="schedule-repeat-loops">
+                    Background loops
+                  </label>
+                  <input
+                    id="schedule-repeat-loops"
+                    className="login-input schedule-field-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Auto"
+                    value={repeatLoopCount}
+                    onChange={(e) => setRepeatLoopCount(e.target.value.replace(/\D/g, ''))}
+                    disabled={saving}
+                  />
+                </div>
+              </div>
+
+              <div className="schedule-repeat-thumbs">
+                <div className="schedule-field-label">Repeat thumbnails (in order)</div>
                 {repeatThumbnails.map((thumb, index) => (
                   <div key={index} className="schedule-repeat-thumb-row">
                     <span className="schedule-repeat-thumb-index" aria-hidden="true">
                       {index + 1}
                     </span>
-                    <select
-                      className="login-input schedule-repeat-thumb-select"
+                    <MediaSelectDropdown
+                      id={`schedule-repeat-thumb-${index}`}
+                      className="schedule-repeat-thumb-dropdown"
                       value={thumb.file_id}
-                      disabled={saving || loadingThumbs}
-                      onChange={(e) => {
-                        const opt = driveThumbnails.find((t) => t.id === e.target.value);
+                      options={driveThumbnails}
+                      disabled={saving || loadingMedia}
+                      emptyLabel="— None —"
+                      searchPlaceholder="Search thumbnails…"
+                      onChange={(id, opt) => {
                         updateRepeatThumb(index, {
-                          file_id: e.target.value,
+                          file_id: id,
                           name: opt?.name ?? '',
                         });
                       }}
-                    >
-                      <option value="">— None —</option>
-                      {driveThumbnails.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm job-action-btn"
+                      className="btn btn-ghost btn-sm job-action-btn schedule-repeat-thumb-remove"
                       onClick={() => removeRepeatThumb(index)}
                       disabled={saving}
                       aria-label={`Remove thumbnail ${index + 1}`}
@@ -372,23 +427,22 @@ export default function ScheduleJobModal({
                 ))}
                 <button
                   type="button"
-                  className="btn btn-ghost btn-sm"
+                  className="btn btn-ghost btn-sm schedule-add-thumb-btn"
                   onClick={addRepeatThumb}
-                  disabled={saving || loadingThumbs}
-                  style={{ marginTop: 8 }}
+                  disabled={saving || loadingMedia}
                 >
                   <Plus size={14} /> Add thumbnail
                 </button>
               </div>
 
-              <p className="modal-hint" style={{ marginTop: 12 }}>
+              <p className="modal-hint schedule-modal-hint">
                 Re-uploads the same track on each run. Batch jobs apply to the anchor row only.
                 Cannot share a time slot with another job.
               </p>
             </>
           )}
 
-          {displayError && <p className="login-error">{displayError}</p>}
+          {displayError && <ErrorBanner message={displayError} className="error-banner--inline" />}
           <div className="modal-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>
               Cancel

@@ -6,8 +6,9 @@ export function jobsPageCacheKey({
   status = 'all',
   search = '',
   monk = '',
+  row = null,
 } = {}) {
-  return `jobs:page:${page}:${pageSize}:${status}:${search}:${monk}`;
+  return `jobs:page:${page}:${pageSize}:${status}:${search}:${monk}:${row ?? ''}`;
 }
 
 export const JOBS_MONKS_CACHE_KEY = 'jobs:monks';

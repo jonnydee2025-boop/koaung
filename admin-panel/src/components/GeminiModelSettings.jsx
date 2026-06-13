@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveGeminiModels } from '../data/api';
 import { invalidateCache } from '../data/queryCache';
 import { SETTINGS_GEMINI_CACHE_KEY } from '../data/settingsCacheKeys';
-import { GripVertical, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { GripVertical, Plus, Save, Sparkles, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import SettingsTabStatus from './SettingsTabStatus';
 import LoadingOverlay from './LoadingOverlay';
+import OptionSelectDropdown from './OptionSelectDropdown';
 
 const DEFAULT_PRIMARY_MODEL = 'gemini-2.5-flash';
 
@@ -32,6 +34,11 @@ function reorderList(items, fromIndex, toIndex) {
 function FallbackModelList({ models, disabled, onReorder, onRemove }) {
   const dragIndexRef = useRef(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  const moveItem = (from, to) => {
+    if (to < 0 || to >= models.length || from === to) return;
+    onReorder(from, to);
+  };
 
   const handleDragStart = (index) => (event) => {
     dragIndexRef.current = index;
@@ -80,6 +87,28 @@ function FallbackModelList({ models, disabled, onReorder, onRemove }) {
             <GripVertical size={16} />
           </span>
           <span className="gemini-fallback-chip">{model}</span>
+          <div className="gemini-fallback-move-btns">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm job-action-btn gemini-fallback-move"
+              onClick={() => moveItem(index, index - 1)}
+              disabled={disabled || index === 0}
+              aria-label={`Move ${model} up`}
+              title="Move up"
+            >
+              <ChevronUp size={14} />
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm job-action-btn gemini-fallback-move"
+              onClick={() => moveItem(index, index + 1)}
+              disabled={disabled || index === models.length - 1}
+              aria-label={`Move ${model} down`}
+              title="Move down"
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
           <button
             type="button"
             className="btn btn-ghost btn-sm job-action-btn gemini-fallback-delete"
@@ -97,6 +126,7 @@ function FallbackModelList({ models, disabled, onReorder, onRemove }) {
 }
 
 export default function GeminiModelSettings({ embedded = false, query }) {
+  const { showSuccess, showError } = useToast();
   const [primaryModel, setPrimaryModel] = useState(DEFAULT_PRIMARY_MODEL);
   const [fallbackModels, setFallbackModels] = useState([]);
   const [knownModels, setKnownModels] = useState([]);
@@ -109,7 +139,6 @@ export default function GeminiModelSettings({ embedded = false, query }) {
   const [persisted, setPersisted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
 
   const loading = query.isInitialLoad;
   const refreshing = query.refreshing;
@@ -128,14 +157,7 @@ export default function GeminiModelSettings({ embedded = false, query }) {
     setApiKeysPersisted(Boolean(data.api_keys_persisted));
     setApiKeyInputs(buildInitialKeyRows(data));
     setAddModelValue('');
-    setError('');
   }, [query.data]);
-
-  useEffect(() => {
-    if (query.error) {
-      setError(query.error);
-    }
-  }, [query.error]);
 
   const modelOptions = useMemo(() => {
     const merged = new Set([
@@ -155,6 +177,16 @@ export default function GeminiModelSettings({ embedded = false, query }) {
           !fallbackModels.some((item) => item.toLowerCase() === model.toLowerCase()),
       ),
     [modelOptions, primaryModel, fallbackModels],
+  );
+
+  const primaryModelOptions = useMemo(
+    () => modelOptions.map((model) => ({ value: model, label: model })),
+    [modelOptions],
+  );
+
+  const addableModelOptions = useMemo(
+    () => addableModels.map((model) => ({ value: model, label: model })),
+    [addableModels],
   );
 
   const updateApiKeyInput = (index, value) => {
@@ -187,7 +219,6 @@ export default function GeminiModelSettings({ embedded = false, query }) {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
-    setError('');
     try {
       const payload = {
         primary_model: primaryModel.trim(),
@@ -204,11 +235,12 @@ export default function GeminiModelSettings({ embedded = false, query }) {
       setApiKeysPersisted(Boolean(result.api_keys_persisted));
       setApiKeyInputs(buildInitialKeyRows(result));
       setSaved(true);
+      showSuccess('Gemini settings saved.');
       invalidateCache(SETTINGS_GEMINI_CACHE_KEY);
       await query.refresh();
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setSaving(false);
     }
@@ -250,11 +282,6 @@ export default function GeminiModelSettings({ embedded = false, query }) {
         <Save size={14} />
         {saving ? 'Saving…' : saved ? 'Saved' : 'Save settings'}
       </button>
-
-      {error && <div className="settings-alert settings-alert--error">{error}</div>}
-      {saved && (
-        <p className="settings-feedback settings-feedback--success">Gemini settings saved.</p>
-      )}
 
       <LoadingOverlay
         loading={loading}
@@ -321,19 +348,15 @@ export default function GeminiModelSettings({ embedded = false, query }) {
                 <label className="form-label gemini-field-label" htmlFor="gemini-primary-model">
                   Primary model (used first)
                 </label>
-                <select
+                <OptionSelectDropdown
                   id="gemini-primary-model"
-                  className="form-input form-select gemini-primary-select"
+                  className="gemini-primary-select-dropdown"
                   value={primaryModel}
-                  onChange={(e) => handlePrimaryChange(e.target.value)}
+                  options={primaryModelOptions}
                   disabled={formDisabled}
-                >
-                  {modelOptions.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
+                  ariaLabel="Primary Gemini model"
+                  onChange={handlePrimaryChange}
+                />
               </div>
 
               <div className="form-group gemini-fallback-group">
@@ -355,20 +378,16 @@ export default function GeminiModelSettings({ embedded = false, query }) {
                     <Plus size={14} aria-hidden />
                     Add backup model
                   </span>
-                  <select
-                    className="form-input form-select gemini-add-backup-select"
+                  <OptionSelectDropdown
+                    className="gemini-add-backup-select-dropdown"
                     value={addModelValue}
-                    onChange={(e) => handleAddFallbackModel(e.target.value)}
+                    options={addableModelOptions}
+                    allowEmpty
+                    emptyLabel="Select model"
                     disabled={formDisabled || addableModels.length === 0}
-                    aria-label="Select backup model to add"
-                  >
-                    <option value="">Select model</option>
-                    {addableModels.map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
-                    ))}
-                  </select>
+                    ariaLabel="Select backup model to add"
+                    onChange={handleAddFallbackModel}
+                  />
                 </div>
               </div>
             </section>

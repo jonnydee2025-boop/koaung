@@ -23,6 +23,9 @@ class ScheduleJobRequest(BaseModel):
     days_of_week: list[int] = Field(default_factory=list)
     timezone: str = "UTC"
     repeat_thumbnails: list[RepeatThumbnailPayload] = Field(default_factory=list)
+    background_video_id: str = ""
+    background_video_name: str = ""
+    background_loop_count: int | None = Field(default=None, ge=1, le=500)
 
 
 class UpdateJobStatusRequest(BaseModel):

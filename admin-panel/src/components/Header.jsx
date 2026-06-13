@@ -1,4 +1,4 @@
-import { Bell, RefreshCw, Play, Square, Menu } from 'lucide-react';
+import { RefreshCw, Play, Square, Menu } from 'lucide-react';
 import { useMobileNav } from '../context/MobileNavContext';
 
 export default function Header({
@@ -9,6 +9,8 @@ export default function Header({
   renderStarting = false,
   onRenderNext,
   onStopRender,
+  onRefresh,
+  refreshing = false,
 }) {
   const { toggleSidebar } = useMobileNav();
 
@@ -43,15 +45,15 @@ export default function Header({
         </div>
       </div>
       <div className="header-actions">
-        <button type="button" className="btn-icon" title="Notifications">
-          <Bell size={16} />
-        </button>
         <button
           type="button"
           className="btn btn-ghost btn-sm header-refresh-btn"
-          onClick={() => window.location.reload()}
+          onClick={onRefresh}
+          disabled={!onRefresh || refreshing}
+          title="Refresh data"
+          aria-label="Refresh data"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={14} className={refreshing ? 'icon-spin' : undefined} />
           <span className="header-btn-label">Refresh</span>
         </button>
         {showRenderControl && (

@@ -23,7 +23,7 @@ from .repeat_jobs import (
     resolve_repeat_job,
     save_repeat_job,
 )
-from .row_rules import clear_row_rule_thumbnail_for_anchor
+from .row_rules import clear_row_rules_for_repeat_anchor
 from .schedule_time import (
     normalize_schedule_time,
     read_row_schedule_time,
@@ -638,6 +638,9 @@ def schedule_job_row(
     days_of_week: list[int] | None = None,
     timezone: str = "UTC",
     repeat_thumbnails: list[dict[str, str]] | None = None,
+    background_video_id: str = "",
+    background_video_name: str = "",
+    background_loop_count: int | None = None,
 ) -> dict[str, str | int | bool]:
     if mode == "repeat":
         return schedule_sheet_row_repeat(
@@ -647,6 +650,9 @@ def schedule_job_row(
             days_of_week=days_of_week or [],
             job_timezone=timezone,
             repeat_thumbnails=repeat_thumbnails or [],
+            background_video_id=background_video_id,
+            background_video_name=background_video_name,
+            background_loop_count=background_loop_count,
         )
     if not schedule_time_raw:
         raise ValueError("Schedule time is required for one-time schedule.")
@@ -734,6 +740,9 @@ def schedule_sheet_row_repeat(
     days_of_week: list[int],
     job_timezone: str,
     repeat_thumbnails: list[dict[str, str]] | None = None,
+    background_video_id: str = "",
+    background_video_name: str = "",
+    background_loop_count: int | None = None,
 ) -> dict[str, str | int | bool]:
     """Set anchor to repeat status with next Schedule_Time from repeat config."""
     sheets, _ = build_google_services()
@@ -784,6 +793,9 @@ def schedule_sheet_row_repeat(
         days_of_week=list(days_of_week),
         timezone=job_timezone,
         thumbnails=thumbnails,
+        background_video_id=str(background_video_id or "").strip(),
+        background_video_name=str(background_video_name or "").strip(),
+        background_loop_count=background_loop_count,
         run_count=existing.run_count if existing is not None else 0,
     )
 
@@ -802,7 +814,7 @@ def schedule_sheet_row_repeat(
 
     next_run = compute_next_run(repeat_job, after=datetime.now(timezone.utc))
     save_repeat_job(repeat_job)
-    clear_row_rule_thumbnail_for_anchor(anchor_number)
+    clear_row_rules_for_repeat_anchor(anchor_number)
     previous = anchor.values.get("status", "").strip().lower()
     update_schedule_time(sheets, headers, anchor_number, next_run)
     update_task_status(

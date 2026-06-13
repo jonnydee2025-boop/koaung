@@ -127,35 +127,89 @@ def validate_row_rules_for_repeat_anchors(
     rules: list[RowRangeRule],
     repeat_anchors: set[int],
 ) -> None:
-    """Repeat jobs use Schedule → Repeat thumbnails; row rules must not set a thumbnail."""
+    """Repeat jobs use Jobs → Schedule → Repeat for bg, loop, and thumbnails."""
     if not repeat_anchors:
         return
     for index, rule in enumerate(rules):
-        if not rule.thumbnail_file_id:
-            continue
         anchor = batch_anchor_row(rule)
-        if anchor in repeat_anchors:
+        if anchor not in repeat_anchors:
+            continue
+        if (
+            rule.background_video_id
+            or rule.thumbnail_file_id
+            or rule.background_loop_count is not None
+        ):
             raise ValueError(
-                f"Rule {index + 1}: row #{anchor} is repeat — set thumbnails in "
-                "Jobs → Schedule → Repeat, not in row rules."
+                f"Rule {index + 1}: row #{anchor} is a repeat job — set background, "
+                "loop, and thumbnails in Jobs → Schedule → Repeat, not in row rules."
             )
 
 
-def clear_row_rule_thumbnail_for_anchor(anchor_number: int) -> bool:
-    """Remove row-rule thumbnail for a repeat anchor (repeat uses its own thumb list)."""
+def clear_row_rules_for_repeat_anchor(anchor_number: int) -> bool:
+    """Remove row rules for a repeat anchor (repeat uses Schedule → Repeat settings)."""
     rules = load_row_rules()
-    changed = False
+    remaining = [rule for rule in rules if batch_anchor_row(rule) != anchor_number]
+    if len(remaining) == len(rules):
+        return False
+    save_row_rules(remaining)
+    logger.info("Removed row rules for repeat anchor row %s", anchor_number)
+    return True
+
+
+def clear_row_rule_thumbnail_for_anchor(anchor_number: int) -> bool:
+    """Deprecated alias — removes all row rules for the repeat anchor."""
+    return clear_row_rules_for_repeat_anchor(anchor_number)
+
+
+def prune_row_rules_for_repeat_anchors(repeat_anchors: set[int]) -> bool:
+    """Drop stale row rules that still reference repeat anchor rows."""
+    if not repeat_anchors:
+        return False
+    rules = load_row_rules()
+    remaining = [
+        rule for rule in rules if batch_anchor_row(rule) not in repeat_anchors
+    ]
+    if len(remaining) == len(rules):
+        return False
+    save_row_rules(remaining)
+    logger.info(
+        "Pruned row rules for repeat anchors: %s",
+        ", ".join(str(row) for row in sorted(repeat_anchors)),
+    )
+    return True
+
+
+def consume_row_rules_after_render(anchor_number: int, *, is_repeat: bool = False) -> bool:
+    """
+    After a successful one-time render (do or scheduled), drop row rules for this anchor.
+    Repeat jobs keep their media settings in repeat_jobs.json instead.
+    """
+    if is_repeat or anchor_number < 1:
+        return False
+
+    rules = load_row_rules()
+    if not rules:
+        return False
+
+    remaining: list[RowRangeRule] = []
+    removed = False
     for rule in rules:
-        if batch_anchor_row(rule) != anchor_number:
+        if batch_anchor_row(rule) == anchor_number:
+            removed = True
+            rows_label = rule.batch_rows.strip() or str(rule.from_row)
+            logger.info(
+                "Consumed row rule for anchor row %s (rows: %s)",
+                anchor_number,
+                rows_label,
+            )
             continue
-        if rule.thumbnail_file_id:
-            rule.thumbnail_file_id = ""
-            rule.thumbnail_name = ""
-            changed = True
-    if changed:
-        save_row_rules(rules)
-        logger.info("Cleared row-rule thumbnail for repeat anchor row %s", anchor_number)
-    return changed
+        remaining.append(rule)
+
+    if not removed:
+        return False
+
+    save_row_rules(remaining)
+    return True
 
 
 def validate_row_rules(rules: list[RowRangeRule]) -> None:

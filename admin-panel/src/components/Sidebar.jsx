@@ -7,6 +7,8 @@ import {
 import { fetchBotStatus, startBot, stopBot } from '../data/api';
 import { SETTINGS_SECTIONS } from '../data/settingsSections';
 import { prefetchRouteData } from '../hooks/routePrefetch';
+import { useConfirm } from '../context/ConfirmContext';
+import { useToast } from '../context/ToastContext';
 
 const primaryNavItems = [
   { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
@@ -25,13 +27,13 @@ const navItems = [...primaryNavItems, ...settingsNavItems];
 export default function Sidebar({ open = false, onClose }) {
   const [online, setOnline] = useState(null);
   const [toggling, setToggling] = useState(false);
-  const [error, setError] = useState('');
+  const confirm = useConfirm();
+  const { showSuccess, showError } = useToast();
 
   const poll = useCallback(async () => {
     try {
       const { online: o } = await fetchBotStatus();
       setOnline(o);
-      setError('');
     } catch {
       setOnline(null);
     }
@@ -44,23 +46,37 @@ export default function Sidebar({ open = false, onClose }) {
   }, [poll]);
 
   const handleToggle = async () => {
+    if (online) {
+      const ok = await confirm({
+        title: 'Stop bot?',
+        message:
+          'Telegram polling will stop. Scheduled and repeat jobs will not run until you start the bot again.',
+        confirmLabel: 'Stop bot',
+        cancelLabel: 'Keep running',
+        variant: 'danger',
+      });
+      if (!ok) {
+        return;
+      }
+    }
+
     setToggling(true);
-    setError('');
     try {
       if (online) {
         await stopBot();
+        showSuccess('Bot stopped.');
       } else {
         await startBot();
+        showSuccess('Bot started.');
       }
       setTimeout(poll, 800);
     } catch (e) {
-      setError(e.message);
+      showError(e.message);
     } finally {
       setToggling(false);
     }
   };
 
-  const statusColor = online === null ? '#4a5568' : online ? '#22c55e' : '#ef4444';
   const statusLabel = online === null ? 'Connecting…' : online ? 'Bot Online' : 'Bot Offline';
   const statusSub = online === null ? 'API unreachable' : online ? 'Telegram polling' : 'Polling stopped';
   const btnLabel = toggling ? '…' : online ? 'Stop' : 'Start';
@@ -108,53 +124,26 @@ export default function Sidebar({ open = false, onClose }) {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="bot-status" style={{ marginBottom: 10 }}>
-          <div className="status-dot" style={{
-            background: statusColor,
-            boxShadow: `0 0 8px ${statusColor}`,
-            animation: online ? 'pulse 2s infinite' : 'none',
-          }} />
+        <div className="bot-status sidebar-bot-status">
+          <div
+            className={`status-dot${online === false ? ' offline' : ''}${online === null ? ' is-unknown' : ''}`}
+          />
           <div>
             <div className="status-label">{statusLabel}</div>
             <div className="status-sub">{statusSub}</div>
           </div>
-          <Bot size={14} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
+          <Bot size={14} className="sidebar-bot-icon" aria-hidden />
         </div>
 
         <button
           id="btn-bot-toggle"
+          className={`sidebar-bot-toggle${online ? ' is-online' : ''}${online === null ? ' is-unknown' : ''}`}
           onClick={handleToggle}
           disabled={toggling || online === null}
-          style={{
-            width: '100%',
-            justifyContent: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            padding: '8px 14px',
-            borderRadius: 6,
-            border: 'none',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: toggling || online === null ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s',
-            fontFamily: 'inherit',
-            opacity: online === null ? 0.4 : 1,
-            ...(online
-              ? { background: 'rgba(239,68,68,0.15)', color: '#ef4444' }
-              : { background: 'rgba(34,197,94,0.15)', color: '#22c55e' }
-            ),
-          }}
         >
-          <BtnIcon size={14} style={toggling ? { animation: 'spin 1s linear infinite' } : {}} />
+          <BtnIcon size={14} className={toggling ? 'icon-spin' : undefined} />
           {btnLabel} Bot
         </button>
-
-        {error && (
-          <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6, textAlign: 'center' }}>
-            {error}
-          </div>
-        )}
       </div>
     </aside>
   );

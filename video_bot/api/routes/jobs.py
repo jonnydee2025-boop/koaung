@@ -46,14 +46,15 @@ def list_jobs(
     status: str = Query(default="all"),
     search: str = Query(default=""),
     monk: str = Query(default=""),
+    row: int | None = Query(default=None, ge=1),
     refresh: bool = Query(default=False),
 ):
     try:
         jobs = all_jobs_sorted(force_refresh=refresh)
-        scoped = jobs_in_list_scope(jobs, search=search, monk=monk)
+        scoped = jobs_in_list_scope(jobs, search=search, monk=monk, row=row)
         counts = job_status_counts(scoped)
 
-        filtered = filter_jobs(jobs, status, search, monk)
+        filtered = filter_jobs(jobs, status, search, monk, row=row)
         total = len(filtered)
         start = (page - 1) * page_size
         items = filtered[start : start + page_size]
@@ -76,6 +77,7 @@ def list_jobs(
             "filter_total": len(scoped),
             "monk": monk.strip(),
             "search": search.strip(),
+            "row": row,
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -163,6 +165,9 @@ def schedule_job(row_number: int, body: ScheduleJobRequest):
             days_of_week=body.days_of_week,
             timezone=body.timezone,
             repeat_thumbnails=repeat_thumbnails,
+            background_video_id=body.background_video_id,
+            background_video_name=body.background_video_name,
+            background_loop_count=body.background_loop_count,
         )
         return result
     except ValueError as exc:

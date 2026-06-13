@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import ContentCalendar from '../components/ContentCalendar';
 import PageLoader from '../components/PageLoader';
@@ -6,8 +7,12 @@ import Spinner from '../components/Spinner';
 import ErrorBanner from '../components/ErrorBanner';
 import { Video, CheckCircle, Clock, XCircle, TrendingUp, ArrowUpRight, PlayCircle } from 'lucide-react';
 import { cancelRender } from '../data/api';
+import { buildJobsLink } from '../data/jobsDeepLink';
 import { invalidateSheetCaches } from '../data/queryCache';
+import { useConfirm } from '../context/ConfirmContext';
+import { useToast } from '../context/ToastContext';
 import { useLazyVisible } from '../hooks/useLazyVisible';
+import { useSheetRefresh } from '../hooks/useSheetRefresh';
 import {
   useCachedStats,
   useCachedRenderStatus,
@@ -17,6 +22,10 @@ export default function Dashboard() {
   const { ref: pageRef, isVisible } = useLazyVisible({ initialVisible: true });
   const statsQuery = useCachedStats({ pollMs: 8000, enabled: isVisible });
   const renderQuery = useCachedRenderStatus({ enabled: isVisible });
+  const confirm = useConfirm();
+  const { showSuccess, showError } = useToast();
+  const sheetRefresh = useSheetRefresh();
+  const [refreshing, setRefreshing] = useState(false);
 
   const stats = statsQuery.data;
   const renderStatus = renderQuery.data ?? {
@@ -37,19 +46,31 @@ export default function Dashboard() {
     renderQuery.refresh();
   };
 
+  const handleHeaderRefresh = () => {
+    setRefreshing(true);
+    sheetRefresh();
+    window.setTimeout(() => setRefreshing(false), 600);
+  };
+
   const handleCancelRender = async () => {
-    if (
-      !window.confirm(
-        'Are you sure you want to kill the FFmpeg render process? This will mark the job as cancelled.',
-      )
-    ) {
+    const ok = await confirm({
+      title: 'Cancel render?',
+      message:
+        'This will kill the FFmpeg render process and mark the job as cancelled.',
+      confirmLabel: 'Cancel render',
+      cancelLabel: 'Keep running',
+      variant: 'danger',
+    });
+    if (!ok) {
       return;
     }
     try {
       await cancelRender();
       refreshAll();
+      showSuccess('Render cancelled.');
     } catch (e) {
       setActionError(`Failed to cancel render: ${e.message}`);
+      showError(`Failed to cancel render: ${e.message}`);
     }
   };
 
@@ -58,26 +79,30 @@ export default function Dashboard() {
         {
           label: 'Completed',
           value: stats.done,
-          color: '#22c55e',
+          colorClass: 'stat-color-green',
           pct: stats.total ? +(stats.done / stats.total * 100).toFixed(1) : 0,
+          status: 'done',
         },
         {
           label: 'Pending',
           value: stats.pending,
-          color: '#f59e0b',
+          colorClass: 'stat-color-yellow',
           pct: stats.total ? +(stats.pending / stats.total * 100).toFixed(1) : 0,
+          status: 'pending',
         },
         {
           label: 'Processing',
           value: stats.processing,
-          color: 'var(--accent)',
+          colorClass: 'stat-color-accent',
           pct: stats.total ? +(stats.processing / stats.total * 100).toFixed(1) : 0,
+          status: 'processing',
         },
         {
           label: 'Failed',
           value: stats.failed,
-          color: '#ef4444',
+          colorClass: 'stat-color-red',
           pct: stats.total ? +(stats.failed / stats.total * 100).toFixed(1) : 0,
+          status: 'failed',
         },
       ]
     : [];
@@ -89,6 +114,8 @@ export default function Dashboard() {
       <Header
         title="Dashboard"
         subtitle="Dhamma Channel — overview"
+        onRefresh={handleHeaderRefresh}
+        refreshing={refreshing}
       />
       <div ref={pageRef} className="page-content">
         {error && <ErrorBanner message={error} />}
@@ -111,33 +138,19 @@ export default function Dashboard() {
             <div className="progress-bar">
               <div
                 className="progress-fill accent"
-                style={{ width: `${Math.max(renderStatus.pct || 0, 2)}%` }}
+                style={{ '--progress-pct': `${Math.max(renderStatus.pct || 0, 2)}%` }}
               />
             </div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: 10,
-              }}
-            >
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            <div className="render-banner-footer">
+              <div className="render-banner-pct">
                 {Number(renderStatus.pct || 0).toFixed(1)}% complete
               </div>
               <button
                 type="button"
-                className="btn btn-sm"
-                style={{
-                  background: 'var(--red-dim)',
-                  color: 'var(--red)',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  padding: '4px 8px',
-                  fontSize: 11,
-                }}
+                className="btn btn-sm render-banner-cancel-btn"
                 onClick={handleCancelRender}
               >
-                <XCircle size={12} style={{ marginRight: 4 }} />
+                <XCircle size={12} aria-hidden />
                 Cancel Render
               </button>
             </div>
@@ -152,6 +165,7 @@ export default function Dashboard() {
               value: stats?.total ?? '—',
               label: 'Total Jobs',
               delta: 'All time',
+              status: 'all',
             },
             {
               color: 'green',
@@ -159,6 +173,7 @@ export default function Dashboard() {
               value: stats ? `${stats.success_rate}%` : '—',
               label: 'Success Rate',
               delta: `${stats?.done ?? 0} done`,
+              status: 'done',
             },
             {
               color: 'yellow',
@@ -166,6 +181,7 @@ export default function Dashboard() {
               value: stats?.pending ?? '—',
               label: 'Pending Jobs',
               delta: 'In queue',
+              status: 'pending',
             },
             {
               color: 'red',
@@ -173,9 +189,15 @@ export default function Dashboard() {
               value: stats?.failed ?? '—',
               label: 'Failed Jobs',
               delta: 'Needs review',
+              status: 'failed',
             },
-          ].map(({ color, icon, value, label, delta }) => (
-            <div key={label} className={`stat-card ${color}`}>
+          ].map(({ color, icon, value, label, delta, status }) => (
+            <Link
+              key={label}
+              to={buildJobsLink({ status })}
+              className={`stat-card stat-card-link ${color}`}
+              aria-label={`${label} — view in Jobs`}
+            >
               <div className={`stat-icon ${color}`}>{icon}</div>
               <div className="stat-value">
                 {statsLoading ? (
@@ -191,7 +213,7 @@ export default function Dashboard() {
                 <ArrowUpRight size={11} />
                 {delta}
               </span>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -202,55 +224,45 @@ export default function Dashboard() {
                 <div className="card-title">Status Breakdown</div>
                 <div className="card-subtitle">Live from Google Sheet</div>
               </div>
-              <TrendingUp size={16} style={{ color: 'var(--text-muted)' }} />
+              <TrendingUp size={16} className="card-header-icon" aria-hidden />
             </div>
             {statsLoading ? (
               <PageLoader variant="section" label="Loading breakdown…" />
             ) : (
               <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="status-breakdown-list">
                 {statusBreakdown.map((s) => (
-                  <div key={s.label}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: 5,
-                      }}
-                    >
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                        {s.label}
-                      </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: s.color }}>
+                  <Link
+                    key={s.label}
+                    to={buildJobsLink({ status: s.status })}
+                    className="dashboard-jobs-link status-breakdown-link"
+                    aria-label={`${s.label} jobs — view in Jobs`}
+                  >
+                    <div className="status-breakdown-row-header">
+                      <span className="status-breakdown-label">{s.label}</span>
+                      <span className={`status-breakdown-value ${s.colorClass}`}>
                         {s.value}{' '}
-                        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                          ({s.pct}%)
-                        </span>
+                        <span className="status-breakdown-pct">({s.pct}%)</span>
                       </span>
                     </div>
                     <div className="progress-bar">
                       <div
-                        className="progress-fill"
-                        style={{ width: `${s.pct}%`, background: s.color }}
+                        className={`progress-fill ${s.colorClass}`}
+                        style={{ '--progress-pct': `${s.pct}%` }}
                       />
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
-            <div
-              style={{
-                marginTop: 20,
-                paddingTop: 16,
-                borderTop: '1px solid var(--border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 12,
-              }}
-            >
-              <span style={{ color: 'var(--text-muted)' }}>Processing now</span>
-              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
+            <div className="status-breakdown-footer">
+              <span className="status-breakdown-footer-muted">Processing now</span>
+              <Link
+                to={buildJobsLink({ status: 'processing' })}
+                className="dashboard-jobs-link stat-color-accent status-breakdown-footer-value"
+                aria-label="Processing jobs — view in Jobs"
+              >
                 {stats?.processing ?? '—'} job(s)
-              </span>
+              </Link>
             </div>
               </>
             )}
@@ -261,35 +273,31 @@ export default function Dashboard() {
               <div>
                 <div className="card-title">Quick Stats</div>
               </div>
-              <PlayCircle size={16} style={{ color: '#ef4444' }} />
+              <PlayCircle size={16} className="stat-color-red" />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
+            <div className="quick-stats-list">
               {[
-                ['Total Sheet Rows', stats?.total ?? '—', 'var(--text-primary)'],
-                ['Successfully Uploaded', stats?.done ?? '—', '#22c55e'],
-                ['Awaiting Render', stats?.pending ?? '—', '#f59e0b'],
-                ['Currently Processing', stats?.processing ?? '—', 'var(--accent)'],
-                ['Failed / Error', stats?.failed ?? '—', '#ef4444'],
-              ].map(([label, val, color]) => (
-                <div
+                ['Total Sheet Rows', stats?.total ?? '—', '', 'all'],
+                ['Successfully Uploaded', stats?.done ?? '—', 'stat-color-green', 'done'],
+                ['Awaiting Render', stats?.pending ?? '—', 'stat-color-yellow', 'pending'],
+                ['Currently Processing', stats?.processing ?? '—', 'stat-color-accent', 'processing'],
+                ['Failed / Error', stats?.failed ?? '—', 'stat-color-red', 'failed'],
+              ].map(([label, val, colorClass, status]) => (
+                <Link
                   key={label}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 13,
-                    borderBottom: '1px solid var(--border)',
-                    paddingBottom: 10,
-                  }}
+                  to={buildJobsLink({ status })}
+                  className="dashboard-jobs-link quick-stats-row"
+                  aria-label={`${label} — view in Jobs`}
                 >
-                  <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                  <span style={{ fontWeight: 700, color }}>
+                  <span className="quick-stats-label">{label}</span>
+                  <span className={`quick-stats-value${colorClass ? ` ${colorClass}` : ''}`}>
                     {statsLoading ? (
                       <Spinner size="sm" />
                     ) : (
                       val
                     )}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

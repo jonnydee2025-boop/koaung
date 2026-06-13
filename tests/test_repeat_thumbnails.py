@@ -89,7 +89,7 @@ class RepeatThumbnailTests(unittest.TestCase):
 
 
 class RepeatRowRulesValidationTests(unittest.TestCase):
-    def test_blocks_thumbnail_for_repeat_anchor(self) -> None:
+    def test_blocks_any_media_for_repeat_anchor(self) -> None:
         rules = [
             RowRangeRule(
                 from_row=7884,
@@ -102,7 +102,7 @@ class RepeatRowRulesValidationTests(unittest.TestCase):
             validate_row_rules_for_repeat_anchors(rules, {7884})
         self.assertIn("repeat", str(ctx.exception).lower())
 
-    def test_allows_background_without_thumbnail_for_repeat(self) -> None:
+    def test_blocks_background_only_for_repeat_anchor(self) -> None:
         rules = [
             RowRangeRule(
                 from_row=7884,
@@ -110,7 +110,19 @@ class RepeatRowRulesValidationTests(unittest.TestCase):
                 background_video_id="bg1",
             )
         ]
-        validate_row_rules_for_repeat_anchors(rules, {7884})
+        with self.assertRaises(ValueError):
+            validate_row_rules_for_repeat_anchors(rules, {7884})
+
+    def test_blocks_loop_only_for_repeat_anchor(self) -> None:
+        rules = [
+            RowRangeRule(
+                from_row=7884,
+                batch_rows="7884",
+                background_loop_count=3,
+            )
+        ]
+        with self.assertRaises(ValueError):
+            validate_row_rules_for_repeat_anchors(rules, {7884})
 
 
 class RepeatBatchThumbnailTests(unittest.TestCase):

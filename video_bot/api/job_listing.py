@@ -56,6 +56,9 @@ def row_to_job_dict(
                 {"file_id": thumb.file_id, "name": thumb.name}
                 for thumb in repeat_job.thumbnails
             ],
+            "background_video_id": repeat_job.background_video_id,
+            "background_video_name": repeat_job.background_video_name,
+            "background_loop_count": repeat_job.background_loop_count,
             "run_count": repeat_job.run_count,
         }
 
@@ -139,7 +142,11 @@ def filter_jobs(
     status: str,
     search: str,
     monk: str = "",
+    row: int | None = None,
 ) -> list[dict]:
+    if row is not None:
+        jobs = [job for job in jobs if job.get("row") == row]
+
     query = search.strip().lower()
     monk_filter = monk.strip()
     filtered: list[dict] = []
@@ -167,7 +174,8 @@ def filter_jobs(
         if query:
             title = job.get("title", "").lower()
             monk_name = job_monk_name(job).lower()
-            if query not in title and query not in monk_name:
+            row_match = query.isdigit() and str(job.get("row", "")) == query
+            if not row_match and query not in title and query not in monk_name:
                 continue
 
         filtered.append(job)
@@ -180,6 +188,7 @@ def jobs_in_list_scope(
     *,
     search: str = "",
     monk: str = "",
+    row: int | None = None,
 ) -> list[dict]:
     """Jobs matching monk + search before status tab filter (for tab counts)."""
-    return filter_jobs(jobs, "all", search, monk)
+    return filter_jobs(jobs, "all", search, monk, row=row)

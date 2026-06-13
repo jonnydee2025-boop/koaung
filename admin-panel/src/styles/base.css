@@ -1,0 +1,57 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  background-image: radial-gradient(ellipse 80% 50% at 50% -30%, rgba(212, 175, 55, 0.05) 0%, transparent 60%);
+  background-attachment: fixed;
+}
+
+/* Hide scrollbar UI everywhere (mobile + desktop web); scroll still works */
+.page-content,
+.table-wrap,
+.jobs-table-wrap,
+.sidebar-nav,
+.log-container,
+.modal-card,
+.modal-body,
+.row-rules-saved-wrap,
+.toolbar-dropdown-menu,
+.status-dropdown-menu,
+.media-select-dropdown-menu,
+.modal-log-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.page-content::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar,
+.jobs-table-wrap::-webkit-scrollbar,
+.sidebar-nav::-webkit-scrollbar,
+.log-container::-webkit-scrollbar,
+.modal-card::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar,
+.row-rules-saved-wrap::-webkit-scrollbar,
+.toolbar-dropdown-menu::-webkit-scrollbar,
+.status-dropdown-menu::-webkit-scrollbar,
+.media-select-dropdown-menu::-webkit-scrollbar,
+.modal-log-body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
+}

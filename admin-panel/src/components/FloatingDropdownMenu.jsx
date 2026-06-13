@@ -98,6 +98,7 @@ export function FloatingDropdownMenu({
   className = '',
   role = 'listbox',
   ariaLabel,
+  width,
   children,
 }) {
   if (!open || typeof document === 'undefined') {
@@ -117,6 +118,7 @@ export function FloatingDropdownMenu({
         transform: coords?.transform ?? 'none',
         visibility: coords ? 'visible' : 'hidden',
         zIndex: 3000,
+        ...(width ? { width, minWidth: width } : null),
       }}
       onPointerDown={(event) => event.stopPropagation()}
     >

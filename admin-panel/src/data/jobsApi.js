@@ -8,6 +8,7 @@ export async function fetchJobsPage({
   status = 'all',
   search = '',
   monk = '',
+  row = null,
   refresh = false,
 } = {}) {
   const params = new URLSearchParams({
@@ -17,6 +18,9 @@ export async function fetchJobsPage({
     search,
     monk,
   });
+  if (row != null) {
+    params.set('row', String(row));
+  }
   if (refresh) {
     params.set('refresh', 'true');
   }

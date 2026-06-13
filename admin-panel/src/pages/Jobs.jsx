@@ -1,4 +1,5 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import LazyJobTable from '../components/LazyJobTable';
 import Pagination from '../components/Pagination';
@@ -9,10 +10,14 @@ import { RefreshCw } from 'lucide-react';
 import ScheduleJobModal from '../components/ScheduleJobModal';
 import { updateJobStatus, retryJobRender, scheduleJob } from '../data/api';
 import { invalidateSheetCaches } from '../data/queryCache';
+import { useToast } from '../context/ToastContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { EMPTY_COUNTS, JOBS_TOOLBAR_FILTERS } from '../data/jobsSheet';
+import { jobsLinkSearchParams, parseJobsLinkParams } from '../data/jobsDeepLink';
 import { jobsPageCacheKey } from '../data/jobsCacheKeys';
 import { useLazyVisible } from '../hooks/useLazyVisible';
 import { useSheetCacheInvalidation } from '../hooks/useSheetCacheInvalidation';
+import { useSheetRefresh } from '../hooks/useSheetRefresh';
 import {
   prefetchAdjacentJobsPages,
   prefetchJobsFilterTab,
@@ -22,11 +27,16 @@ import {
 const PAGE_SIZE = 50;
 
 export default function Jobs() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkState = useMemo(() => parseJobsLinkParams(searchParams), [searchParams]);
+  const filter = linkState.status;
+  const monkFilter = linkState.monk;
+  const rowFilter = linkState.row;
+  const debouncedSearch = linkState.search;
+
   const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState('all');
-  const [monkFilter, setMonkFilter] = useState('');
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useState(linkState.search);
+  const searchTypingRef = useRef(false);
 
   const [actionError, setActionError] = useState('');
   const [updatingStatusRow, setUpdatingStatusRow] = useState(null);
@@ -35,6 +45,10 @@ export default function Jobs() {
   const [scheduleTarget, setScheduleTarget] = useState(null);
   const [scheduleModalError, setScheduleModalError] = useState('');
   const { ref: pageRef, isVisible } = useLazyVisible();
+  const { showSuccess, showError } = useToast();
+  const confirm = useConfirm();
+  const sheetRefresh = useSheetRefresh();
+  const [refreshing, setRefreshing] = useState(false);
 
   const countsRef = useRef(EMPTY_COUNTS);
   const sheetTotalRef = useRef(null);
@@ -47,6 +61,7 @@ export default function Jobs() {
       status: filter,
       search: debouncedSearch,
       monk: monkFilter,
+      row: rowFilter,
     },
     { enabled: isVisible },
   );
@@ -63,13 +78,50 @@ export default function Jobs() {
   const sheetTotal = pageData?.sheet_total ?? sheetTotalRef.current;
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 350);
+    if (searchTypingRef.current) return;
+    setSearch(linkState.search);
+  }, [linkState.search]);
+
+  useEffect(() => {
+    if (!searchTypingRef.current && search === linkState.search) return;
+    const timer = setTimeout(() => {
+      const trimmed = search.trim();
+      if (trimmed === linkState.search && rowFilter == null) {
+        searchTypingRef.current = false;
+        return;
+      }
+      searchTypingRef.current = false;
+      setPage(1);
+      setSearchParams(
+        jobsLinkSearchParams({
+          status: filter,
+          monk: monkFilter,
+          search: trimmed,
+          row: null,
+        }),
+        { replace: true },
+      );
+    }, 350);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, filter, monkFilter, rowFilter, linkState.search, setSearchParams]);
+
+  const updateJobsLink = (patch, { replace = false } = {}) => {
+    searchTypingRef.current = false;
+    setPage(1);
+    setSearchParams(
+      jobsLinkSearchParams({
+        status: patch.status ?? filter,
+        monk: patch.monk ?? monkFilter,
+        search: patch.search ?? debouncedSearch,
+        row: patch.row !== undefined ? patch.row : rowFilter,
+      }),
+      { replace },
+    );
+  };
 
   useLayoutEffect(() => {
     setPage(1);
-  }, [filter, monkFilter, debouncedSearch]);
+  }, [filter, monkFilter, debouncedSearch, rowFilter]);
 
   useSheetCacheInvalidation(jobsQuery.refresh);
 
@@ -77,9 +129,17 @@ export default function Jobs() {
 
   useEffect(() => {
     if (monkFilter && monkOptions.length > 0 && !monkOptions.includes(monkFilter)) {
-      setMonkFilter('');
+      setSearchParams(
+        jobsLinkSearchParams({
+          status: filter,
+          monk: '',
+          search: debouncedSearch,
+          row: rowFilter,
+        }),
+        { replace: true },
+      );
     }
-  }, [monkFilter, monkOptions]);
+  }, [monkFilter, monkOptions, filter, debouncedSearch, rowFilter, setSearchParams]);
 
   useEffect(() => {
     if (!pageData?.total_pages) return;
@@ -97,8 +157,9 @@ export default function Jobs() {
       status: filter,
       search: debouncedSearch,
       monk: monkFilter,
+      row: rowFilter,
     });
-  }, [pageData, page, filter, debouncedSearch, monkFilter, isVisible]);
+  }, [pageData, page, filter, debouncedSearch, monkFilter, rowFilter, isVisible]);
 
   const filterCount = counts[filter] ?? 0;
   const activeQueryKey = jobsPageCacheKey({
@@ -107,9 +168,10 @@ export default function Jobs() {
     status: filter,
     search: debouncedSearch,
     monk: monkFilter,
+    row: rowFilter,
   });
   const queryMatchesTab = jobsQuery.cacheKey === activeQueryKey;
-  const filterScopeActive = Boolean(monkFilter || debouncedSearch);
+  const filterScopeActive = Boolean(monkFilter || debouncedSearch || rowFilter != null);
   const scopedTrackTotal = queryMatchesTab
     ? (pageData?.filter_total ?? counts.all ?? 0)
     : (counts.all ?? 0);
@@ -134,9 +196,14 @@ export default function Jobs() {
     jobsQuery.refresh();
   };
 
+  const handleHeaderRefresh = () => {
+    setRefreshing(true);
+    sheetRefresh();
+    window.setTimeout(() => setRefreshing(false), 600);
+  };
+
   const handleFilterChange = (value) => {
-    setPage(1);
-    setFilter(value);
+    updateJobsLink({ status: value, row: null });
     requestAnimationFrame(() => {
       document.getElementById(`filter-${value}`)?.scrollIntoView({
         inline: 'nearest',
@@ -153,13 +220,27 @@ export default function Jobs() {
 
   const handleRetryJob = async (job) => {
     if (!job?.row) return;
+
+    const ok = await confirm({
+      title: 'Retry render?',
+      message: `Queue a new render for row #${job.row}? This will re-run FFmpeg and upload.`,
+      confirmLabel: 'Retry',
+      cancelLabel: 'Cancel',
+      variant: 'default',
+    });
+    if (!ok) {
+      return;
+    }
+
     setActionError('');
     setRetryingRow(job.row);
     try {
       await retryJobRender(job.row);
+      showSuccess(`Retry queued for row #${job.row}.`);
       setTimeout(refreshSheet, 1500);
     } catch (e) {
       setActionError(e.message);
+      showError(e.message);
     } finally {
       setRetryingRow(null);
     }
@@ -185,9 +266,15 @@ export default function Jobs() {
       await scheduleJob(scheduleTarget.row, payload);
       setScheduleTarget(null);
       refreshSheet();
+      showSuccess(
+        payload.mode === 'repeat'
+          ? `Repeat schedule saved for row #${scheduleTarget.row}.`
+          : `Job scheduled for row #${scheduleTarget.row}.`,
+      );
     } catch (e) {
       setScheduleModalError(e.message);
       setActionError(e.message);
+      showError(e.message);
     } finally {
       setSchedulingRow(null);
     }
@@ -200,8 +287,10 @@ export default function Jobs() {
     try {
       await updateJobStatus(job.row, newStatus);
       refreshSheet();
+      showSuccess(`Row #${job.row} set to ${newStatus}.`);
     } catch (e) {
       setActionError(e.message);
+      showError(e.message);
     } finally {
       setUpdatingStatusRow(null);
     }
@@ -216,7 +305,9 @@ export default function Jobs() {
         subtitle={
           sheetTotal == null
             ? 'Live from Google Sheet'
-            : filterScopeActive
+            : rowFilter != null
+              ? `Row #${rowFilter}`
+              : filterScopeActive
               ? monkFilter
                 ? `${scopedTrackTotal.toLocaleString()} tracks · ${monkFilter}${
                     debouncedSearch ? ` · search “${debouncedSearch}”` : ''
@@ -224,6 +315,8 @@ export default function Jobs() {
                 : `${scopedTrackTotal.toLocaleString()} matches · search “${debouncedSearch}”`
               : `${sheetTotal.toLocaleString()} rows in Google Sheet`
         }
+        onRefresh={handleHeaderRefresh}
+        refreshing={refreshing}
       />
       <div ref={pageRef} className="page-content">
         {displayError && <ErrorBanner message={displayError} />}
@@ -265,14 +358,19 @@ export default function Jobs() {
                 value={monkFilter}
                 options={monkOptions}
                 onChange={(name) => {
-                  setMonkFilter(name);
-                  setPage(1);
+                  updateJobsLink({ monk: name });
                 }}
                 statusFilter={filter}
               />
             </div>
             <div className="jobs-toolbar-actions">
-              <CollapsibleSearch value={search} onChange={setSearch} />
+              <CollapsibleSearch
+                value={search}
+                onChange={(value) => {
+                  searchTypingRef.current = true;
+                  setSearch(value);
+                }}
+              />
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"

@@ -1,0 +1,73 @@
+:root {
+  --bg-base: #0f0e0c;
+  --bg-surface: #1a1814;
+  --bg-card: #221f1a;
+  --bg-hover: #2c2822;
+  --border: #352f26;
+  --border-light: #45403a;
+  --accent: #d4af37;
+  --accent-dim: rgba(212, 175, 55, 0.14);
+  --accent-mid: rgba(212, 175, 55, 0.28);
+  --accent-glow: rgba(212, 175, 55, 0.42);
+  --accent-hover: #c9a84c;
+  --accent-deep: #a8842a;
+  --green: #6aab6e;
+  --green-dim: rgba(106, 171, 110, 0.16);
+  --green-glow: rgba(106, 171, 110, 0.36);
+  --yellow: #d4a24a;
+  --yellow-dim: rgba(212, 162, 74, 0.16);
+  --red: #c75c5c;
+  --red-dim: rgba(199, 92, 92, 0.16);
+  --red-glow: rgba(199, 92, 92, 0.36);
+  --blue: #7a9bb8;
+  --blue-dim: rgba(122, 155, 184, 0.16);
+  --blue-glow: rgba(122, 155, 184, 0.36);
+  --text-primary: #f5efeb;
+  --text-secondary: #c5baa9;
+  --text-muted: #857a6e;
+  --sidebar-width: 240px;
+  --header-height: 60px;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 14px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.7);
+  --shadow-accent: 0 6px 28px rgba(212, 175, 55, 0.22);
+  --transition: 0.18s ease;
+
+  /* Legacy input tokens (prefer --field-* for new UI) */
+  --input-bg: rgba(0, 0, 0, 0.32);
+  --input-bg-hover: rgba(0, 0, 0, 0.4);
+  --input-bg-focus: rgba(0, 0, 0, 0.45);
+  --input-border: rgba(255, 255, 255, 0.08);
+  --input-border-hover: rgba(255, 255, 255, 0.14);
+  --input-shadow-focus: 0 0 0 3px var(--accent-dim), 0 0 20px rgba(212, 175, 55, 0.1);
+
+  /* Calm field system */
+  --field-bg: #2a2722;
+  --field-bg-hover: #302c27;
+  --field-bg-focus: #322e28;
+  --field-bg-readonly: rgba(0, 0, 0, 0.22);
+  --field-text: #ffffff;
+  --field-label-color: #8a8278;
+  --field-chevron: #a89870;
+  --field-placeholder: rgba(255, 255, 255, 0.38);
+  --field-radius-pill: 999px;
+  --field-min-height: 44px;
+  --field-min-height-lg: 48px;
+  --field-pad-y: 12px;
+  --field-pad-x: 16px;
+  --field-pad-lg-y: 14px;
+  --field-pad-lg-x: 18px;
+
+  /* Calendar event kinds */
+  --calendar-repeat: #a78bfa;
+  --calendar-repeat-dim: rgba(167, 139, 250, 0.18);
+  --calendar-priority: #f59e0b;
+  --calendar-priority-dim: rgba(245, 158, 11, 0.18);
+
+  /* Elevated surfaces */
+  --surface-modal: linear-gradient(170deg, #211f1b 0%, #1a1815 100%);
+  --surface-dropdown: linear-gradient(160deg, #26231e 0%, #201e19 100%);
+}
